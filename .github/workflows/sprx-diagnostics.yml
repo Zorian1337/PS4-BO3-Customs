@@ -8,6 +8,7 @@ on:
       - 'SPRX/t7_lua.cpp'
       - 'SPRX/t7_lua.hpp'
       - 'SPRX/script_error_budget.hpp'
+      - 'SPRX/mod_load_context.hpp'
       - 'SPRX/tests/**'
       - '.github/workflows/sprx-diagnostics.yml'
   pull_request:
@@ -34,3 +35,4 @@ jobs:
           build/diagnostics/error-budget
           python3 SPRX/tests/diagnostic_hook_checks.py
           python3 SPRX/tests/missing_import_lifetime_checks.py
+          python3 SPRX/tests/script_priority_context_checks.py
