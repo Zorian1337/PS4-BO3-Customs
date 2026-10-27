@@ -87,6 +87,7 @@ int main()
 '''
 
 TRANSITION_PREFIX = r'''
+#include <atomic>
 #include <cassert>
 #include <cstdarg>
 #include <cstdint>
