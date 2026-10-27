@@ -208,7 +208,7 @@ static bool EqualsNoCase(const char* a, const char* b) { return std::strcmp(a, b
 OWNER_MAIN = r"""
 int main()
 {
-    std::snprintf(g_scriptClaims[0].base, sizeof(g_scriptClaims[0].base), "%s", "scripts/zm/test.gsc");
+    std::snprintf(g_scriptClaims[0].base, sizeof(g_scriptClaims[0].base), "%s", "scripts/zm/test");
     g_scriptClaims[0].owner=5;
     g_scriptClaimCount=1;
     assert(ScriptOwner("scripts/zm/test.gsc")==5);
