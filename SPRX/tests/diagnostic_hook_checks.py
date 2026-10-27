@@ -35,7 +35,7 @@ static void* g_scriptErrorOriginal = (void*)Native;
 static uint32_t g_scriptErrors = 0;
 static T7Diagnostics::ScriptErrorBudget g_scriptBudget;
 static int T7Maps_ScriptOwner(const char*) { return 1; }
-static void T7Maps_TraceDiagnostics(const char*) {}
+void T7Maps_TraceDiagnostics(const char*) {}
 alignas(uintptr_t) static unsigned char vmMemory[512] = {};
 static uintptr_t g_base = (uintptr_t)vmMemory;
 constexpr uintptr_t kScrVmPub = 0;
