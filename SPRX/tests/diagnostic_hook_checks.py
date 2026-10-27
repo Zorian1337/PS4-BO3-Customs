@@ -203,6 +203,7 @@ static std::atomic<bool> g_claimLock{false};
 static ScriptClaim g_scriptClaims[kMaxScriptClaims];
 static int g_scriptClaimCount=0;
 static bool RangeReadable(uintptr_t p, size_t) { return p != 0; }
+static bool EqualsNoCase(const char* a, const char* b) { return std::strcmp(a, b) == 0; }
 """
 OWNER_MAIN = r"""
 int main()
