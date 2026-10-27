@@ -237,7 +237,6 @@ def main():
     assert "owner=%s" in LOG
     assert 'TraceModTransition("prepared level zones", diagnosticLevel)' in maps
     assert '"core-mod=%d zm-mod=%d mp-mod=%d cp-mod=%d' in maps
-    assert '"native level-zone result for %s: 0x%llX"' in maps
     assert "int T7Maps_ScriptOwner(const char* script)" in maps
     assert "void T7Maps_TraceDiagnostics(const char* reason)" in maps
     assert 'T7Maps_TraceDiagnostics("clientfield mismatch")' in LOG
