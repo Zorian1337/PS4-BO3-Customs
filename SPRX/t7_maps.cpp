@@ -500,6 +500,14 @@ static void*                  g_dispatchOriginal = nullptr;
 static DiagnosticRing<Dispatch, kDispatchesKept> g_dispatches;
 static std::atomic<uint32_t>  g_dispatchSkipped{0};
 static std::atomic<uint32_t>  g_spawnersDropped{0};
+struct GpuLevelContext
+{
+    uint64_t started;
+    char map[kNameMax];
+    uint32_t mods;
+    char names[kMaxStack][kNameMax];
+};
+static DiagnosticRing<GpuLevelContext, 1> g_gpuLevelContext;
 #endif
 static ModLoadContexts<> g_scriptLinkers;
 
@@ -2869,6 +2877,132 @@ static void ReportLine(const char* format, ...)
     g_reportUsed.store(at + length, std::memory_order_release);
 }
 
+struct GpuProgressSample
+{
+    bool frameValid = false, resourcesValid = false;
+    uintptr_t label = 0;
+    uint32_t completed = 0, wanted = 0, building = 0;
+    uint32_t images = 0, missingImages = 0, meshes = 0, missingMeshes = 0;
+    uint32_t blobs = 0, missingBlobs = 0;
+    int32_t pending = 0;
+    uint8_t started = 0, done = 0;
+    float sound = 0;
+};
+
+static GpuProgressSample ReadGpuProgress()
+{
+    GpuProgressSample sample;
+    if (RangeReadable(g_base + kGpuFrameLabel, sizeof(uintptr_t)) &&
+        RangeReadable(g_base + kFrontendData, sizeof(uintptr_t)))
+    {
+        sample.label = *(const volatile uintptr_t*)(g_base + kGpuFrameLabel);
+        const uintptr_t data = *(const volatile uintptr_t*)(g_base + kFrontendData);
+        // Only the two known frame buffers have the expected layout.
+        if (data == g_base + kFrameDataA || data == g_base + kFrameDataB)
+        {
+            const uintptr_t other = g_base + (data == g_base + kFrameDataA ? kFrameDataB : kFrameDataA);
+            if (sample.label >= 0x10000 && sample.label < 0x800000000000ull && RangeReadable(sample.label, 4) &&
+                RangeReadable(other + kFrameLabelWanted, 4) && RangeReadable(data + kFrameLabelWanted, 4))
+            {
+                sample.completed = *(const volatile uint32_t*)sample.label;
+                sample.wanted = *(const volatile uint32_t*)(other + kFrameLabelWanted);
+                sample.building = *(const volatile uint32_t*)(data + kFrameLabelWanted);
+                sample.frameValid = true;
+            }
+        }
+    }
+
+    const struct { uintptr_t offset; size_t bytes; } fields[] = {
+        { kPartsRequired, kPartWords * sizeof(uint32_t) }, { kPartsInMemory, kPartWords * sizeof(uint32_t) },
+        { kMeshRequired, kMeshWords * sizeof(uint32_t) }, { kMeshInMemory, kMeshWords * sizeof(uint32_t) },
+        { kStreamBlobs, kStreamBlobCount * 56 }, { kStreamPending, sizeof(int32_t) },
+        { kStreamStarted, 1 }, { kStreamDone, 1 }, { kSoundLoaded, sizeof(float) },
+    };
+    for (const auto& field : fields)
+        if (!RangeReadable(g_base + field.offset, field.bytes))
+            return sample;
+
+    sample.pending = *(const volatile int32_t*)(g_base + kStreamPending);
+    sample.started = *(const volatile uint8_t*)(g_base + kStreamStarted);
+    sample.done = *(const volatile uint8_t*)(g_base + kStreamDone);
+    sample.sound = *(const volatile float*)(g_base + kSoundLoaded);
+    for (int i = 0; i < kPartWords; ++i)
+    {
+        const uint32_t required = ((const volatile uint32_t*)(g_base + kPartsRequired))[i];
+        const uint32_t loaded = ((const volatile uint32_t*)(g_base + kPartsInMemory))[i];
+        sample.images += (uint32_t)__builtin_popcount(required);
+        sample.missingImages += (uint32_t)__builtin_popcount(required & ~loaded);
+    }
+    for (int i = 0; i < kMeshWords; ++i)
+    {
+        const uint32_t required = ((const volatile uint32_t*)(g_base + kMeshRequired))[i];
+        const uint32_t loaded = ((const volatile uint32_t*)(g_base + kMeshInMemory))[i];
+        sample.meshes += (uint32_t)__builtin_popcount(required);
+        sample.missingMeshes += (uint32_t)__builtin_popcount(required & ~loaded);
+    }
+    uint32_t count[5] = {}, loaded[5] = {};
+    CountBlobs(count, loaded);
+    for (int i = 0; i < 5; ++i)
+    {
+        sample.blobs += count[i];
+        sample.missingBlobs += count[i] - loaded[i];
+    }
+    sample.resourcesValid = true;
+    return sample;
+}
+
+static void ReportGpuProgress(const char* reason, uint64_t level, uint64_t now)
+{
+    // Only StallWatch calls this. Fixed budgets below keep normal-game logging small.
+    static GpuProgressSample previous;
+    static uint64_t previousLevel = 0, previousAt = 0, changedAt = 0;
+    static bool contextReported = false;
+    if (previousLevel != level || now < previousAt)
+    {
+        previous = {};
+        changedAt = now;
+        contextReported = false;
+    }
+    if (!contextReported)
+    {
+        GpuLevelContext context[1]; uint64_t count = 0;
+        if (g_gpuLevelContext.TrySnapshot(context, count) && count && context[0].started == level)
+        {
+            ReportLine("[GPU] level=%s; %u routed mod(s) at the level request", context[0].map, context[0].mods);
+            for (uint32_t i = 0; i < context[0].mods && i < kMaxStack; ++i)
+                ReportLine("[GPU] level-request mod %u: %s", i + 1, context[0].names[i]);
+            contextReported = true;
+        }
+        else
+            ReportLine("[GPU] level context unavailable for this sample");
+    }
+    const GpuProgressSample sample = ReadGpuProgress();
+    const bool comparable = previousLevel == level && previous.frameValid && sample.frameValid &&
+                            previous.label == sample.label && now >= previousAt;
+    const bool advanced = comparable && previous.completed != sample.completed;
+    if (!comparable || advanced)
+        changedAt = now;
+    const uint64_t gap = previousAt && now >= previousAt && previousLevel == level ? now - previousAt : 0;
+    const uint64_t frame = g_lastFrameAt.load(std::memory_order_relaxed);
+    ReportLine("[GPU] %s: age=%llu ms, sample-gap=%llu ms, client-frame-seen=%u client-frame-age=%llu ms, native frames=%u, assets linked=%u",
+               reason, (unsigned long long)(level && now >= level ? (now - level) / 1000 : 0),
+               (unsigned long long)(gap / 1000), frame ? 1u : 0u,
+               (unsigned long long)(frame && now >= frame ? (now - frame) / 1000 : 0),
+               g_comFrames.load(std::memory_order_relaxed), g_linkCount.load(std::memory_order_relaxed));
+    ReportLine("[GPU] frame-readable=%u label=%llX completed=%u wanted=%u building=%u; completion-changed=%s unchanged=%llu ms",
+               sample.frameValid ? 1u : 0u, (unsigned long long)sample.label, sample.completed, sample.wanted, sample.building,
+               comparable ? (advanced ? "yes" : "no") : "unknown",
+               (unsigned long long)(comparable && now >= changedAt ? (now - changedAt) / 1000 : 0));
+    ReportLine("[GPU] resources-readable=%u pending=%d started=%u done=%u; missing required image parts=%u/%u mesh parts=%u/%u "
+               "lighting blobs=%u/%u; sound-loaded=%.3f (observed counters, not a crash diagnosis)",
+               sample.resourcesValid ? 1u : 0u, sample.pending, sample.started, sample.done,
+               sample.missingImages, sample.images, sample.missingMeshes, sample.meshes, sample.missingBlobs, sample.blobs,
+               (double)sample.sound);
+    previous = sample;
+    previousLevel = level;
+    previousAt = now;
+}
+
 static void RaiseThread()
 {
     const ScePthread self = scePthreadSelf();
@@ -3080,14 +3214,7 @@ static void SampleStalledThreads(uint32_t round, uint64_t stalledMs)
                 *(const uint8_t*)(g_base + kStreamStarted), *(const uint8_t*)(g_base + kStreamDone), loaded[0], count[0], loaded[1],
                 count[1], loaded[2], count[2], loaded[4], count[4]);
 
-    const uintptr_t label = *(const uintptr_t*)(g_base + kGpuFrameLabel);
-    const uintptr_t data = *(const uintptr_t*)(g_base + kFrontendData);
-    const uintptr_t other = g_base + (data == g_base + kFrameDataA ? kFrameDataB : kFrameDataA);
-
-    if (label >= 0x10000 && label < 0x800000000000ull && RangeReadable(label, 4))
-        ReportLine("[Stall] the GPU has finished frame %u; the main thread waits for frame %u (the frame being built is %u)",
-                   *(const uint32_t*)label, *(const uint32_t*)(other + kFrameLabelWanted),
-                   data ? *(const uint32_t*)(data + kFrameLabelWanted) : 0);
+    ReportGpuProgress("gameplay-stall", g_levelStart.load(std::memory_order_relaxed), sceKernelGetProcessTime());
 
     for (int i = 0; i < kStreamBlobCount; ++i)
     {
@@ -3095,7 +3222,8 @@ static void SampleStalledThreads(uint32_t round, uint64_t stalledMs)
         const uint32_t state = *(const uint32_t*)(entry + 32);
         const uintptr_t item = *(const uintptr_t*)(entry + 48);
 
-        if (!state || item < 0x10000 || item >= 0x800000000000ull || *(const uint32_t*)(item + 52) < (1u << 20))
+        if (!state || item < 0x10000 || item >= 0x800000000000ull || !RangeReadable(item, 56) ||
+            *(const uint32_t*)(item + 52) < (1u << 20))
             continue;
 
         const uint32_t category = *(const uint8_t*)(entry + 37) < 5 ? *(const uint8_t*)(entry + 37) : 3;
@@ -3105,8 +3233,7 @@ static void SampleStalledThreads(uint32_t round, uint64_t stalledMs)
                    (*(const uint8_t*)(item + 32) & 0x80) ? "streamed" : "not streamed");
     }
 
-    if (round == 1)
-        ReportDispatches();
+    ReportDispatches();
 
     SampleThreads();
 }
@@ -3170,6 +3297,8 @@ static void* StallWatch(void*)
     uint32_t seenLinks = 0;
     uint32_t seenFrames = 0;
     uint64_t quietSince = 0;
+    uint64_t gpuCheckpointAt = 0;
+    uint32_t gpuCheckpoints = 0;
 
     for (;;)
     {
@@ -3178,6 +3307,7 @@ static void* StallWatch(void*)
         const uint64_t start = g_levelStart.load(std::memory_order_relaxed);
         const uint32_t links = g_linkCount.load(std::memory_order_relaxed);
         const uint32_t frames = g_comFrames.load(std::memory_order_relaxed);
+        const uint64_t now = sceKernelGetProcessTime();
 
         if (start != level)
         {
@@ -3185,24 +3315,38 @@ static void* StallWatch(void*)
             lastRound = 0;
             rounds = 0;
             quietSince = 0;
+            gpuCheckpointAt = 0;
+            gpuCheckpoints = 0;
         }
 
         if (links != seenLinks || frames != seenFrames || !quietSince)
         {
             seenLinks = links;
             seenFrames = frames;
-            quietSince = sceKernelGetProcessTime();
+            quietSince = now;
             idleRounds = 0;
         }
 
-        const uint64_t quiet = sceKernelGetProcessTime() - quietSince;
+        const uint64_t quiet = now >= quietSince ? now - quietSince : 0;
+        if (start && g_usermapLevel.load(std::memory_order_relaxed) && gpuCheckpoints < 7 &&
+            now >= start && now - start <= 30000000 &&
+            (!gpuCheckpointAt || now - gpuCheckpointAt >= 5000000))
+        {
+            ReportGpuProgress("checkpoint", start, now);
+            gpuCheckpointAt = now;
+            ++gpuCheckpoints;
+        }
 
         if (idleRounds < kStallRounds && quiet >= kLoadStallUs * (idleRounds + 1))
         {
+            const bool loading = start && g_levelFrames.load(std::memory_order_relaxed) < kStallArmFrames;
             ReportLine("[Stall] the game has made no progress for %llu s (no frame, no asset linked)%s",
-                       (unsigned long long)(quiet / 1000000), start ? " while a level loads" : "");
+                       (unsigned long long)(quiet / 1000000), loading ? " while a level loads" : "");
             g_poolsWanted.store(true, std::memory_order_release);
             ++idleRounds;
+            ReportGpuProgress(loading ? "load-stall" : "engine-idle", start, now);
+            if (start && g_usermapLevel.load(std::memory_order_relaxed))
+                ReportDispatches();
             SampleThreads();
             continue;
         }
@@ -3214,10 +3358,12 @@ static void* StallWatch(void*)
             g_levelFrames.load(std::memory_order_relaxed) < kStallArmFrames)
             continue;
 
-        const uint64_t now = sceKernelGetProcessTime();
         const uint64_t last = g_lastFrameAt.load(std::memory_order_relaxed);
 
-        if (!last || now - last < kStallUs || (lastRound && now - lastRound < kStallGapUs))
+        // A frame can publish a newer timestamp after this poll captured now.
+        // Unsigned subtraction would otherwise turn fresh progress into a false stall.
+        if (!last || now < last || now - last < kStallUs ||
+            (lastRound && (now < lastRound || now - lastRound < kStallGapUs)))
             continue;
 
         lastRound = now;
@@ -3986,6 +4132,21 @@ static uint64_t LoadXAssets_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4
             g_levelFrames.store(0, std::memory_order_relaxed);
             g_lastFrameAt.store(0, std::memory_order_relaxed);
             g_levelStart.store(sceKernelGetProcessTime(), std::memory_order_relaxed);
+            GpuLevelContext gpuContext{};
+            gpuContext.started = g_levelStart.load(std::memory_order_relaxed);
+            snprintf(gpuContext.map, sizeof(gpuContext.map), "%s", customName[0] ? customName : "(unknown)");
+            if (!customName[0])
+                for (int i = 0; i < count; ++i)
+                    if (zones[i].name && (zones[i].allocFlags & 0x100))
+                    {
+                        snprintf(gpuContext.map, sizeof(gpuContext.map), "%s", zones[i].name);
+                        break;
+                    }
+            gpuContext.mods = g_stackCount > 0 ? (uint32_t)(g_stackCount < kMaxStack ? g_stackCount : kMaxStack) : 0;
+            for (uint32_t i = 0; i < gpuContext.mods; ++i)
+                snprintf(gpuContext.names[i], kNameMax, "%s", g_stack[i].mod.name);
+            g_gpuLevelContext.Reset();
+            g_gpuLevelContext.TryPush(gpuContext);
             g_dvarReads.store(0, std::memory_order_release);
 
             g_dispatches.Reset();

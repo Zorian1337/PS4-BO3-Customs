@@ -84,6 +84,36 @@ Grab it before you start the game again: every launch starts a new log.
 Also attach the tool's log for the map that causes the issue: press **Log** in the tool, then **Save**.
 If the tool was closed since, its logs are in `work\analysis\gui_logs` beside the tool.
 
+### DEBUG GPU/streaming captures (pending next build)
+
+The source now adds `[GPU]` records to the existing `/data/BO3-Customs/log.txt`
+and debug-output path. They run on the existing watchdog, with up to seven
+early checkpoints in the first 30 seconds of a custom level and snapshots at
+the existing stall-report intervals. No extra rendering-thread logging, GPU
+queue resets or forced completion values are used.
+
+Each capture includes the copied level/routed-mod context, observed GPU
+completed/waited/building frame values, changes since the previous sample,
+client-frame age, asset-link counter, pending streaming, missing required image
+and mesh parts, lighting-blob counts and sound-loading fraction. Unreadable
+fields are marked unavailable; their zero values must not be interpreted as
+successful loading. Resource counters are observations taken over time, not an
+atomic engine snapshot or an automatic crash diagnosis.
+
+An unchanged GPU value alone does not prove a GPU fault: the CPU may have
+stopped submitting work. Include the surrounding `[Stall]` thread samples,
+`[Stream]` entries and engine errors so those cases can be distinguished.
+Loading/early-level stalls and later engine-idle stalls are labeled separately.
+Compute-record snapshots repeat on the bounded stall rounds for comparison.
+
+For a useful report, start a fresh BO3 process, reproduce one failing map run,
+and save the log before starting BO3 again. Record PS4/PS5, the exact SPRX build,
+map/version, internal or external storage and every enabled mod. If possible,
+compare the identical converted files internally and externally with mods off.
+The existing diagnostic memory buffer is capped at 256 KiB per game process;
+fresh runs preserve room for the failure instead of accumulating unrelated runs.
+These additions are source changes and are not in the published dev.25 package.
+
 ## Console layout
 
 <details>

@@ -172,3 +172,27 @@ writer to prove capture/snapshot/reset do not wait. They pass; changed target
 sources pass SDK syntax checks. These source defects are established; no claim
 is made that a particular map's GPU stall is cured. Console A/B testing remains
 necessary to separate file/streaming errors from unfinished GPU work.
+
+## Bounded GPU/streaming progress diagnostics
+
+The DEBUG watchdog now records early custom-level checkpoints and progress
+snapshots at both loading/idle and gameplay stall reports. Captures include
+owned level/routed-mod context, GPU completion/wanted/building values and their
+changes, client-frame age, native frame/link counters, pending stream work and
+missing required image/mesh/lighting counts. Resource reads are observational;
+an unchanged GPU counter is not treated as proof of a GPU fault.
+
+Frame data must match one of the known native frame buffers before its fields
+are read. Invalid labels or unreadable tables are reported unavailable, and
+transient lighting descriptors are checked before inspection. The prior stall
+report could dereference an arbitrary nonzero frontend pointer. No new engine
+offsets, GPU writes, watchdog threads or rendering-thread file I/O were added.
+The watchdog also checks timestamp order before unsigned subtraction, so a
+concurrent newer frame timestamp cannot wrap elapsed time into a false stall.
+
+Source fixtures execute the production reader, formatter and watchdog with
+controlled memory/clock inputs: they cover invalid pointers, missing tables,
+coherent context, completion changes, read-only observation, bounded checkpoints,
+three loading/idle reports, newer concurrent frame timestamps and per-level
+budget reset. Hardware validation still
+requires an approved DEBUG build and a reproducible console run.
