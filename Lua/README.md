@@ -8,14 +8,14 @@ are displayed as distinct states. Choose/Toggle cannot change personal choices
 while the host owns the session.
 
 For deployment, this file replaces `/data/BO3-Customs/ui_scripts/mods.lua`.
-Retain the existing other six `ui_scripts` files and all39 compiled `lui` files.
+Retain the existing other six `ui_scripts` files and all 39 compiled `lui` files.
 The original supplied archive is unchanged. This is a source companion to the
-SPRX; it is not embedded in the binary and contains no8-player mod features.
+SPRX; it is not embedded in the binary and contains no 8-player mod features.
 
 With an older SPRX that does not publish session selection, the UI retains its
 existing personal-choice behavior. Runtime validation is still required.
 
-Test using an existing Lua5.1 interpreter:
+Test using an existing Lua 5.1 interpreter:
 
 ```
 python3 SPRX/tests/session_mod_ui_checks.py Lua/ui_scripts/mods.lua /path/to/lua
@@ -26,10 +26,10 @@ against a small UI mock. It does not emulate the BO3 UI engine.
 
 ## What changed for dev.22
 
-Only `ui_scripts/mods.lua` changed in the supplied46-file bundle. The other
-six editable scripts and39 compiled chunks are byte-identical to the original
+Only `ui_scripts/mods.lua` changed in the supplied 46-file bundle. The other
+six editable scripts and 39 compiled chunks are byte-identical to the original
 archive. The complete companion ZIP is available locally at
-`build/lua-dev22/BO3-Customs-lua-dev.22.zip` (163601bytes).
+`build/lua-dev22/BO3-Customs-lua-dev.22.zip` (163,601 bytes).
 
 The new Mods UI reads the SPRX's host-session list instead of showing only the
 client's personal tick list. It shows whether those host mods are selected or
@@ -63,7 +63,7 @@ Their global guards prevent duplicate installation within the same Lua state.
 `maptable.lua` expects the current map table as its vararg input rather than a
 standalone menu invocation.
 
-## The39 compiled `lui` chunks
+## The 39 compiled `lui` chunks
 
 These files use the BO3 LuaQ bytecode header despite ending in `.lua`. They
 remain unchanged. Their roles below follow their module names and the visible
@@ -129,12 +129,12 @@ For joining, distinguish these stages in the native log:
 3. Required core/mode zones loaded and ready.
 4. Client admitted to gameplay with matching native asset/script state.
 
-The dev.22 Lua change makes stage2 visible accurately; the SPRX activation gate
-checks stage3. A successful download or a ticked UI row does not establish
-stage4. The supplied failed join reports `EXE_ERR_BG_CACHE` (Client/Server Index
+The dev.22 Lua change makes stage 2 visible accurately; the SPRX activation gate
+checks stage 3. A successful download or a ticked UI row does not establish
+stage 4. The supplied failed join reports `EXE_ERR_BG_CACHE` (Client/Server Index
 Mismatch), which differs from `EXE_CLIENT_FIELD_MISMATCH`.
 
-This bundle contains no custom18-player scoreboard, revive implementation,
+This bundle contains no custom 18-player scoreboard, revive implementation,
 GobbleGum replacement, or spawn queue. Those remain in the separate mod project.
 
 ## Installing the current change
@@ -144,5 +144,5 @@ installed on the console. To apply only this reviewed Lua change, replace
 `/data/BO3-Customs/ui_scripts/mods.lua` with the tracked file from this folder,
 then fully restart BO3 so its existing global installation guard is recreated.
 The complete ZIP includes `lui/` and `ui_scripts/` at its root for a full bundle
-installation, but the other45 files do not need replacement for this change.
+installation, but the other 45 files do not need replacement for this change.
 Retain any newer console-side changes to those other files.
