@@ -6606,10 +6606,13 @@ void T7Maps_Install(uintptr_t base)
     g_buildMatched = true;
     g_base = base;
 
-    ScanAll();
+    // A saved selection is never a startup instruction. Clear it in memory
+    // before scanning or installing hooks, even if the old file cannot be removed.
     g_chosenCount = 0;
     sceKernelUnlink(k_chosenModFile);
+    T7Log_Write("[Mods] starting with all mods disabled; select mods again from the menu");
 
+    ScanAll();
     InstallHooks(base);
 }
 

@@ -41,6 +41,25 @@ If your console runs an FTP server, the tool does steps 1, 2 and 4 for you: see 
 
 Mods and maps that save (stats, settings) keep their files in `/data/BO3-Customs/saves/<mod or map>/`.
 
+## Recovering from a broken mod
+
+Fully close BO3 and launch it again. Selected mods start disabled on a fresh game
+process; `active_mod.txt` is not automatically loaded. This remains true if the
+console cannot delete that file. Returning to the main menu or restarting a map
+is not a full restart and can retain loaded mod code.
+
+Once back in the menu, leave the broken mod unticked. To remove it, close BO3
+and remove only that mod's folder from the location where it was installed:
+`/data/BO3-Customs/mods/` or the external drive's `BO3-Customs/mods/` folder.
+Installed files and map/mod saves are separate; removing a mod does not require
+removing your game save or the `BO3-Customs/saves/` folder.
+
+If a host sends the same broken mod again, avoid rejoining that lobby until the
+host disables or replaces it. Host-session activation can load mods again after
+startup. Menu recovery can automatically untick a local UI mod whose menus fail
+to build, but it cannot recover from every native crash or freeze; use a full
+restart in that case.
+
 ## USB and extended storage
 
 Maps and mods can also sit on a USB drive or extended storage, in a `BO3-Customs` folder at the root of the drive

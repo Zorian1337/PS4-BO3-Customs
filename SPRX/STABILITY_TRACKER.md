@@ -106,3 +106,21 @@ Implemented corrections:
 Validation: the production-source storage fixture exercises partial writes; failed read/stat/open/flush/close/rename paths; retrying migration; exact-boundary/oversized config preservation; malformed numeric/path records; aggregate-size rejection; TCP download replacement; and competing readers/writers (4,000 writes and 6,000 reads). It runs with AddressSanitizer/UndefinedBehaviorSanitizer. All 14 target translation units pass the installed OpenOrbis SDK syntax checks. The existing diagnostic, BG-cache, frontend, logging, routing, import-lifetime, mod-stack, host activation/readiness/publication and script-priority fixtures pass. CI runs the new storage fixture on relevant source changes. No new SPRX package or console validation was performed for this source pass.
 
 Separate log triage: the supplied dev.23 capture named `7-11error` records `zm_psychward`, two observed player slots, and selected/loaded mod counts of zero at both map-load transitions. It contains 77 emitted GSC runtime-error records, including repeated craftables/AAT undefined-field faults and unsupported perk-stat paths. Several clusters repeat after `fast_restart`. The capture ends without a native crash, Lua/UI error or clientfield-mismatch record. These script faults remain unattributed (`owner=untracked`); the log does not establish an 8-player-mod or native-hook cause. Do not suppress script exceptions or replace unrelated map scripts as a claimed fix. Next evidence needed is the matching map script version plus its failing initialization/restart path; preserve working map and mod behavior while identifying that source.
+
+## Saved-mod startup recovery review
+
+The chosen-mod file is a selection record, not an automatic startup manifest.
+`T7Maps_Install` already starts with zero selected mods and never reads this file.
+A full process restart therefore provides a recovery path after enabling a broken
+mod; map restarts and returning to menus are not equivalent. Selection writes
+made atomic in dev.25 did not introduce restoration across full game restarts.
+
+Moved the in-memory reset ahead of catalog scanning and hook installation and
+added an explicit startup log. The regression executes the production installer
+with a failed deletion of the stale selection file, verifies zero selection at
+scan/hook entry, checks incompatible-probe retry and repeated-call behavior.
+The README now explains recovery and removing only the offending installed mod.
+A lobby host can request that mod again on joining, so avoid rejoining that host
+until it disables the offending mod. Existing local menu recovery is not a native
+crash handler, and no claim is made that arbitrary mod crashes are prevented.
+No new SPRX build or release was created for this review.
