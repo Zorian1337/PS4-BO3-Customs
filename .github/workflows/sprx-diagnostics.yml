@@ -39,8 +39,11 @@ jobs:
           python3 SPRX/tests/bg_cache_snapshot_checks.py
           python3 SPRX/tests/missing_import_lifetime_checks.py
           python3 SPRX/tests/game_log_bridge_checks.py
+<<<<<<< HEAD
           python3 SPRX/tests/share_install_checks.py
           python3 SPRX/tests/session_mod_ready_checks.py
           python3 SPRX/tests/session_common_activation_checks.py
           python3 SPRX/tests/session_mod_publish_checks.py
+=======
+>>>>>>> upstream/main
           python3 SPRX/tests/storage_safety_checks.py
