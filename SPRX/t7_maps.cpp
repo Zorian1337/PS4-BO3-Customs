@@ -1,5 +1,6 @@
 #include "headers.hpp"
 #include "t7_lua_files.hpp"
+#include "diagnostic_ring.hpp"
 #include "t7_maps.hpp"
 #include "mod_load_context.hpp"
 #include "t7_mapimages.hpp"
@@ -496,8 +497,8 @@ static const uint8_t          k_dispatch[] = { 0x55, 0x48, 0x89, 0xE5, 0x41, 0x5
                                                0x50, 0x41, 0x89, 0xCF, 0x41, 0x89, 0xD4, 0x41, 0x89, 0xF5, 0x48, 0x89, 0xFB };
 static Detour                 g_dispatchDetour{};
 static void*                  g_dispatchOriginal = nullptr;
-static Dispatch               g_dispatches[kDispatchesKept];
-static std::atomic<uint32_t>  g_dispatchCount{0};
+static DiagnosticRing<Dispatch, kDispatchesKept> g_dispatches;
+static std::atomic<uint32_t>  g_dispatchSkipped{0};
 static std::atomic<uint32_t>  g_spawnersDropped{0};
 #endif
 static ModLoadContexts<> g_scriptLinkers;
@@ -1447,8 +1448,14 @@ static uint64_t FileOpen_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
     char mapPath[256] = {};
 #ifdef _DEBUG
     char diagnosticRel[128] = {};
-    int diagnosticPackage = -1;
+    char diagnosticPackage[kNameMax] = {};
 #endif
+
+    const auto keepRoute = [&](const char* route) {
+        const int length = snprintf(mapPath, sizeof(mapPath), "%s", route);
+        if (length >= 0 && (size_t)length < sizeof(mapPath))
+            a1 = (uint64_t)mapPath;
+    };
 
     if (path)
     {
@@ -1463,7 +1470,7 @@ static uint64_t FileOpen_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
 
             if (mod)
             {
-                a1 = (uint64_t)mod->path;
+                keepRoute(mod->path);
             }
             else
             {
@@ -1483,9 +1490,11 @@ static uint64_t FileOpen_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
                             if (!nativeBootstrap && (mapPackage < 0 || g_files[i].package == mapPackage))
                                 found = i;
 #ifdef _DEBUG
-                            else
+                            else if (nativeBootstrap)
                                 T7Log_Write("[Routing] ignored custom override of native bootstrap %s at %s", rel,
                                             g_files[i].path);
+                            else
+                                T7Log_Write("[Routing] ignored %s from another map package at %s", rel, g_files[i].path);
 #endif
                             break;
                         }
@@ -1495,12 +1504,12 @@ static uint64_t FileOpen_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
                         found = LanguageCompanion(rel);
 
                     if (found >= 0)
-                        a1 = (uint64_t)g_files[found].path;
+                        keepRoute(g_files[found].path);
                 }
 #ifdef _DEBUG
                 if (mapPackage >= 0)
                 {
-                    diagnosticPackage = mapPackage;
+                    snprintf(diagnosticPackage, sizeof(diagnosticPackage), "%s", g_packages[mapPackage].name);
                     snprintf(diagnosticRel, sizeof(diagnosticRel), "%s", rel);
                 }
 #endif
@@ -1516,9 +1525,9 @@ static uint64_t FileOpen_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
 #endif
     const uint64_t result = ((Hook_t)g_openOriginal)(a1, a2, a3, a4, a5, a6, x0, x1, x2, x3, x4, x5, x6, x7);
 #ifdef _DEBUG
-    if (diagnosticPackage >= 0)
+    if (diagnosticPackage[0])
         T7Log_Write("[MapLoad] open %s -> %s (package %s, fd %d)", diagnosticRel, (const char*)a1,
-                    g_packages[diagnosticPackage].name, (int32_t)result);
+                    diagnosticPackage, (int32_t)result);
     else if (externalRedirect)
         T7Log_Write("[Routing] external open %s -> %s: fd %d, call %llu us", path, routed, (int32_t)result,
                     (unsigned long long)(sceKernelGetProcessTime() - openedAt));
@@ -2670,7 +2679,7 @@ static uint64_t Dispatch_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
 
         if (commands)
         {
-            Dispatch& kept = g_dispatches[g_dispatchCount.fetch_add(1, std::memory_order_relaxed) % kDispatchesKept];
+            Dispatch kept{};
 
             kept.commands = commands;
             kept.label = *(const uintptr_t*)(commands + kCommandsLabel);
@@ -2681,6 +2690,8 @@ static uint64_t Dispatch_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
             kept.y = (uint32_t)a3;
             kept.z = (uint32_t)a4;
             kept.frame = g_levelFrames.load(std::memory_order_relaxed);
+            if (!g_dispatches.TryPush(kept))
+                g_dispatchSkipped.fetch_add(1, std::memory_order_relaxed);
         }
     }
 
@@ -2691,24 +2702,35 @@ static void ReportLine(const char* format, ...);
 
 static void ReportDispatches()
 {
-    const uint32_t count = g_dispatchCount.load(std::memory_order_relaxed);
-    const uint32_t kept = count < kDispatchesKept ? count : kDispatchesKept;
-
     if (!g_dispatchOriginal)
     {
         ReportLine("[Stall] compute jobs are not recorded: the dispatch routine did not match");
         return;
     }
 
-    ReportLine("[Stall] %u compute jobs recorded this level, the last %u kept; %u GPU particle requests with nothing to spawn left out",
-               count, kept, g_spawnersDropped.load(std::memory_order_relaxed));
+    static Dispatch snapshot[kDispatchesKept];
+    static std::atomic<bool> reporting{false};
+    if (reporting.exchange(true, std::memory_order_acquire))
+        return;
+    uint64_t count = 0;
+    if (!g_dispatches.TrySnapshot(snapshot, count))
+    {
+        reporting.store(false, std::memory_order_release);
+        ReportLine("[Stall] compute recorder is busy; snapshot skipped without waiting");
+        return;
+    }
+    const uint32_t kept = count < kDispatchesKept ? (uint32_t)count : kDispatchesKept;
+    ReportLine("[Stall] %llu compute jobs recorded this level, the last %u kept; %u busy diagnostic captures skipped; "
+               "%u GPU particle requests with nothing to spawn left out",
+               (unsigned long long)count, kept, g_dispatchSkipped.load(std::memory_order_relaxed),
+               g_spawnersDropped.load(std::memory_order_relaxed));
 
     uintptr_t seen[16] = {};
     int contexts = 0;
 
     for (uint32_t back = 0; back < kept; ++back)
     {
-        const Dispatch& job = g_dispatches[(count - 1 - back) % kDispatchesKept];
+        const Dispatch& job = snapshot[back];
         bool known = false;
 
         for (int i = 0; i < contexts; ++i)
@@ -2719,21 +2741,22 @@ static void ReportDispatches()
 
         seen[contexts++] = job.label;
 
-        const uint32_t done = *(const uint32_t*)job.label;
+        const uint32_t done = *(const volatile uint32_t*)job.label;
         ReportLine("[Stall] command list %llX (label %llX): the GPU has finished compute job %u; the newest sent there is %u",
                    (unsigned long long)job.commands, (unsigned long long)job.label, done, job.number);
     }
 
     for (uint32_t back = 0; back < kept && back < 96; ++back)
     {
-        const Dispatch& job = g_dispatches[(count - 1 - back) % kDispatchesKept];
+        const Dispatch& job = snapshot[back];
         const bool readable = job.label >= 0x10000 && job.label < 0x800000000000ull && RangeReadable(job.label, 4);
-        const uint32_t done = readable ? *(const uint32_t*)job.label : 0;
+        const uint32_t done = readable ? *(const volatile uint32_t*)job.label : 0;
 
         ReportLine("[Stall] compute job %u on %llX: sent from %llX, %u x %u x %u groups, shader %llX, client frame %u%s",
                    job.number, (unsigned long long)job.commands, (unsigned long long)(job.caller - g_base), job.x, job.y, job.z,
                    (unsigned long long)job.shader, job.frame, !readable ? "" : job.number > done ? ", NOT finished" : "");
     }
+    reporting.store(false, std::memory_order_release);
 }
 
 static void CaptureContext(StallSample& sample, const void* context)
@@ -3965,7 +3988,8 @@ static uint64_t LoadXAssets_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4
             g_levelStart.store(sceKernelGetProcessTime(), std::memory_order_relaxed);
             g_dvarReads.store(0, std::memory_order_release);
 
-            g_dispatchCount.store(0, std::memory_order_relaxed);
+            g_dispatches.Reset();
+            g_dispatchSkipped.store(0, std::memory_order_relaxed);
             g_spawnersDropped.store(0, std::memory_order_relaxed);
 
             for (int32_t& frozen : g_lastFrozen)
@@ -6759,13 +6783,24 @@ bool T7Maps_ModPreviewFile(uint32_t key, char* path, size_t size)
     return false;
 }
 
-const char* T7Maps_PreviewFile(const char* map)
+bool T7Maps_PreviewFile(const char* map, char* out, size_t size)
 {
     using namespace T7Maps;
 
+    if (!out || !size)
+        return false;
+    out[0] = 0;
     ListReader reading;
     const int package = g_base && map ? MapPackage(map) : -1;
-    return package >= 0 && g_packages[package].preview[0] ? g_packages[package].preview : nullptr;
+    if (package < 0 || !g_packages[package].preview[0])
+        return false;
+    const int length = snprintf(out, size, "%s", g_packages[package].preview);
+    if (length < 0 || (size_t)length >= size)
+    {
+        out[0] = 0;
+        return false;
+    }
+    return true;
 }
 
 void T7Maps_RequestApply()

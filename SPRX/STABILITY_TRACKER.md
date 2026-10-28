@@ -147,3 +147,28 @@ Lua 5.1 production-callback tests and native file-reader fault tests pass. The
 changed native translation units pass installed-SDK syntax checks. These checks
 do not emulate BO3/PS4; console activation, map selection and unloading remain
 runtime validation targets. No new package has been built for these changes.
+
+## Asset-route lifetime and GPU diagnostic publication
+
+Source review found native file opens could retain pointers into the mutable
+catalog after releasing its reader guard. Redirected mod/global paths and the
+diagnostic package name are now copied before unlocking. Native I/O is performed
+without holding the catalog lock. Preview filename lookup likewise copies into
+caller storage and rejects truncated outputs, rather than returning catalog
+storage after releasing the guard.
+
+The DEBUG compute recorder previously published its count before completing a
+plain record, and its watchdog read records while writers could overwrite them.
+It now uses synchronized snapshots, with nonblocking capture/snapshot attempts.
+Busy diagnostic samples are skipped and counted; native dispatch remains on its
+original path. Level reset advances a generation without waiting for writers.
+No GPU completion values, command queues, readiness override or memory budgets
+were changed. Routing messages also distinguish foreign-package files from
+native-bootstrap override attempts.
+
+Host regressions mutate catalog data during native-open consumption, check
+preview-copy bounds, stress concurrent diagnostic writers/readers, and pause a
+writer to prove capture/snapshot/reset do not wait. They pass; changed target
+sources pass SDK syntax checks. These source defects are established; no claim
+is made that a particular map's GPU stall is cured. Console A/B testing remains
+necessary to separate file/streaming errors from unfinished GPU work.
