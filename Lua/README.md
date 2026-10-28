@@ -8,7 +8,8 @@ are displayed as distinct states. Choose/Toggle cannot change personal choices
 while the host owns the session.
 
 For deployment, the editable files replace their counterparts inside
-`/data/BO3-Customs/ui_scripts/` or an optional Lua root supported by the new source.
+`/data/BO3-Customs/ui_scripts/` or a connected drive's root-level
+`BO3-Customs/ui_scripts/` folder supported by the new source.
 Retain the other five `ui_scripts` files and all 39 compiled `lui` files.
 The original supplied archive is unchanged. This is a source companion to the
 SPRX; it is not embedded in the binary and contains no 8-player mod features.
@@ -54,32 +55,38 @@ They are not included in the already published dev.25 binary or Console.zip.
 ## Optional Lua locations
 
 The new SPRX source reads both `lui/` and `ui_scripts/` from the same ordered
-root list. Without configuration, `/data/BO3-Customs` has priority, followed by
+root list. `/data/BO3-Customs` always has priority, followed by
 `/ext0/BO3-Customs` through `/ext7/BO3-Customs`, then `/usb0/BO3-Customs` through
 `/usb7/BO3-Customs`. These are the console-visible mount paths, not Windows drive
 letters. Connect the drive before starting BO3 so the loader can mount it.
 
-To prefer another readable location, create the optional internal file
-`/data/BO3-Customs/lua_roots.txt`. Each line is an absolute root containing
-`lui/` and/or `ui_scripts/`. For example:
+No configuration file is needed. Put the companion folders directly inside
+`BO3-Customs` at the root of the connected drive, preserving their paths:
 
 ```
-/usb0/BO3-Customs
-/ext0/MyCustoms
+/usb0/BO3-Customs/lui/...
+/usb0/BO3-Customs/ui_scripts/...
 ```
 
-Configured roots are tried first, in order. The normal internal root and default
-external roots remain fallbacks. A file that is absent, unreadable, empty,
+If the same relative file exists internally and on one or more drives, the
+readable internal copy wins. External copies never override it. Files may be
+split across drives; each missing companion is resolved independently. A file
+that is absent, unreadable, empty,
 oversized, or incompletely read is skipped. Text scripts cannot contain embedded
 NUL bytes; compiled LUI remains binary. This checks file reads, not Lua semantics:
 a complete but incompatible script can still fail in the game.
 
-The configuration accepts up to 16 roots, each under 192 bytes, in a file up to
-4096 bytes. Blank lines and `#` comments are allowed; relative/traversal paths
-are rejected. The configured root must already be readable inside the game
-sandbox; this feature does not grant access to unmounted devices or arbitrary
-system directories. Keep a matching full bundle internally for recovery.
-Restart BO3 fully after changing roots or replacing cached compiled Lua files.
+There is no per-file allowlist: any Lua companion under those two folder trees
+can use the same lookup. Traversal paths are rejected. The drive must be mounted
+and readable inside the game sandbox. Keep a matching full bundle internally
+for recovery. Restart BO3 fully after moving or replacing cached compiled Lua
+files; existing loaded bytecode remains in memory for its normal lifetime.
+The obsolete `lua_roots.txt` setting is not read.
+
+Internal hits use a single file open and perform no external probes. Missing
+internal files probe each supported drive in a fixed order, without recursive
+directory scans, extra configuration reads or background polling. Existing
+compiled-LUI caches avoid repeating lookups for already loaded chunks.
 Successful external reads log the actual root. Saves, logs, configuration writes,
 and installed mod assets retain their existing storage behavior.
 

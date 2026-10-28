@@ -14,14 +14,16 @@ fixture = r'''
 #include <cstring>
 #include <map>
 #include <string>
+#include <vector>
 constexpr int SCE_KERNEL_O_RDONLY=0;
 struct Handle { std::string path; size_t at; };
 static std::map<std::string,std::string> files;
 static std::map<int,Handle> handles;
 static std::string badRead,badClose,badSeek,growing;
 static int opens=0;
+static std::vector<std::string> opened;
 static int sceKernelOpen(const char* path,int flags,int) {
-    assert(flags==SCE_KERNEL_O_RDONLY); ++opens;
+    assert(flags==SCE_KERNEL_O_RDONLY); ++opens; opened.emplace_back(path);
     if(!files.count(path)) return -1;
     int fd=handles.empty()?1:handles.rbegin()->first+1;
     handles[fd]={path,0}; return fd;
@@ -43,14 +45,14 @@ static int sceKernelClose(int fd) {
     bool fail=handles.at(fd).path==badClose;
     handles.erase(fd); return fail?-1:0;
 }
-static void sceKernelUsleep(int) {}
 void T7Log_Write(const char*,...) {}
 #include "t7_lua_files.hpp"
 static const char* internal="/data/BO3-Customs/ui_scripts/test.lua";
-static const char* external="/usb3/Custom Lua/ui_scripts/test.lua";
+static const char* external="/ext0/BO3-Customs/ui_scripts/test.lua";
+static const char* fallback="/usb3/BO3-Customs/ui_scripts/test.lua";
 static void Reset() {
     files.clear(); handles.clear(); badRead.clear(); badClose.clear(); badSeek.clear(); growing.clear();
-    T7LuaFiles::g_ready=false; T7LuaFiles::g_loading=false; T7LuaFiles::g_rootCount=0; opens=0;
+    opens=0; opened.clear();
 }
 static void Expect(const char* expected,size_t maximum=64) {
     size_t length=99;
@@ -60,11 +62,15 @@ static void Expect(const char* expected,size_t maximum=64) {
     free(body); assert(handles.empty());
 }
 int main() {
-    Reset(); files[internal]="internal"; files["/usb7/BO3-Customs/ui_scripts/test.lua"]="usb7";
-    Expect("internal"); files.erase(internal); Expect("usb7");
-    Reset(); files["/data/BO3-Customs/lua_roots.txt"]=" # comment\r\n /usb3/Custom Lua/ \r\n/usb3/Custom Lua\n/usb0/../system\nrelative\n";
-    files[external]="external"; files[internal]="internal";
-    Expect("external"); assert(T7LuaFiles::g_rootCount==1);
+    Reset(); files[internal]="internal"; files[external]="external"; files[fallback]="usb3";
+    files["/usb7/BO3-Customs/ui_scripts/test.lua"]="usb7";
+    files["/data/BO3-Customs/lua_roots.txt"]="/usb7/BO3-Customs\n"; // Obsolete overrides must have no effect.
+    Expect("internal"); assert(opens==1 && opened[0]==internal);
+    files.erase(internal); int before=opens;
+    Expect("external"); assert(opens-before==2); // Internal then first external; no directory scans.
+    files[internal]="internal again"; before=opens;
+    Expect("internal again"); assert(opens-before==1); // An earlier external hit never outranks internal.
+    files.erase(internal);
     for(int fault=0;fault<6;++fault) {
         badRead.clear(); badClose.clear(); badSeek.clear(); growing.clear(); files[external]="external";
         if(fault==0) files.erase(external); // Removed/unplugged drive.
@@ -73,19 +79,23 @@ int main() {
         if(fault==3) badSeek=external;
         if(fault==4) growing=external;
         if(fault==5) files[external]=std::string(65,'x');
-        Expect("internal");
+        Expect("usb3");
     }
-    badRead.clear(); badClose.clear(); badSeek.clear(); growing.clear(); files[external]=""; Expect("internal");
-    files[external]=std::string("a\0b",3); Expect("internal");
+    badRead.clear(); badClose.clear(); badSeek.clear(); growing.clear(); files[external]=""; Expect("usb3");
+    files[external]=std::string("a\0b",3); Expect("usb3");
     size_t length=0; char* binary=T7LuaFiles::Read("ui_scripts/test.lua",64,&length,false);
     assert(binary && length==3 && binary[1]==0); free(binary);
-    int before=opens;
+    before=opens;
     assert(!T7LuaFiles::Read("../outside",64)); assert(!T7LuaFiles::Read("/absolute",64));
     assert(!T7LuaFiles::Read("lui/a/../../outside",64)); assert(opens==before);
-    Reset(); files["/data/BO3-Customs/lua_roots.txt"]=std::string(4097,'x'); files[internal]="internal";
-    Expect("internal"); assert(T7LuaFiles::g_rootCount==0);
-    Reset(); Expect(nullptr);
-    std::puts("PASS: internal priority, configured/default external roots, complete reads, unplug/read/close/size fallback, binary data and path bounds");
+    assert(!T7LuaFiles::Read(std::string(600,'x').c_str(),64)); assert(opens==before);
+    for(const auto& path:opened) assert(path.find("lua_roots.txt")==std::string::npos);
+    Reset(); files[internal]=""; files[external]="external"; Expect("external");
+    files[internal]="working internal"; Expect("working internal");
+    // Last mounted drive is reachable and all-missing searches have a strict bound.
+    Reset(); files["/usb7/BO3-Customs/ui_scripts/test.lua"]="usb7"; Expect("usb7"); assert(opens==17);
+    Reset(); Expect(nullptr); assert(opens==17);
+    std::puts("PASS: unconditional internal duplicate priority, automatic external roots, one-open internal reads, bounded fallback, failed I/O, binary data and path bounds");
 }
 '''
 with tempfile.TemporaryDirectory(prefix="bo3-lua-roots-") as directory:

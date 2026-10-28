@@ -129,8 +129,9 @@ No new SPRX build or release was created for this review.
 
 Pending source changes add a complete read-only Lua companion resolver shared by
 the editable UI scripts, generated map-table companion, and compiled LUI copies.
-The default internal root keeps priority, with the existing ext/usb mounts as
-fallbacks; optional absolute roots can be listed in `lua_roots.txt`. Partial,
+The internal root always keeps priority, with root-level `BO3-Customs` folders
+on the existing ext/usb mounts as automatic fallbacks. No roots configuration
+file is used. Partial,
 empty, oversized and failed reads are discarded before falling back. Existing
 Lua bytecode buffers retain their original cache lifetime. No persistence writes
 or arbitrary sandbox mounts were moved.
