@@ -84,7 +84,7 @@ Grab it before you start the game again: every launch starts a new log.
 Also attach the tool's log for the map that causes the issue: press **Log** in the tool, then **Save**.
 If the tool was closed since, its logs are in `work\analysis\gui_logs` beside the tool.
 
-### DEBUG GPU/streaming captures (pending next build)
+### DEBUG GPU/streaming captures (dev.26)
 
 The source now adds `[GPU]` records to the existing `/data/BO3-Customs/log.txt`
 and debug-output path. They run on the existing watchdog, with up to seven
@@ -112,7 +112,8 @@ map/version, internal or external storage and every enabled mod. If possible,
 compare the identical converted files internally and externally with mods off.
 The existing diagnostic memory buffer is capped at 256 KiB per game process;
 fresh runs preserve room for the failure instead of accumulating unrelated runs.
-These additions are source changes and are not in the published dev.25 package.
+These additions are included in dev.26 DEBUG. They collect evidence and do not
+by themselves fix or prove the cause of a map freeze.
 
 ## Console layout
 

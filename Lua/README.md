@@ -26,7 +26,7 @@ python3 SPRX/tests/session_mod_ui_checks.py Lua/ui_scripts/mods.lua /path/to/lua
 The test parses the full file and executes the relevant production functions
 against a small UI mock. It does not emulate the BO3 UI engine.
 
-## Pending source changes after dev.25
+## dev.26 Lua changes
 
 `ui_scripts/mapselect.lua` is now kept here as editable source, copied from the
 supplied companion bundle. Its recovery path runs only when an offline Zombies
@@ -49,8 +49,8 @@ Run the focused Lua regression with an existing Lua 5.1 executable:
 python3 SPRX/tests/lua_menu_recovery_checks.py /path/to/lua
 ```
 
-These are source changes awaiting a separately approved build and console test.
-They are not included in the already published dev.25 binary or Console.zip.
+These changes are included in the dev.26 companion bundle. Focused host Lua
+checks cover the recovery paths; console UI compatibility still needs testing.
 
 ## Optional Lua locations
 
