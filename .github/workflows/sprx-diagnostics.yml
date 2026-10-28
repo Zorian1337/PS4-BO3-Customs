@@ -39,4 +39,5 @@ jobs:
           python3 SPRX/tests/game_log_bridge_checks.py
           python3 SPRX/tests/share_install_checks.py
           python3 SPRX/tests/session_mod_ready_checks.py
+          python3 SPRX/tests/session_common_activation_checks.py
           python3 SPRX/tests/session_mod_publish_checks.py

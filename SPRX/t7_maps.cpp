@@ -4573,6 +4573,27 @@ static void ApplyModsNow()
         return;
     }
 
+    if (g_sessionModCount >= 0)
+    {
+        // Prepare a changed host stack through the same whole-common load
+        // transaction used before a level, rather than append it to an already
+        // initialized common zone. A matching manually enabled stack returned
+        // above and must not be reloaded on every join.
+        T7Log_Write("[Mods] preparing the host stack with a fresh %s transaction (%d loaded, %d selected)",
+                    k_modeCommons[mode], g_loadedCount, wanted);
+        if (*(const int32_t*)(g_base + kKeepAssetUse) == 0)
+        {
+            ((void (*)())(g_base + kRenderSync))();
+            ClearAssetsInUse();
+        }
+        ZoneInfo common{};
+        common.name = k_modeCommons[mode];
+        common.allocFlags = kModeCommonFlags;
+        common.freeFlags = kModeCommonFlags;
+        LoadXAssets_h((uint64_t)&common, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        return;
+    }
+
     T7Log_Write("[Mods] applying in the menu: %d kept, %d unload, %d load", keep, g_loadedCount - keep,
                 wanted - keep);
 

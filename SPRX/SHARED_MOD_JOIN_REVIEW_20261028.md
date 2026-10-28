@@ -1,5 +1,19 @@
 # Shared mod join review — 2026-10-28
 
+## Latest: dev.22 follow-up, source only
+
+**Delivery update:** the user subsequently approved both builds. This candidate
+was built as dev.23 Debug and uploaded; see `CHANGELOG-dev.23.md` for validation,
+original hash and transformed FTP readback details. Runtime remains unverified.
+
+New capture `sprx22-doesntletplayerjoiniftheydonthavethemod_iftheydomodmakes them spectate.txt`, SHA256 `2A0BDF20891E533F9E61CA698CC6BAEC02B6AC17CED9592E2E2468A49CA02378`, supersedes the earlier readiness hypothesis as a sufficient fix. At 01:08.579–01:08.601, both host mods append after zm_common is loaded; 01:11.165 declares readiness. The client then fails with EXE_ERR_BG_CACHE at 02:11.012 and zero script errors. At 03:32.270 the manual-activation retry again has zero files to fetch, reaches map loading and repeatedly reports the local player not in gameplay. This client-side capture cannot explain the host's spawn rejection. It also cannot demonstrate a download failure: both mod folders were already discovered.
+
+Changed `ApplyModsNow` only for a host-owned stack that differs from the loaded stack. It now uses the preexisting whole-mode-common free/load transaction, allowing AddModZones to plan the ordered stack together with common loading instead of appending it afterward. Existing loaded matching stacks still return without reload; personal activation, zone-loading/in-level/common-on-top guards and exact readiness checks remain. No KillServer, protocol change, save write, cache-check bypass or 8-player-specific behavior was added.
+
+`session_common_activation_checks.py` executes the actual production function with ASan/UBSan for a fresh stack, wrong order, matching stack, empty host, pending zones, wrong memory-pool position, in-level protection, missing common and personal activation. Existing readiness/install/publication/transaction/frontend fixtures also pass; diff check is clean. Both CI host-check lists include the fixture. These tests establish routing and guards, not native cache-index correctness. The changed common load is a console validation candidate, not a proven fix for EXE_ERR_BG_CACHE.
+
+No SPRX package, upload, commit or push made in this follow-up. Explicit build permission is still required. Validate automatic activation with two real clients before introducing bots. Verify exact host/client file hashes/order: installed names alone are insufficient. A fresh-download case remains untested. Keep the 8-player mod's human readiness work in its own project.
+
 Base: fork main `34ab597658e18edb181439d9dbcc01fedbdab1e2` (dev.21 stabilization).
 Local source was clean before a fast-forward from origin/main. No SPRX build,
 console upload, commit, or remote write was performed for this review.
