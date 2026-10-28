@@ -33,6 +33,9 @@ jobs:
             SPRX/tests/map_fastfile_route_checks.py \
             SPRX/tests/missing_import_lifetime_checks.py \
             SPRX/tests/mod_stack_transaction_checks.py \
+            SPRX/tests/share_install_checks.py \
+            SPRX/tests/session_mod_ready_checks.py \
+            SPRX/tests/session_mod_publish_checks.py \
             SPRX/tests/script_priority_context_checks.py \
             SPRX/tests/map_image_surface_checks.py; do
             python3 "$test"

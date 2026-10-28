@@ -16,6 +16,7 @@ fixture = r'''
 #include <cstdlib>
 
 static bool g_inLevel = false;
+static int g_sessionModCount = -1;
 static bool g_frontendReloadReady = false;
 static bool g_quietReload = false;
 static int g_unshownCount = 0;
@@ -52,6 +53,11 @@ int main() {
     ReloadFrontend("inside level");
     if (calls || g_unshownCount != 3) return 2;
     g_inLevel = false;
+
+    g_sessionModCount = 2;
+    ReloadFrontend("host session activation");
+    if (calls || g_unshownCount != 3) return 7;
+    g_sessionModCount = -1;
 
     // With no movie hook installed, reloading remains functional and quiet
     // mode is never accidentally enabled.

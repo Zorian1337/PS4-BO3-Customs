@@ -72,6 +72,8 @@ bool T7Maps_HasMod(const char* name);
 
 void T7Maps_SetSessionMods(const char (*names)[kT7ShareName], int count);
 
+bool T7Maps_SessionModsReady();
+
 bool T7Maps_ShareMap(const char* map, char* root, size_t size);
 
 int T7Maps_ShareMods(char (*names)[kT7ShareName], char (*roots)[kT7SharePath], int capacity);

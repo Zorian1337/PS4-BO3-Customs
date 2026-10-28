@@ -4366,6 +4366,12 @@ static void ReloadFrontend(const char* why)
     if (g_inLevel)
         return;
 
+    if (g_sessionModCount >= 0)
+    {
+        T7Log_Write("[Mods] %s; retaining the host connection instead of restarting the frontend", why);
+        return;
+    }
+
     if (!g_frontendReloadReady)
     {
         T7Log_Write("[Mods] %s; the menus show it after your next match", why);
@@ -5944,6 +5950,19 @@ static void BuildModsLua()
 
     Append(out, size, &used, "})\nrawset(_G, \"BO3CustomsChosenMod\", ");
     AppendLuaString(out, size, &used, g_chosenCount > 0 ? g_chosen[0] : "");
+    Append(out, size, &used, ")\nrawset(_G, \"BO3CustomsSessionMods\", ");
+    if (g_sessionModCount >= 0)
+    {
+        Append(out, size, &used, "{");
+        for (int i = 0; i < g_sessionModCount; ++i)
+        {
+            AppendLuaString(out, size, &used, g_sessionMods[i]);
+            Append(out, size, &used, ", ");
+        }
+        Append(out, size, &used, "}");
+    }
+    else
+        Append(out, size, &used, "nil");
     Append(out, size, &used, ")\nrawset(_G, \"BO3CustomsActiveMods\", {\n");
 
     int first = -1;
@@ -7144,6 +7163,7 @@ void T7Maps_SetSessionMods(const char (*names)[kT7ShareName], int count)
             T7Log_Write("[Mods] left the host's lobby: your own ticked mods apply again");
 
         g_sessionModCount = -1;
+        g_modsLuaDirty.store(true);
         return;
     }
 
@@ -7153,7 +7173,32 @@ void T7Maps_SetSessionMods(const char (*names)[kT7ShareName], int count)
         snprintf(g_sessionMods[kept++], kNameMax, "%s", names[i]);
 
     g_sessionModCount = kept;
+    g_modsLuaDirty.store(true);
     T7Log_Write("[Mods] this lobby loads the host's %d mod(s) in place of your %d ticked", kept, g_chosenCount);
+}
+
+bool T7Maps_SessionModsReady()
+{
+    using namespace T7Maps;
+
+    if (!g_base || g_sessionModCount < 0 || g_loadedCount != g_sessionModCount || AnyZoneLoading())
+        return false;
+
+    if (g_sessionModCount == 0)
+        return true;
+
+    const int mode = LoadedModeCommon();
+    if (mode < 1 || mode != SessionModeCommon() || g_stackCount != g_sessionModCount)
+        return false;
+
+    for (int i = 0; i < g_sessionModCount; ++i)
+    {
+        if (!EqualsNoCase(g_loaded[i], g_sessionMods[i]) ||
+            !EqualsNoCase(g_stack[i].mod.name, g_sessionMods[i]) || !StackModReady(i, mode))
+            return false;
+    }
+
+    return true;
 }
 
 bool T7Maps_ShareMap(const char* map, char* root, size_t size)

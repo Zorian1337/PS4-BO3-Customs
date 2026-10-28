@@ -74,6 +74,8 @@ constexpr uint64_t kFailureShownUs      = 6000000;
 constexpr uint64_t kAwayUs              = 3000000;
 constexpr uint64_t kSettleUs            = 400000;
 constexpr uint64_t kLaunchGraceUs       = 90000000;
+constexpr uint64_t kModActivationWaitUs = 90000000;
+constexpr uint64_t kModActivationRetryUs = 1000000;
 constexpr uint64_t kFreshListUs         = 500000;
 constexpr int      kListTries           = 6;
 constexpr uint64_t kListRetryUs         = 500000;
@@ -178,6 +180,9 @@ struct Session
     bool     needMap;
     bool     listed;
     bool     fetched;
+    bool     installed;
+    uint64_t activationAt;
+    uint64_t activationRetryAt;
     uint32_t hostIp;
     uint32_t reached;
     int      hostCount;
@@ -3607,31 +3612,77 @@ static void Start(const Role& role, const char* map)
     scePthreadDetach(thread);
 }
 
+static bool InstallHoldsLaunch()
+{
+    const int phase = g_phase.load();
+    const bool activationFailed = phase == kFailed && g_session.listed && !g_stop.load();
+    return g_busy.load() || activationFailed || (phase != kReady && phase != kFailed);
+}
+
 static void Finish()
 {
     Session& session = g_session;
 
-    if (session.fetched)
+    if (!session.installed)
     {
-        if (!T7Maps_Refresh())
-            return;
+        if (session.fetched)
+        {
+            if (!T7Maps_Refresh())
+                return;
 
-        g_mapsChanged.store(true);
+            g_mapsChanged.store(true);
+        }
+
+        if (session.needMap && !T7Maps_HasMap(session.map))
+        {
+            Fail("the files arrived but the map is not complete");
+            Notify("BO3 Customs\nCould not install %s", session.map);
+            return;
+        }
+
+        if (session.listed)
+        {
+            // A partial host stack cannot produce the same asset indexes.
+            for (int i = 0; i < session.modCount; ++i)
+            {
+                if (!T7Maps_HasMod(session.mods[i]))
+                {
+                    Fail("the host's mod %s is not installed completely", session.mods[i]);
+                    return;
+                }
+            }
+
+            T7Maps_SetSessionMods(session.mods, session.modCount);
+            g_overriding = true;
+            for (int i = 0; i < session.modCount; ++i)
+                T7Log_Write("[Share] session mod %d of %d: %s (installed; selected for zone loading)",
+                            i + 1, session.modCount, session.mods[i]);
+        }
+
+        session.installed = true;
+        session.activationAt = sceKernelGetProcessTime();
+        session.activationRetryAt = 0;
     }
 
-    if (session.needMap && !T7Maps_HasMap(session.map))
+    if (session.listed && !T7Maps_SessionModsReady())
     {
-        Fail("the files arrived but the map is not complete");
-        Notify("BO3 Customs\nCould not install %s", session.map);
+        const uint64_t now = sceKernelGetProcessTime();
+        if (now - session.activationAt >= kModActivationWaitUs)
+        {
+            Fail("the host's mods did not finish enabling; leave this lobby and try again");
+            return;
+        }
+        if (!session.activationRetryAt || now - session.activationRetryAt >= kModActivationRetryUs)
+        {
+            session.activationRetryAt = now;
+            T7Maps_RequestApply();
+            T7Log_Write("[Share] waiting for the host's %d mod(s) to finish enabling before launch", session.modCount);
+        }
         return;
     }
 
     if (session.listed)
-    {
-        T7Maps_SetSessionMods(session.mods, session.modCount);
-        g_overriding = true;
-    }
-
+        T7Log_Write("[Share] the host's ordered mod stack and required mode zones are ready for launch");
     g_phase.store(kReady);
 
     if (session.fetched)
@@ -3799,8 +3850,7 @@ static bool Evaluate(bool frame)
                 g_overriding = true;
             }
 
-            const int phase = g_phase.load();
-            hold = g_busy.load() || (phase != kReady && phase != kFailed);
+            hold = InstallHoldsLaunch();
         }
 
         if (frame)
@@ -4593,11 +4643,14 @@ bool T7Share_Status(T7ShareStatus* status)
     {
         const uint64_t at = g_failedAt.load();
 
-        if ((!session.needMap && session.newMods == 0) || !at || now - at > kFailureShownUs || now - at < kNoticeDelayUs ||
+        const bool activationFailed = session.installed && !g_stop.load();
+        const bool blocksLaunch = session.listed && !g_stop.load();
+        if ((!blocksLaunch && !session.needMap && session.newMods == 0) || !at ||
+            (!blocksLaunch && now - at > kFailureShownUs) || now - at < kNoticeDelayUs ||
             !StillOn(session.map))
             return false;
 
-        snprintf(status->title, sizeof(status->title), "%s", "COULD NOT DOWNLOAD FROM THE HOST");
+        snprintf(status->title, sizeof(status->title), "%s", activationFailed ? "COULD NOT ENABLE HOST MODS" : "COULD NOT DOWNLOAD FROM THE HOST");
         snprintf(status->name, sizeof(status->name), "%s", session.needMap ? session.map : "the host's mods");
         snprintf(status->detail, sizeof(status->detail), "%s", session.error);
         status->failed = true;
@@ -4607,7 +4660,7 @@ bool T7Share_Status(T7ShareStatus* status)
     if (!session.active || phase == kIdle || phase == kReady)
         return false;
 
-    if (!session.needMap && session.newMods == 0)
+    if (!session.needMap && session.newMods == 0 && !(phase == kInstalling && session.installed))
         return false;
 
     snprintf(status->title, sizeof(status->title), "%s", "DOWNLOADING FROM THE HOST");
@@ -4632,7 +4685,12 @@ bool T7Share_Status(T7ShareStatus* status)
 
     if (phase == kInstalling)
     {
-        snprintf(status->detail, sizeof(status->detail), "%s", "Installing...");
+        if (session.installed)
+        {
+            snprintf(status->title, sizeof(status->title), "%s", "ENABLING HOST MODS");
+            snprintf(status->name, sizeof(status->name), "%d host mod(s)", session.modCount);
+        }
+        snprintf(status->detail, sizeof(status->detail), "%s", session.installed ? "Enabling the host's mods before joining..." : "Installing...");
         status->fraction = 1.0f;
         return true;
     }
@@ -4716,7 +4774,7 @@ void T7Share_Cancel()
 
     const int phase = g_phase.load();
 
-    if (phase == kReady || phase == kFailed || phase == kIdle)
+    if (phase == kReady || phase == kIdle || (phase == kFailed && !g_session.listed))
         return;
 
     T7Log_Write("[Share] the player cancelled the download");
