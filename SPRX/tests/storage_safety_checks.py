@@ -46,7 +46,7 @@ static bool failWrite, failSync, failClose, failRename, failRead, failStat, fail
 static size_t readChunk=32, writeChunk=3;
 static int renames;
 struct SceKernelStat { int64_t st_size; };
-static int sceKernelStat(const char* p,SceKernelStat* st) {
+[[maybe_unused]] static int sceKernelStat(const char* p,SceKernelStat* st) {
     if(failStat) return -9;
     if(!files.count(p)) return (int32_t)0x80020002;
     st->st_size=(int64_t)files[p].size(); return 0;
@@ -220,6 +220,25 @@ share_main = 'static char mapMods[kT7ShareMods][kT7ShareName];\n' + share_main
 run("share-storage", filesystem + share_prefix + safe + write + fetch + parser + share_main)
 
 maps = (ROOT / "t7_maps.cpp").read_text(encoding="utf-8")
+choice = maps[maps.index("static bool WriteChosenMods("):maps.index("static void AppendModFiles(")]
+run("chosen-mod-storage", filesystem + r'''
+constexpr int kNameMax=56;
+static const char k_chosenModFile[]="/data/BO3-Customs/active_mod.txt";
+''' + choice + r'''
+int main() {
+    const char names[2][kNameMax]={"bots","lobby"};
+    for(int fault=0;fault<5;++fault) {
+        ResetFiles(); files[k_chosenModFile]="previous\n";
+        failWrite=fault==1; failSync=fault==2; failClose=fault==3; failRename=fault==4;
+        assert(WriteChosenMods(names,2)==(fault==0));
+        assert(files[k_chosenModFile]==(fault==0?"bots\nlobby\n":"previous\n"));
+        assert(handles.empty() && !files.count("/data/BO3-Customs/active_mod.txt.tmp"));
+    }
+    ResetFiles(); files[k_chosenModFile]="previous\n";
+    assert(WriteChosenMods(names,0) && files[k_chosenModFile].empty());
+    std::puts("PASS: chosen-mod selection survives write/flush/close/rename failures and short writes");
+}
+''')
 locks = maps[maps.index("static std::atomic<int32_t> g_listReaders"):maps.index("static Detour g_openDetour")]
 builder = maps[maps.index("static void BuildModsLua()"):maps.index("static uint64_t MapsTable_h(")]
 assert "ListReader reading;" in builder
