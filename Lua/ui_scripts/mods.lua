@@ -508,8 +508,18 @@ function UI.Toggle(menu, controller, folder)
   if not removed then
     table.insert(list, folder)
   end
-  UI.SetChosen(list)
   UI.Choose(menu, controller, #list > 0 and table.concat(list, ",") or "!off")
+  UI.SetChosen(list)
+end
+
+function UI.Unload(menu, controller)
+  if type(rawget(_G, "BO3CustomsSessionMods")) == "table" then
+    UI.SetStatus(StatusText())
+    return
+  end
+  -- Queue recovery before refreshing widgets supplied by the active mod.
+  UI.Choose(menu, controller, "!off")
+  UI.SetChosen({})
 end
 
 function UI.Open(menu, controller, page)
@@ -547,8 +557,7 @@ function UI.Open(menu, controller, page)
     table.insert(choices, {
       label = "Turn mods off",
       run = function(chosenController)
-        UI.SetChosen({})
-        UI.Choose(menu, chosenController, "!off")
+        UI.Unload(menu, chosenController)
       end,
     })
   end
@@ -589,7 +598,12 @@ function UI.Applied(name, state, message)
     state == -1 and "Error" or "Info")
 end
 
+local ownedActions = {}
 local function Define(name, fn)
+  if name == "Mods_LoadMod" or name == "Mods_Unload" then
+    ownedActions[name] = fn
+    return
+  end
   if rawget(_G, name) == nil then
     rawset(_G, name, fn)
   end
@@ -620,8 +634,7 @@ Define("Mods_LoadMod", function(self, element, controller)
 end)
 
 Define("Mods_Unload", function(self, element, controller)
-  UI.SetChosen({})
-  UI.Choose(UI.menu or self, controller, "!off")
+  UI.Unload(UI.menu or self, controller)
 end)
 
 Define("Mods_RefreshListMods", function(self, element, controller)
@@ -1102,6 +1115,18 @@ lobbyMenus.AddButtonsForTarget = function(controller, id, ...)
     LogOnce("add " .. tostring(err), "button failed: " .. tostring(err))
   end
   return buttons
+end
+
+-- The PC utility or a mod may already define these actions. Its handler still
+-- owns unrelated menus; our Mods menu must use the console loader's selection.
+for name, action in pairs(ownedActions) do
+  local original = rawget(_G, name)
+  rawset(_G, name, function(self, element, controller, param, menu, ...)
+    if UI.creating or (UI.menu ~= nil and (self == UI.menu or menu == UI.menu)) or type(original) ~= "function" then
+      return action(self, element, controller, param, menu, ...)
+    end
+    return original(self, element, controller, param, menu, ...)
+  end)
 end
 
 RefreshLobby()

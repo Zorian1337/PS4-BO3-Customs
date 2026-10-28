@@ -124,3 +124,25 @@ A lobby host can request that mod again on joining, so avoid rejoining that host
 until it disables the offending mod. Existing local menu recovery is not a native
 crash handler, and no claim is made that arbitrary mod crashes are prevented.
 No new SPRX build or release was created for this review.
+
+## Companion-file locations and frontend recovery source review
+
+Pending source changes add a complete read-only Lua companion resolver shared by
+the editable UI scripts, generated map-table companion, and compiled LUI copies.
+The default internal root keeps priority, with the existing ext/usb mounts as
+fallbacks; optional absolute roots can be listed in `lua_roots.txt`. Partial,
+empty, oversized and failed reads are discarded before falling back. Existing
+Lua bytecode buffers retain their original cache lifetime. No persistence writes
+or arbitrary sandbox mounts were moved.
+
+The Mods UI now routes load/unload through the console loader in its own menu,
+delegates unrelated handlers, protects host-session choices, and queues native
+selection before refreshing widgets. A failed offline Zombies map-list builder
+can supply stock-compatible rows through the existing native list helper, using
+engine-valid map IDs. Successful mod builders and playlist behavior retain their
+existing path. This does not repair arbitrary mod CSC code or native crashes.
+
+Lua 5.1 production-callback tests and native file-reader fault tests pass. The
+changed native translation units pass installed-SDK syntax checks. These checks
+do not emulate BO3/PS4; console activation, map selection and unloading remain
+runtime validation targets. No new package has been built for these changes.

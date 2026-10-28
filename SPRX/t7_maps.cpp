@@ -1,4 +1,5 @@
 #include "headers.hpp"
+#include "t7_lua_files.hpp"
 #include "t7_maps.hpp"
 #include "mod_load_context.hpp"
 #include "t7_mapimages.hpp"
@@ -5678,10 +5679,7 @@ static char g_mapsTableLua[sizeof(g_customMapsLua) + 64 * 1024 + 64];
 
 static void BuildMapsTableLua()
 {
-    char path[256];
-    snprintf(path, sizeof(path), "%s/ui_scripts/maptable.lua", "/data/BO3-Customs");
-
-    char* const source = ReadSmallFile(path, 64 * 1024);
+    char* const source = T7LuaFiles::Read("ui_scripts/maptable.lua", 64 * 1024);
 
     if (!source)
     {

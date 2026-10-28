@@ -10,6 +10,7 @@ on:
       - 'SPRX/t7_maps.hpp'
       - 'SPRX/t7_lua.cpp'
       - 'SPRX/t7_lua.hpp'
+      - 'SPRX/t7_lua_files.hpp'
       - 'SPRX/script_error_budget.hpp'
       - 'SPRX/tests/**'
       - '.github/workflows/sprx-diagnostics.yml'
@@ -44,3 +45,4 @@ jobs:
           python3 SPRX/tests/session_common_activation_checks.py
           python3 SPRX/tests/session_mod_publish_checks.py
           python3 SPRX/tests/storage_safety_checks.py
+          python3 SPRX/tests/lua_file_roots_checks.py

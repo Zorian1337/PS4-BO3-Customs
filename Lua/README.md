@@ -7,8 +7,9 @@ while joined and restores personal choices after leaving. Selected and loaded
 are displayed as distinct states. Choose/Toggle cannot change personal choices
 while the host owns the session.
 
-For deployment, this file replaces `/data/BO3-Customs/ui_scripts/mods.lua`.
-Retain the existing other six `ui_scripts` files and all 39 compiled `lui` files.
+For deployment, the editable files replace their counterparts inside
+`/data/BO3-Customs/ui_scripts/` or an optional Lua root supported by the new source.
+Retain the other five `ui_scripts` files and all 39 compiled `lui` files.
 The original supplied archive is unchanged. This is a source companion to the
 SPRX; it is not embedded in the binary and contains no 8-player mod features.
 
@@ -23,6 +24,64 @@ python3 SPRX/tests/session_mod_ui_checks.py Lua/ui_scripts/mods.lua /path/to/lua
 
 The test parses the full file and executes the relevant production functions
 against a small UI mock. It does not emulate the BO3 UI engine.
+
+## Pending source changes after dev.25
+
+`ui_scripts/mapselect.lua` is now kept here as editable source, copied from the
+supplied companion bundle. Its recovery path runs only when an offline Zombies
+map-list builder fails. It supplies stock row fields with the original map IDs,
+excludes maps the engine considers invalid, and keeps a working mod's list
+untouched. The row contract follows the public T7LuaRepo PC ship
+[`ZMMapsList` source](https://github.com/KingslayerKyle/T7LuaRepo/blob/main/Dumps/PC_Ship_2025-05-31/ui/uieditor/datasources.lua).
+It does not modify a mod's CSC scripts or guarantee that its camera/camo code is
+compatible with PS4.
+
+`mods.lua` routes load/unload through the console loader when its Mods menu is
+active. Outside that menu an existing handler retains control. Turning mods off
+queues native deselection before refreshing possibly broken mod widgets, and
+cannot clear personal selections while a host owns the session. Physical zone
+unloading still follows the existing safe apply/menu-close process.
+
+Run the focused Lua regression with an existing Lua 5.1 executable:
+
+```
+python3 SPRX/tests/lua_menu_recovery_checks.py /path/to/lua
+```
+
+These are source changes awaiting a separately approved build and console test.
+They are not included in the already published dev.25 binary or Console.zip.
+
+## Optional Lua locations
+
+The new SPRX source reads both `lui/` and `ui_scripts/` from the same ordered
+root list. Without configuration, `/data/BO3-Customs` has priority, followed by
+`/ext0/BO3-Customs` through `/ext7/BO3-Customs`, then `/usb0/BO3-Customs` through
+`/usb7/BO3-Customs`. These are the console-visible mount paths, not Windows drive
+letters. Connect the drive before starting BO3 so the loader can mount it.
+
+To prefer another readable location, create the optional internal file
+`/data/BO3-Customs/lua_roots.txt`. Each line is an absolute root containing
+`lui/` and/or `ui_scripts/`. For example:
+
+```
+/usb0/BO3-Customs
+/ext0/MyCustoms
+```
+
+Configured roots are tried first, in order. The normal internal root and default
+external roots remain fallbacks. A file that is absent, unreadable, empty,
+oversized, or incompletely read is skipped. Text scripts cannot contain embedded
+NUL bytes; compiled LUI remains binary. This checks file reads, not Lua semantics:
+a complete but incompatible script can still fail in the game.
+
+The configuration accepts up to 16 roots, each under 192 bytes, in a file up to
+4096 bytes. Blank lines and `#` comments are allowed; relative/traversal paths
+are rejected. The configured root must already be readable inside the game
+sandbox; this feature does not grant access to unmounted devices or arbitrary
+system directories. Keep a matching full bundle internally for recovery.
+Restart BO3 fully after changing roots or replacing cached compiled Lua files.
+Successful external reads log the actual root. Saves, logs, configuration writes,
+and installed mod assets retain their existing storage behavior.
 
 ## What changed for dev.22
 
