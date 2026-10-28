@@ -367,7 +367,8 @@ struct ListReader
 
 static void BeginListWrite()
 {
-    g_listWriting.store(true);
+    while (g_listWriting.exchange(true))
+        sceKernelUsleep(100);
 
     while (g_listReaders.load() != 0)
         sceKernelUsleep(100);
@@ -375,7 +376,7 @@ static void BeginListWrite()
 
 static void EndListWrite()
 {
-    g_listWriting.store(false);
+    g_listWriting.store(false, std::memory_order_release);
 }
 
 static Detour g_openDetour{};
@@ -5934,6 +5935,7 @@ static char g_modsLua[256 * 1024];
 
 static void BuildModsLua()
 {
+    ListReader reading;
     char* const out = g_modsLua;
     const size_t size = sizeof(g_modsLua);
     size_t used = 0;

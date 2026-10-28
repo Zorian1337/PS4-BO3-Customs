@@ -6,6 +6,7 @@ on:
       - 'SPRX/t7_log.cpp'
       - 'SPRX/t7_maps.cpp'
       - 'SPRX/t7_share.cpp'
+      - 'SPRX/t7_config.cpp'
       - 'SPRX/t7_maps.hpp'
       - 'SPRX/t7_lua.cpp'
       - 'SPRX/t7_lua.hpp'
@@ -42,3 +43,4 @@ jobs:
           python3 SPRX/tests/session_mod_ready_checks.py
           python3 SPRX/tests/session_common_activation_checks.py
           python3 SPRX/tests/session_mod_publish_checks.py
+          python3 SPRX/tests/storage_safety_checks.py
