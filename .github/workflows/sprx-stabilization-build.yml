@@ -36,6 +36,7 @@ jobs:
             SPRX/tests/share_install_checks.py \
             SPRX/tests/session_mod_ready_checks.py \
             SPRX/tests/session_common_activation_checks.py \
+            SPRX/tests/bg_cache_snapshot_checks.py \
             SPRX/tests/session_mod_publish_checks.py \
             SPRX/tests/script_priority_context_checks.py \
             SPRX/tests/map_image_surface_checks.py; do
