@@ -3,11 +3,13 @@
 ## Build from the fork's main branch
 
 Every push to `main` in `Zorian1337/PS4-BO3-Customs`, or a manual run of
-**BO3 Auto Build** on `main`, runs the host checks, Windows FF Porter build,
-and Linux OpenOrbis/GoldHEN SPRX build. The SPRX job compiles and inspects all
-native translation units with the pinned toolchain. The build creates
-commit/run-specific Actions artifacts retained for 14 days. It does not create
-a GitHub Release or upload to a console.
+**BO3 Auto Build** on `main`, runs the host checks and Linux OpenOrbis/GoldHEN
+SPRX build. The SPRX job compiles and inspects all native translation units
+with the pinned toolchain. It creates a commit/run-specific SPRX Actions
+artifact retained for 14 days. The fork workflow does not create a GitHub
+Release or upload to a console. The separate Windows FF Porter build remains
+on the upstream converter branch so its tests cannot block the fork's SPRX
+artifact.
 
 The same workflow still supports pushes to the upstream repository's
 `nexus/standalone-converter` branch. A newer push cancels an older in-progress

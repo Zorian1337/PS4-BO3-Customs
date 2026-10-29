@@ -36,6 +36,7 @@ jobs:
 
   porter:
     needs: host
+    if: github.repository == 'Hi6795/PS4-BO3-Customs' && github.ref == 'refs/heads/nexus/standalone-converter'
     runs-on: windows-2025
     timeout-minutes: 45
     steps:
@@ -110,11 +111,20 @@ jobs:
       HOST_RESULT: ${{ needs.host.result }}
       PORTER_RESULT: ${{ needs.porter.result }}
       SPRX_RESULT: ${{ needs.sprx.result }}
+      REQUIRE_PORTER: ${{ github.repository == 'Hi6795/PS4-BO3-Customs' && github.ref == 'refs/heads/nexus/standalone-converter' }}
     steps:
       - name: Require every component before declaring this commit built
         run: |
-          if [ "$HOST_RESULT" != success ] || [ "$PORTER_RESULT" != success ] || [ "$SPRX_RESULT" != success ]; then
-            echo '::error::Full build is blocked. Check the host, Windows converter and Linux OpenOrbis SPRX jobs.'
+          if [ "$HOST_RESULT" != success ] || [ "$SPRX_RESULT" != success ]; then
+            echo '::error::Native build is blocked. Check the host checks and Linux OpenOrbis SPRX job.'
             exit 1
           fi
-          echo 'Host checks, offline converter checks and both builds passed. PS4 console validation is pending.' >> "$GITHUB_STEP_SUMMARY"
+          if [ "$REQUIRE_PORTER" = true ] && [ "$PORTER_RESULT" != success ]; then
+            echo '::error::The upstream full build is blocked. Check the Windows converter job.'
+            exit 1
+          fi
+          if [ "$REQUIRE_PORTER" = true ]; then
+            echo 'Host checks, offline converter checks and both builds passed. PS4 console validation is pending.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Host checks and the Linux OpenOrbis SPRX build passed. PS4 console validation is pending; the Windows converter job is upstream-only.' >> "$GITHUB_STEP_SUMMARY"
+          fi

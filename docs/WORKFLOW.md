@@ -38,10 +38,10 @@ Local installed tool/cache settings stay private. Keep the Windows ORBIS project
 available; do not publish personal SDK/toolchain archives.
 
 On the fork, pushing reviewed source to `main` starts **BO3 Auto Build**. GitHub
-Actions compiles the PS4 SPRX with the pinned OpenOrbis/GoldHEN toolchain and
-builds the Windows FF Porter, then retains both as run-specific artifacts for
-14 days. A manual workflow run on `main` does the same. This does not create a
-release or upload to a console. See [build and notice setup](../.github/BO3_AUTOBUILD.md).
+Actions compiles and inspects the PS4 SPRX with the pinned OpenOrbis/GoldHEN
+toolchain, then retains a run-specific SPRX artifact for 14 days. A manual
+workflow run on `main` does the same. This does not create a release or upload
+to a console. See [build and notice setup](../.github/BO3_AUTOBUILD.md).
 
 Compile all native translation units, verify the original FSELF against the OELF,
 run malformed-container controls, compare loader metadata and bind the artifact
