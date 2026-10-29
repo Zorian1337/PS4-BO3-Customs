@@ -6,6 +6,7 @@ local Tabs = {
   current = {},
   lists = {},
   menuWrapped = false,
+  injectedMaps = {},
   squareMenus = setmetatable({}, { __mode = "k" }),
   logs = {},
   logged = {},
@@ -155,6 +156,7 @@ local function EnsureCustomEntries()
         info.unique_id = 100000 + index
         info.bo3_custom = true
         maps[map.id] = info
+        Tabs.injectedMaps[map.id] = info
       end
     end
   end
@@ -1243,6 +1245,23 @@ local function ExternalZMOwner()
   return false
 end
 
+local function RemoveInjectedEntries()
+  local maps = CoD.mapsTable
+  if type(maps) ~= "table" then
+    Tabs.injectedMaps = {}
+    return
+  end
+  for id, info in pairs(Tabs.injectedMaps) do
+    -- Remove only the exact table object created by BO3-Customs. If the
+    -- external menu replaced it, preserve the owner's row even when the ID
+    -- happens to match one of ours.
+    if maps[id] == info then
+      maps[id] = nil
+    end
+  end
+  Tabs.injectedMaps = {}
+end
+
 local function BuildWith(maps, prepare, ...)
   local full = CoD.mapsTable
   CoD.mapsTable = maps
@@ -1263,6 +1282,7 @@ local function WrapMapsList()
   source.bo3Wrapped = true
   source.prepare = function(controller, ...)
     if type(CoD.mapsTable) == "table" and ExternalZMOwner() then
+      RemoveInjectedEntries()
       LogOnce("zm owned", "an external zm menu owns its map rows; preserving its map table")
       return prepare(controller, ...)
     end
@@ -1454,6 +1474,7 @@ end
 
 local function RefreshZombies(menu, controller)
   if ExternalZMOwner() then
+    RemoveInjectedEntries()
     RemoveOwnedTabs(menu)
     if menu ~= nil and menu.MapList ~= nil and type(menu.MapList.updateDataSource) == "function" then
       pcall(menu.MapList.updateDataSource, menu.MapList)
@@ -1537,6 +1558,7 @@ local function WrapMenu()
   Tabs.menuWrapped = true
   LUI.createMenu.ZMMapSelection = function(controller, ...)
     if ExternalZMOwner() then
+      RemoveInjectedEntries()
       return create(controller, ...)
     end
     local choosing = Choosing(controller)
@@ -1676,6 +1698,7 @@ local function PrepareZMMaps(prepare, controller, list)
   if type(CoD.mapsTable) ~= "table" or not ExternalZMOwner() then
     return prepare(controller, list)
   end
+  RemoveInjectedEntries()
   LogOnce("zm owned", "an external zm menu owns its map rows; preserving its map table")
   return prepare(controller, list)
 end
@@ -1769,7 +1792,11 @@ local function Install()
   WrapChangeMap()
   Try("press hook", WrapButtonPress)
   Try("button hooks", WrapButtons, true)
-  EnsureCustomEntries()
+  if not ExternalZMOwner() then
+    EnsureCustomEntries()
+  else
+    RemoveInjectedEntries()
+  end
   local lists = type(DataSources.ZMMapsList) == "table" and DataSources.ZMMapsList.bo3Wrapped == true
   local status = "zm menu " .. tostring(Tabs.menuWrapped) .. ", mp menu " .. tostring(Tabs.changeMapWrapped == true) ..
     ", map lists " .. tostring(lists) .. ", list prepare " .. tostring(Tabs.listPrepareWrapped == true) ..

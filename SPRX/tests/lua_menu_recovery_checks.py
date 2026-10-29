@@ -173,6 +173,7 @@ ListHelper_Prepare=function(list,controller,name,prepare)
   prepared=prepared+1; list.rows=prepare(controller,list); return "native helper"
 end
 '''
+map_fixture += section(maps, "local function RemoveInjectedEntries(", "local function BuildWith(")
 map_fixture += section(maps, "local function BuildWith(", "local function WrapMapsList(")
 map_fixture += section(maps, "local function PrepareZMMaps(", "local function Install()")
 map_fixture += section(maps, "local function RemoveOwnedTabs(", "local function RefreshMultiplayer(")
@@ -188,6 +189,11 @@ assert(list.rows[1].properties.mapId=="zm_good" and list.rows[2].properties.mapI
 assert(list.rows[2].models.Image=="playlist_standard" and not list.rows[2].properties.purchasable)
 owned=true
 local ownedTable=CoD.mapsTable
+local injected={bo3_custom=true}
+CoD.mapsTable.injected=injected
+Tabs.injectedMaps={injected=injected}
+RemoveInjectedEntries()
+assert(CoD.mapsTable.injected==nil, "owned menu retained a BO3-Customs-injected row")
 ListHelper_Prepare(list,0,"ZMMapsList",function()
   local count=0
   for id in pairs(CoD.mapsTable) do if id=="zm_custom" then count=count+1 end end
