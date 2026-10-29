@@ -187,12 +187,14 @@ assert(result=="native helper" and #list.rows==2 and CoD.mapsTable==full, "recov
 assert(list.rows[1].properties.mapId=="zm_good" and list.rows[2].properties.mapId=="zm_custom")
 assert(list.rows[2].models.Image=="playlist_standard" and not list.rows[2].properties.purchasable)
 owned=true
+local ownedTable=CoD.mapsTable
 ListHelper_Prepare(list,0,"ZMMapsList",function()
   local count=0
   for id in pairs(CoD.mapsTable) do if id=="zm_custom" then count=count+1 end end
   return {customCount=count}
 end)
-assert(list.rows.customCount==1 and CoD.mapsTable==full, "owned map table did not retain custom entry")
+assert(list.rows.customCount==1 and CoD.mapsTable==ownedTable and CoD.mapsTable==full,
+  "owned map table was replaced or lost its custom entry")
 owned=false
 local healthy={{models={custom="keep"}}}
 ListHelper_Prepare(list,0,"ZMMapsList",function() return healthy end)

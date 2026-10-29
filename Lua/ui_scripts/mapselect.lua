@@ -1263,7 +1263,6 @@ local function WrapMapsList()
   source.bo3Wrapped = true
   source.prepare = function(controller, ...)
     if type(CoD.mapsTable) == "table" and ExternalZMOwner() then
-      EnsureCustomEntries()
       LogOnce("zm owned", "an external zm menu owns its map rows; preserving its map table")
       return prepare(controller, ...)
     end
@@ -1677,7 +1676,6 @@ local function PrepareZMMaps(prepare, controller, list)
   if type(CoD.mapsTable) ~= "table" or not ExternalZMOwner() then
     return prepare(controller, list)
   end
-  EnsureCustomEntries()
   LogOnce("zm owned", "an external zm menu owns its map rows; preserving its map table")
   return prepare(controller, list)
 end
