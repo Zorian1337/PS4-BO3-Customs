@@ -1,0 +1,104 @@
+name: Experimental dev.35 DEBUG build
+
+on:
+  push:
+    branches: [testing/dev35-debug-build]
+    paths:
+      - '.github/workflows/experimental-dev35-debug.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install reviewed build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-18 lld-18 lua5.1
+      - name: Run host source regressions
+        env:
+          BO3_LUA_RUNNER: /usr/bin/lua5.1
+        run: |
+          python3 .github/scripts/run_host_checks.py
+          python3 tools/console_diagnostics/test_console_logs.py
+          python3 tools/test_project_session.py
+      - name: Compile and verify native DEBUG candidate
+        run: python3 .github/scripts/build_sprx.py --configuration Debug
+      - name: Prepare provenance and checksum
+        run: |
+          mkdir -p build/candidate
+          cp build/openorbis/BO3-Customs.sprx build/candidate/BO3-Customs-dev35-DEBUG.sprx
+          cp build/openorbis/target-validation.json build/candidate/target-validation.json
+          (cd build/candidate && sha256sum BO3-Customs-dev35-DEBUG.sprx > SHA256SUMS.txt)
+          git rev-parse HEAD > build/candidate/SOURCE_COMMIT.txt
+      - name: Preserve verified candidate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bo3-customs-dev35-debug-experimental
+          path: build/candidate/
+          if-no-files-found: error
+      - name: Publish explicitly experimental GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > build/candidate/RELEASE_NOTES.md <<'EOF'
+          ## EXPERIMENTAL DEBUG TESTING CANDIDATE — NO STABILITY CLAIMS
+
+          This is strictly an experimental test build. It is **not stable**, not verified on PS4 or PS5, and may freeze, crash, corrupt runtime state or regress performance. Keep a backup of the previously working SPRX.
+
+          ### Changes under test
+          - Lua mod selection recovery and stale callback handling
+          - Main-menu-only MODS entry and empty-catalog menu access
+          - Native malformed mod folder name validation
+          - Lua retention, unload/recovery and diagnostics improvements
+          - GPU texture readiness timeout guard (not a confirmed GPU-stall fix)
+
+          ### Please test
+          - Fresh startup on PS4/PS5 BO3 1.33
+          - Main menu MODS button with and without installed mods
+          - Selecting one and multiple mods; disabling and re-enabling mods
+          - Repeated menu entry, gameplay transitions, map switching, and mod-off recovery
+          - Zombies/Multiplayer gameplay, GPU stalls, performance and crash behavior
+          - Host/client mod activation and transfer if applicable
+
+          Report console model, content names, steps to reproduce, and logs from `/data/BO3-Customs/log.txt` and `/data/BO3-Customs/crash-errors.log` (when present). Do not post private console identifiers.
+
+          The native active stack still has fixed capacity; do not interpret Lua menu acceptance as proof of native activation.
+          EOF
+          gh release create dev35-debug-experimental-20261029             build/candidate/BO3-Customs-dev35-DEBUG.sprx             build/candidate/target-validation.json             build/candidate/SHA256SUMS.txt             build/candidate/SOURCE_COMMIT.txt             --repo "${{ github.repository }}"             --target "${{ github.sha }}"             --title "dev.35 DEBUG — Experimental Testing Only"             --notes-file build/candidate/RELEASE_NOTES.md             --prerelease
+      - name: Announce experimental candidate to Discord if webhook configured
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RELEASE_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/dev35-debug-experimental-20261029
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "No DISCORD_WEBHOOK_URL secret configured; release published but Discord announcement skipped."
+            exit 0
+          fi
+          python3 - <<'PY'
+          import json, os, urllib.request
+          message = (
+              "🧪 **BO3-Customs dev.35 DEBUG — EXPERIMENTAL TESTING ONLY**\\n"
+              "**NO STABILITY CLAIMS.** Crashes, freezes, and regressions are possible. "
+              "This is not a stable release. Back up your previous SPRX.\\n\\n"
+              "**Changed:** Lua mod selection recovery, MODS main-menu placement, "
+              "native mod-name validation, Lua retention and GPU readiness diagnostics.\\n"
+              "**Test:** PS4/PS5 startup, MODS menu with empty catalog, mod on/off, "
+              "multiple mods, repeated reloads, Zombies/Multiplayer, maps, GPU stalls, "
+              "performance, and host/client activation.\\n"
+              "Report reproduction steps and console logs.\\n"
+              "**Download and full notes:** " + os.environ["RELEASE_URL"]
+          )
+          data = json.dumps({"content": message}).encode()
+          req = urllib.request.Request(os.environ["DISCORD_WEBHOOK_URL"], data=data,
+                                       headers={"Content-Type": "application/json"}, method="POST")
+          with urllib.request.urlopen(req, timeout=20) as response:
+              print("Discord announcement status:", response.status)
+          PY
