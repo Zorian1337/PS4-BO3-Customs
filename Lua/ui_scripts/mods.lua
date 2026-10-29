@@ -1105,6 +1105,14 @@ local function AddModsButton(controller, id, buttons)
   -- Only the top-level mode-select screen owns MODS. Never inject into
   -- campaign/multiplayer/zombies lobbies or other secondary screens.
   if not IsMainMenuTarget(id) or type(buttons) ~= "table" then
+    -- PS4/PS5 frontend builds can use a different target ID. Record the
+    -- actual ID and the expected one before changing menu routing.
+    local data = rawget(_G, "LobbyData")
+    local targets = type(data) == "table" and rawget(data, "UITargets") or nil
+    local main = type(targets) == "table" and rawget(targets, "UI_MODESELECT") or nil
+    local expected = type(main) == "table" and main.id or nil
+    LogOnce("skip " .. tostring(id), "MODS button skipped: target=" .. tostring(id) ..
+      " mode-select=" .. tostring(expected) .. " buttons=" .. tostring(type(buttons)))
     return
   end
   -- The MODS entry is a recovery path, not a game-mode-dependent feature.
