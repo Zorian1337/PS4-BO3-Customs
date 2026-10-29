@@ -69,7 +69,7 @@ local ButtonId="btnModsLoad"
 local UI={logged={}}
 local cod={LobbyMenus={History={}}}
 local function LogOnce() end
-local LobbyData={UITargets={UI_MODESELECT={id=1},UI_CPLOBBY={id=2}},GetLobbyNav=function() return 1 end}
+LobbyData={UITargets={UI_MODESELECT={id=1},UI_CPLOBBY={id=2}},GetLobbyNav=function() return 1 end}
 '''
 button_fixture += section(mods, "local function IsMainMenuTarget(", "local function HideOnline(")
 button_fixture += r'''
