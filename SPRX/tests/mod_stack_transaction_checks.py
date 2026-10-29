@@ -11,6 +11,13 @@ import sys
 
 source = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parents[1] / "t7_maps.cpp"
 text = source.read_text(encoding="utf-8")
+# The disable action must remain available even if mod-load hooks are absent.
+selection = text[text.index("int T7Maps_SelectMod("):text.index("const char* T7Maps_ModsLua()")]
+assert 'const bool off = !list || !list[0] || strcmp(list, "!off") == 0;' in selection
+assert '&& !off)' in selection
+assert selection.index('const bool off =') < selection.index('&& !off)')
+assert 'if (!WriteChosenMods(names, count))' in selection
+
 begin = text.index("static int AddModZones(")
 end = text.index("static bool FreesModZones(", begin)
 function = text[begin:end]
