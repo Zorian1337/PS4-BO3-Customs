@@ -112,6 +112,34 @@ int main() {
     });
     start=true; for(auto& thread:workers) thread.join();
     assert(g_retainedLuaCount==3);
+    // Distinct mod assets with identical bytecode must share immutable bytes,
+    // while their lookup headers and names remain independent.
+    const size_t beforeAliasBytes=g_retainedLuaBytes.load();
+    const auto alias=reinterpret_cast<const RawFileAsset*>(
+        RetainModLua("ui/alias.lua",reinterpret_cast<uint64_t>(&replacement)));
+    assert(alias!=changed && alias->buffer==changed->buffer);
+    assert(std::strcmp(alias->name,"ui/alias.lua")==0);
+    assert(std::strcmp(changed->name,"ui/test.lua")==0);
+    assert(alias->length==changed->length && alias->padding==replacement.padding);
+    assert(g_retainedLuaCount==4);
+    assert(g_retainedLuaBytes.load()-beforeAliasBytes<sizeof(RetainedLuaFile)+128);
+    assert(RetainModLua("ui/alias.lua",reinterpret_cast<uint64_t>(&replacement))==reinterpret_cast<uint64_t>(alias));
+    // A different revision of the same name must not replace old bytecode.
+    char changedAgain[64]={};
+    std::memcpy(changedAgain,chunk,sizeof(changedAgain)); changedAgain[21]=57;
+    RawFileAsset revision{"ui/alias.lua",64,17,changedAgain};
+    const auto newer=reinterpret_cast<const RawFileAsset*>(
+        RetainModLua("ui/alias.lua",reinterpret_cast<uint64_t>(&revision)));
+    assert(newer!=alias && newer->buffer!=alias->buffer && newer->buffer[21]==57);
+    assert(alias->buffer[21]==0 && changed->buffer[21]==0);
+    assert(g_retainedLuaCount==5);
+    // Mod-disabled lookup must continue to return the native stock rawfile.
+    active=false;
+    nativeFile=&revision;
+    assert(FindXAsset(47,reinterpret_cast<uint64_t>(revision.name),0,0,0,0,0,0,0,0,0,0,0,0)
+           ==reinterpret_cast<uint64_t>(&revision));
+    active=true;
+    nativeFile=&raw;
     RawFileAsset text{"ui/source.lua",20,0,"return 'plain source'"};
     assert(RetainModLua(text.name,reinterpret_cast<uint64_t>(&text))==reinterpret_cast<uint64_t>(&text));
     RawFileAsset shortText{"ui/short.lua",2,0,"--"};
