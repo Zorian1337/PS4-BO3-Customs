@@ -185,6 +185,12 @@ instead of cloned, invalid/locked rows are excluded from category data sources,
 and stock rows remain in Standard. This is deliberately catalog-driven and
 does not name or special-case Reaper Collection.
 
+The console trace also showed duplicate custom rows: a canonical loadable
+`zm_*` row followed by a numeric compatibility row with the same display name.
+The selector now drops numeric rows when they match the custom catalog, keeps
+the canonical nonnumeric row, and deduplicates the remaining categories by
+normalized display name.
+
 When a frontend probe reports a broken menu graph (for example, a provider
 throws before `main`/`Lobby` exists), compatibility injection is now latched
 off for that frontend generation. This prevents repeated BO3-Customs Lua

@@ -190,6 +190,55 @@ local function ValidMap(id, info, mode)
   return info.dlc_pack ~= -1 and info.isFreeRunMap ~= true
 end
 
+local function DisplayKey(id, info)
+  if type(info) == "table" then
+    for _, value in ipairs({ info.mapName, info.mapname, info.name, info.title }) do
+      local key = CatalogKey(value)
+      if key ~= nil then
+        return key
+      end
+    end
+  end
+  return CatalogKey(id)
+end
+
+local function MapPriority(id, info)
+  local score = 0
+  if type(id) == "string" and tonumber(id) == nil then
+    score = score + 2
+  end
+  if type(id) == "string" and (string.sub(id, 1, 3) == "zm_" or string.sub(id, 1, 3) == "mp_") then
+    score = score + 4
+  end
+  if type(info) == "table" and info.bo3_custom == true then
+    score = score + 1
+  end
+  return score
+end
+
+local function VisibleMaps(maps, mode, customs)
+  local visible = {}
+  local winners = {}
+  if type(maps) ~= "table" then
+    return visible
+  end
+  for id, info in pairs(maps) do
+    local generatedDuplicate = customs and type(id) == "string" and tonumber(id) ~= nil and CatalogCustom(id, info)
+    if not generatedDuplicate and ValidMap(id, info, mode) and IsCustom(info, id) == customs then
+      local key = DisplayKey(id, info) or id
+      local previous = winners[key]
+      if previous == nil or MapPriority(id, info) > previous.priority then
+        if previous ~= nil then
+          visible[previous.id] = nil
+        end
+        winners[key] = { id = id, priority = MapPriority(id, info) }
+        visible[id] = info
+      end
+    end
+  end
+  return visible
+end
+
 local function NormalizeCatalogEntries(maps)
   if type(maps) ~= "table" then
     return
@@ -1272,13 +1321,7 @@ local function TabOf(info, id)
 end
 
 local function TabTable(maps, tab)
-  local only = {}
-  for id, info in pairs(maps) do
-    if ValidMap(id, info, Zombies()) and TabOf(info, id) == tab then
-      only[id] = info
-    end
-  end
-  return only
+  return VisibleMaps(maps, Zombies(), tab == "custom")
 end
 
 local function Current(controller)
@@ -1544,12 +1587,7 @@ local function HasCustoms(sessionMode)
   if type(CoD.mapsTable) ~= "table" then
     return false
   end
-  for id, info in pairs(CoD.mapsTable) do
-    if ValidMap(id, info, sessionMode) and IsCustom(info, id) then
-      return true
-    end
-  end
-  return false
+  return next(VisibleMaps(CoD.mapsTable, sessionMode, true)) ~= nil
 end
 
 local function RemoveOwnedTabs(menu)
@@ -1730,10 +1768,8 @@ local function AddCustomsCategory(items)
   end
   EnsureCustomEntries()
   local count = 0
-  for id, info in pairs(maps) do
-    if ValidMap(id, info, CoD.gameModeEnum) and IsCustom(info, id) then
-      count = count + 1
-    end
+  for _ in pairs(VisibleMaps(maps, CoD.gameModeEnum, true)) do
+    count = count + 1
   end
   if count == 0 then
     return
@@ -1772,12 +1808,7 @@ local function PrepareMaps(prepare, controller, list)
   end
   EnsureCustomEntries()
   local customs = perController.mapCategory == CustomsCategory
-  local only = {}
-  for id, info in pairs(maps) do
-    if ValidMap(id, info, CoD.gameModeEnum) and IsCustom(info, id) == customs then
-      only[id] = info
-    end
-  end
+  local only = VisibleMaps(maps, CoD.gameModeEnum, customs)
   CoD.mapsTable = only
   if customs then
     perController.mapCategory = 0
