@@ -87,7 +87,11 @@ int main() {
     assert(binary && length==3 && binary[1]==0); free(binary);
     before=opens;
     assert(!T7LuaFiles::Read("../outside",64)); assert(!T7LuaFiles::Read("/absolute",64));
-    assert(!T7LuaFiles::Read("lui/a/../../outside",64)); assert(opens==before);
+    assert(!T7LuaFiles::Read("lui/a/../../outside",64));
+    assert(!T7LuaFiles::Read("ui_scripts//test.lua",64));
+    assert(!T7LuaFiles::Read("ui_scripts/test.lua/",64));
+    assert(!T7LuaFiles::Read("//ui_scripts/test.lua",64));
+    assert(opens==before);
     assert(!T7LuaFiles::Read(std::string(600,'x').c_str(),64)); assert(opens==before);
     for(const auto& path:opened) assert(path.find("lua_roots.txt")==std::string::npos);
     Reset(); files[internal]=""; files[external]="external"; Expect("external");
