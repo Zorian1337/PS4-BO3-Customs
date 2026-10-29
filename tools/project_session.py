@@ -58,7 +58,7 @@ def status():
  source=(ROOT/'SPRX/main.cpp').read_text(encoding='utf-8')
  match=re.search(r'\[Build\] ([^"\n]+)',source)
  rows=git('status','--porcelain').splitlines()
- state=dict(repository='Zorian1337/PS4-BO3-Customs',branch=git('branch','--show-current'),head=git('rev-parse','--short','HEAD'),source_label=match[1] if match else 'unknown',release_ready=False,dirty_count=len(rows),changed_paths=[v[3:] for v in rows[:30]],resume='RESUME.md',next='GPU/native stall investigation and unbuilt readiness guard; see docs/DEVELOPMENT.md')
+ state=dict(repository='Zorian1337/PS4-BO3-Customs',branch=git('branch','--show-current'),head=git('rev-parse','--short','HEAD'),source_label=match[1] if match else 'unknown',release_ready=False,dirty_count=len(rows),changed_paths=[v[3:] for v in rows[:30]],resume='RESUME.md',next='Issue #23 multi-mod loading/Lua restoration; see docs/INVESTIGATION-23.md')
  for name in ('origin/main','upstream/main'):
   try:state[name]=git('rev-parse','--short',name)
   except subprocess.CalledProcessError:state[name]='not fetched'

@@ -1,6 +1,11 @@
 # Current development status
 
-Updated 2026-10-29. Source label: dev.34 DEBUG. **Unvalidated candidate, not a release.**
+Updated 2026-10-29. Active branch: `testing/dev35-debug-build`.
+Dev.35 base with unbuilt source corrections; no new release.
+
+Current priority: [Issue #23 investigation and verified corrections](INVESTIGATION-23.md).
+The multi-mod hang and Reaper frontend failure remain separate, unresolved runtime
+validation targets. Earlier GPU/menu findings below remain historical evidence.
 
 ## Evidence and present behavior
 
@@ -125,7 +130,7 @@ use Git history for source changes and GitHub Releases for approved distribution
 
 ## Current source checks
 
-The maintained host suite contains 30 regression programs, including two C++
+The maintained host suite contains 33 regression programs, including two C++
 executables. The separate diagnostic reader and publication guard have 13 unit
 tests. The SDK header and native artifact comparisons require explicit matching
 inputs and are not silently replaced by host stubs. These checks do not establish

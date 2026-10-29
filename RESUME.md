@@ -1,6 +1,6 @@
 # Resume SPRX / Lua development
 
-**Current source: dev.34 DEBUG base plus unbuilt GPU/readiness corrections. Experimental; not a release.**
+**Active branch: `testing/dev35-debug-build`. Dev.35 base plus unbuilt source corrections; not a new release.**
 Native build/format checks and focused host regressions pass. Console stability,
 repeated menu switching and native crash resolution are not confirmed.
 
@@ -15,34 +15,31 @@ branch/diff and the specific source or incident needed for the next task.
 
 ## Where to continue
 
-The active task is GPU/native stall investigation. Work mode fetched the changes
-made in Chat, preserved the console's persistent crash log privately, and checked
-the production texture-readiness hook against an execution fixture.
+The active task is [Issue #23](https://github.com/Zorian1337/PS4-BO3-Customs/issues/23):
+multi-mod infinite loading and a separate Reaper Collection frontend Lua failure.
+Read [the investigation handoff](docs/INVESTIGATION-23.md) for the exact timeline,
+package inspection, demonstrated defects, alternatives and remaining validation.
 
-**Verified correction:** its 180-second fallback now refuses to mark textures
-ready while required image/mesh parts are missing or unreadable. Blocked residency
-checks retry at most four times per second. Native readiness still wins immediately;
-stock maps, native arguments/results and GPU completion state remain unchanged.
-The previous source fails the new negative control. Thirty host regression
-programs pass; the changed PS4 translation unit passes Debug/Release syntax checks.
-No new SPRX was built, uploaded or released. The console still has the old candidate.
+Verified source corrections isolate zone/XPAK/asset ownership per loader worker
+and restore exact temporary Lua platform flags, including frontend table replacement.
+Both regressions fail against the original source and pass after the corrections.
+All 33 host programs and 13 supporting tests pass; both changed PS4 units pass
+Debug/Release syntax validation. No new plugin was built, uploaded or released.
 
-**Still open:** this is not a confirmed cure for the captured native compute stall.
-The historical PS4 gameplay run reached native texture readiness before the timeout,
-so this fallback did not cause that run. The current saved PS5 startup stall has
-only five native frames and completion ahead of the requested frame; it must not
-be misreported as an outstanding frame fence. See the GPU section in
-[development status](docs/DEVELOPMENT.md) for evidence, alternatives and validation.
+The console hang and Reaper's nil operand are **not confirmed resolved**. Preserve
+native frontend rebuilding, automatic recovery and bytecode-lifetime protection.
+Complete arbitrary-mod Lua-state restoration still requires lifecycle evidence;
+do not replace it with broad global/module resets or a restart-only unload lock.
 
-Next: identify the blocked native wait from matching game/ELF evidence, then compare
-one controlled run per case with the matching diagnostics. Do not force GPU fences,
-expand pools without exhaustion evidence, or claim the new guard resolved either
-stall. Obtain explicit approval before building a candidate. Existing menu re-entry
-validation remains open; retain the dev.34 MODS-handler corrections.
+Next: resolve the Reaper nil operand from matching chunk/debug evidence and review
+post-unload globals/module ownership. Do not assume invalid GSC opcode is the first
+cause: its record precedes the first printed watchdog warning but lies inside the
+warning's reported no-progress interval. Existing GPU findings remain in
+[development status](docs/DEVELOPMENT.md).
 
 ## Resume from Chat
 
-Use the connected GitHub repository `Zorian1337/PS4-BO3-Customs`, branch `main`.
+Use the connected GitHub repository `Zorian1337/PS4-BO3-Customs`, branch `testing/dev35-debug-build`.
 Read this file and the linked development status, then fetch only relevant files.
 Chat can review or plan from those sources; local files, console FTP, kernel
 output and native tools require an available local Work environment. Never claim
@@ -50,8 +47,8 @@ those checks ran when that access is unavailable.
 
 Suggested prompt:
 
-> Continue the BO3-Customs SPRX/Lua work from RESUME.md and AGENTS.md on main.
-> Continue the GPU/native stall investigation in docs/DEVELOPMENT.md. Inspect
+> Continue the BO3-Customs SPRX/Lua work from RESUME.md and AGENTS.md on testing/dev35-debug-build.
+> Continue Issue #23 using docs/INVESTIGATION-23.md. Inspect
 > the current status/diff and upstream main first. Keep current features,
 > document evidence and alternative fixes, and validate targeted changes. Do not
 > publish private material or create a plugin build/release without approval.

@@ -310,7 +310,7 @@ static char                    g_loaded[kMaxStack][kNameMax];
 static int                     g_loadedCount = 0;
 static char                    g_sessionMods[kMaxStack][kNameMax];
 static int                     g_sessionModCount = -1;
-static std::atomic<uintptr_t>  g_loadingZone{0};
+static ModLoadContexts<>      g_zoneLoadContexts;
 static std::atomic<uint64_t>   g_plainZoneThread{0};
 static std::atomic<bool>       g_applyWanted{false};
 static std::atomic<bool>       g_prefetchWanted{false};
@@ -342,7 +342,6 @@ static T7LuaOwnership::Index    g_modLuaOwnership;
 static char                    g_modNotice[224];
 static char                    g_waitZones[64][kNameMax];
 static int                     g_waitZoneCount = 0;
-static std::atomic<uint64_t>   g_loadingThread{0};
 static char                    g_xpakNames[kXpakNames][kNameMax + 8];
 static std::atomic<uint32_t>   g_xpakNameAt{0};
 static std::atomic<bool> g_modsLuaDirty{true};
@@ -1887,15 +1886,12 @@ static void NoteUiFile(uintptr_t header, int index)
 
 static void RenameStackAsset(uint64_t asset)
 {
-    if (g_loadingThread.load(std::memory_order_acquire) != (uint64_t)scePthreadSelf())
-        return;
-
     const int32_t type = *(const int32_t*)asset;
 
     if (type != kKeyValuePairs && type != kBgCache && type != kScriptParseTree && type != kRawFileAsset)
         return;
 
-    const char* const zone = (const char*)g_loadingZone.load(std::memory_order_acquire);
+    const char* const zone = (const char*)g_zoneLoadContexts.Current((uint64_t)scePthreadSelf());
 
     if (!zone || !RangeReadable((uintptr_t)zone, 1))
         return;
@@ -2083,9 +2079,8 @@ static void GrowPool(int32_t type)
 
 static void NoteLevelLua(uint64_t asset)
 {
-    if (!g_usermapLevel.load(std::memory_order_acquire) || !asset || *(const int32_t*)asset != kRawFileAsset ||
-        g_loadingThread.load(std::memory_order_acquire) != (uint64_t)scePthreadSelf()) return;
-    const char* const zone = (const char*)g_loadingZone.load(std::memory_order_acquire);
+    if (!g_usermapLevel.load(std::memory_order_acquire) || !asset || *(const int32_t*)asset != kRawFileAsset) return;
+    const char* const zone = (const char*)g_zoneLoadContexts.Current((uint64_t)scePthreadSelf());
     if (!zone || !RangeReadable((uintptr_t)zone, 4)) return;
     char relative[kNameMax];
     const int length = snprintf(relative, sizeof(relative), "%s.ff", zone);
@@ -2168,12 +2163,9 @@ static uint64_t LoadXFile_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, 
                             uint64_t a8, double x0, double x1, double x2, double x3, double x4, double x5, double x6,
                             double x7)
 {
-    const uintptr_t zone = g_loadingZone.exchange((uintptr_t)a3, std::memory_order_acq_rel);
-    const uint64_t thread = g_loadingThread.exchange((uint64_t)scePthreadSelf(), std::memory_order_acq_rel);
+    ModLoadContexts<>::Scope loading(g_zoneLoadContexts, (uint64_t)scePthreadSelf(), (uintptr_t)a3);
     const uint64_t result = ((LoadXFile_t)g_loadXFileOriginal)(a1, a2, a3, a4, a5, a6, a7, a8, x0, x1, x2, x3, x4, x5,
                                                                x6, x7);
-    g_loadingThread.store(thread, std::memory_order_release);
-    g_loadingZone.store(zone, std::memory_order_release);
     return result;
 }
 
@@ -2198,11 +2190,11 @@ static uint64_t XPakOpen_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
                            double x0, double x1, double x2, double x3, double x4, double x5, double x6, double x7)
 {
     const char* const pak = (const char*)a1;
-    const char* const zone = (const char*)g_loadingZone.load(std::memory_order_acquire);
+    const char* const zone = (const char*)g_zoneLoadContexts.Current((uint64_t)scePthreadSelf());
     int index = -1;
     char inner[kNameMax];
 
-    if (pak && zone && g_loadingThread.load(std::memory_order_acquire) == (uint64_t)scePthreadSelf() &&
+    if (pak && zone &&
         RangeReadable((uintptr_t)pak, 1) && StackName(zone, &index, inner, sizeof(inner)))
     {
         ListReader reading;

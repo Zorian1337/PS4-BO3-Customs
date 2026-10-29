@@ -1,15 +1,7 @@
 name: Experimental dev.35 DEBUG build
-# Retry after regression fixes.
+# Native build, release and announcement require an explicit manual dispatch.
 
 on:
-  push:
-    branches: [testing/dev35-debug-build]
-    paths:
-      - '.github/workflows/experimental-dev35-debug.yml'
-      - '.github/scripts/run_host_checks.py'
-      - 'SPRX/tests/**'
-      - 'SPRX/t7_maps.cpp'
-      - 'Lua/ui_scripts/mods.lua'
   workflow_dispatch:
 
 permissions:
