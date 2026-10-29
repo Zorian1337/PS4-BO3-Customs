@@ -51,6 +51,7 @@ jobs:
           python3 SPRX/tests/session_mod_publish_checks.py
           python3 SPRX/tests/storage_safety_checks.py
           python3 SPRX/tests/lua_file_roots_checks.py
+          python3 SPRX/tests/mod_lua_retention_checks.py
           python3 SPRX/tests/config_io_bounds_checks.py
           python3 SPRX/tests/map_fastfile_route_checks.py
           python3 SPRX/tests/gpu_progress_checks.py
