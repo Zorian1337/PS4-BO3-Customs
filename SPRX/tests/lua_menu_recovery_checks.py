@@ -58,7 +58,16 @@ assert(writes==3)
 BO3CustomsChosenMods={"ds4c"}
 assert(not pcall(UI.Toggle,menu,0,"ds4c"))
 assert(writes==4)
-print("PASS: unload routes only owned menus, delegates other contexts, protects host choices and queues before widget refresh")
+-- A failed native request must not make the UI claim a different selection.
+UI.SetChosen=function(list) BO3CustomsChosenMods=list end
+UI.SetStatus=function(message) assert(type(message)=="string") end
+engine.SetDvar=function() error("native dvar unavailable") end
+BO3CustomsChosenMods={"ds4c"}
+UI.Unload(menu,0)
+assert(#BO3CustomsChosenMods==1 and BO3CustomsChosenMods[1]=="ds4c" and UI.pending==nil)
+UI.Toggle(menu,0,"ds4c")
+assert(#BO3CustomsChosenMods==1 and BO3CustomsChosenMods[1]=="ds4c" and UI.pending==nil)
+print("PASS: unload routes only owned menus, delegates other contexts, protects host choices and preserves selection on native request failure")
 '''
 subprocess.run([lua, "-"], input=mod_fixture, text=True, cwd=root, check=True)
 
