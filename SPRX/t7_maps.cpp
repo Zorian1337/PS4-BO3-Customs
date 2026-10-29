@@ -2027,9 +2027,16 @@ static void GrowPool(int32_t type)
     const size_t byBudget = (availableBytes & ~(size_t)0x3FFF) / growth->size;
     if (step > byBudget)
         step = (uint32_t)(byBudget > UINT32_MAX ? UINT32_MAX : byBudget);
+    // A pool that cannot fit even one entry under the remaining budget
+    // must stop retrying this calculation on every asset-link callback.
+    if (!step)
+    {
+        if (!growth->capped.exchange(true, std::memory_order_acq_rel))
+            T7Log_Write("[Pools] %s cannot grow: no space for another entry in the shared budget", growth->name);
+        return;
+    }
     const size_t rawBytes = (size_t)growth->size * step;
-    if (!step || (uint64_t)pool->limit + step > UINT32_MAX ||
-        rawBytes > SIZE_MAX - 0x3FFF)
+    if ((uint64_t)pool->limit + step > UINT32_MAX || rawBytes > SIZE_MAX - 0x3FFF)
         return;
     const size_t bytes = (rawBytes + 0x3FFF) & ~(size_t)0x3FFF;
     if (g_poolGrowthBytes > kPoolGrowthBudget || bytes > kPoolGrowthBudget - g_poolGrowthBytes)
