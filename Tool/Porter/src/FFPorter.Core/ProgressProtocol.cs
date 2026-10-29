@@ -10,15 +10,27 @@ public static class ProgressProtocol
     {
         current = total = 0;
         stage = "";
-        if (!line.StartsWith(Prefix, StringComparison.Ordinal))
+        if (line is null || !line.StartsWith(Prefix, StringComparison.Ordinal))
             return false;
-        string[] fields = line.Trim().Split(' ', 3);
-        if (fields.Length < 2)
+
+        // Progress is a single line of nonnegative, bounded counters followed
+        // by an optional stage. Reject malformed counters without publishing
+        // partial output or accepting negative/overshooting progress.
+        ReadOnlySpan<char> payload = line.AsSpan(Prefix.Length).TrimEnd('\r', '\n');
+        int separator = payload.IndexOf(' ');
+        ReadOnlySpan<char> counts = separator < 0 ? payload : payload[..separator];
+        int slash = counts.IndexOf('/');
+        if (slash <= 0 || slash == counts.Length - 1 ||
+            !int.TryParse(counts[..slash], System.Globalization.NumberStyles.None,
+                          System.Globalization.CultureInfo.InvariantCulture, out int parsedCurrent) ||
+            !int.TryParse(counts[(slash + 1)..], System.Globalization.NumberStyles.None,
+                          System.Globalization.CultureInfo.InvariantCulture, out int parsedTotal) ||
+            parsedTotal <= 0 || parsedCurrent > parsedTotal)
             return false;
-        string[] counts = fields[1].Split('/');
-        if (counts.Length != 2 || !int.TryParse(counts[0], out current) || !int.TryParse(counts[1], out total) || total <= 0)
-            return false;
-        stage = fields.Length > 2 ? fields[2] : "";
+
+        current = parsedCurrent;
+        total = parsedTotal;
+        stage = separator < 0 ? "" : payload[(separator + 1)..].ToString();
         return true;
     }
 }
