@@ -36,13 +36,54 @@ jobs:
           python3 tools/test_project_session.py
       - name: Compile and verify native DEBUG candidate
         run: python3 .github/scripts/build_sprx.py --configuration Debug
-      - name: Prepare provenance and checksum
+      - name: Assemble complete console bundle from reviewed dev.26 companion
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p build/candidate
-          cp build/openorbis/BO3-Customs.sprx build/candidate/BO3-Customs-dev35-DEBUG.sprx
+          mkdir -p build/candidate build/baseline
+          gh release download v4-26 --repo "${{ github.repository }}" --pattern Console.zip --dir build/baseline
+          echo "cfaba8ff0067e56fc3b7d5af70460712e4d31c08b28472d9213031fb795aa043  build/baseline/Console.zip" | sha256sum -c -
+          cp build/openorbis/BO3-Customs.sprx build/candidate/BO3-Customs-v4.00.1-dev.35-DEBUG.sprx
           cp build/openorbis/target-validation.json build/candidate/target-validation.json
-          (cd build/candidate && sha256sum BO3-Customs-dev35-DEBUG.sprx > SHA256SUMS.txt)
           git rev-parse HEAD > build/candidate/SOURCE_COMMIT.txt
+          python3 - <<'PY'
+          import hashlib, json, pathlib, zipfile
+          root = pathlib.Path(".")
+          source = root / "build/baseline/Console.zip"
+          target = root / "build/candidate/Console.zip"
+          sprx = (root / "build/candidate/BO3-Customs-v4.00.1-dev.35-DEBUG.sprx").read_bytes()
+          report = json.loads((root / "build/candidate/target-validation.json").read_text())
+          assert report["sprx_sha256"] == hashlib.sha256(sprx).hexdigest(), "SPRX validation mismatch"
+          updates = {}
+          for name in ("mods.lua", "mapselect.lua"):
+              path = root / "Lua/ui_scripts" / name
+              updates["BO3-Customs/ui_scripts/" + name] = path.read_bytes()
+          with zipfile.ZipFile(source) as original:
+              entries = [entry for entry in original.infolist() if not entry.is_dir()]
+              names = [entry.filename.replace("\\", "/") for entry in entries]
+              assert len(names) == len(set(n.casefold() for n in names)), "Duplicate console files"
+              assert all(n.startswith("BO3-Customs/") and ".." not in pathlib.PurePosixPath(n).parts for n in names), "Unexpected console layout"
+              assert set(updates).issubset(names), "Missing editable Lua in baseline"
+              native = [n for n in names if n.endswith(".sprx")]
+              assert len(native) == 1 and native[0] == "BO3-Customs/BO3-Customs.sprx", "Unexpected native layout"
+              compiled = [n for n in names if n.startswith("BO3-Customs/lui/") and n.endswith(".lua")]
+              assert len(compiled) == 39, "Compiled LUI inventory mismatch"
+              editable = [n for n in names if n.startswith("BO3-Customs/ui_scripts/") and n.endswith(".lua")]
+              assert len(editable) == 7, "Editable Lua inventory mismatch"
+              updates[native[0]] = sprx
+              with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as output:
+                  for entry in entries:
+                      name = entry.filename.replace("\\", "/")
+                      output.writestr(name, updates.get(name, original.read(entry)))
+          with zipfile.ZipFile(target) as check:
+              assert check.testzip() is None, "Console.zip CRC failure"
+              assert check.read(native[0]) == sprx, "ZIP SPRX differs from standalone"
+              for name, data in updates.items():
+                  assert check.read(name) == data, "Console.zip missing updated " + name
+              assert len([n for n in check.namelist() if n.startswith("BO3-Customs/lui/") and n.endswith(".lua")]) == 39
+          print("PASS: complete Console.zip, 39 compiled LUI, seven editable scripts, current mods/mapselect and identical DEBUG SPRX")
+          PY
+          (cd build/candidate && sha256sum BO3-Customs-v4.00.1-dev.35-DEBUG.sprx Console.zip target-validation.json SOURCE_COMMIT.txt > SHA256SUMS.txt)
       - name: Preserve verified candidate artifact
         uses: actions/upload-artifact@v4
         with:
@@ -54,9 +95,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > build/candidate/RELEASE_NOTES.md <<'EOF'
-          ## EXPERIMENTAL DEBUG TESTING CANDIDATE — NO STABILITY CLAIMS
+          ## BO3-Customs v4.00.1 dev.35 DEBUG — EXPERIMENTAL
 
-          This is strictly an experimental test build. It is **not stable**, not verified on PS4 or PS5, and may freeze, crash, corrupt runtime state or regress performance. Keep a backup of the previously working SPRX.
+          This is an unofficial community experimental test build, not an official Joker release. **Not console-validated or stable.** Back up the previous SPRX and console files before installing. Crashes and regressions remain possible.\n\n          ### Update your console files first\n          Close BO3. Download `Console.zip` from this release and merge its `BO3-Customs/lui/` and `BO3-Customs/ui_scripts/` folders into `/data/BO3-Customs/`. Install `BO3-Customs-v4.00.1-dev.35-DEBUG.sprx` in your loader's plugin directory, enable only one Customs SPRX, then fully restart BO3. The ZIP also contains an identical `BO3-Customs/BO3-Customs.sprx` copy; do not load both. The ZIP retains all 39 compiled LUI files and seven editable scripts, with updated mods.lua and mapselect.lua.
 
           ### Changes under test
           - Lua mod selection recovery and stale callback handling
@@ -77,13 +118,23 @@ jobs:
 
           The native active stack still has fixed capacity; do not interpret Lua menu acceptance as proof of native activation.
           EOF
-          gh release create dev35-debug-experimental-20261029             build/candidate/BO3-Customs-dev35-DEBUG.sprx             build/candidate/target-validation.json             build/candidate/SHA256SUMS.txt             build/candidate/SOURCE_COMMIT.txt             --repo "${{ github.repository }}"             --target "${{ github.sha }}"             --title "dev.35 DEBUG — Experimental Testing Only"             --notes-file build/candidate/RELEASE_NOTES.md             --prerelease
+          TAG="dev35-debug-experimental-${GITHUB_SHA:0:12}"
+          gh release create "$TAG" \
+            build/candidate/BO3-Customs-v4.00.1-dev.35-DEBUG.sprx \
+            build/candidate/Console.zip \
+            build/candidate/target-validation.json \
+            build/candidate/SHA256SUMS.txt \
+            build/candidate/SOURCE_COMMIT.txt \
+            --repo "${{ github.repository }}" --target "${{ github.sha }}" \
+            --title "BO3-Customs v4.00.1 - DEBUG dev.35 (Experimental)" \
+            --notes-file build/candidate/RELEASE_NOTES.md --prerelease --latest=false
+
       - name: Announce experimental candidate to Discord if webhook configured
         # Notification delivery is external; never invalidate a verified SPRX release.
         continue-on-error: true
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          RELEASE_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/dev35-debug-experimental-20261029
+          RELEASE_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/dev35-debug-experimental-${{ github.sha }}
         run: |
           if [ -z "$DISCORD_WEBHOOK_URL" ]; then
             echo "No DISCORD_WEBHOOK_URL secret configured; release published but Discord announcement skipped."
@@ -91,7 +142,7 @@ jobs:
           fi
           python3 - <<'PY'
           import json, os, urllib.request, urllib.error
-          message = (
+          release_url = os.environ["RELEASE_URL"].rsplit("-", 1)[0] + "-" + os.environ["GITHUB_SHA"][:12]\n          message = (
               "🧪 **BO3-Customs dev.35 DEBUG — EXPERIMENTAL TESTING ONLY**\\n"
               "**NO STABILITY CLAIMS.** Crashes, freezes, and regressions are possible. "
               "This is not a stable release. Back up your previous SPRX.\\n\\n"
