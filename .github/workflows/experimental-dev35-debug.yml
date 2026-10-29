@@ -65,7 +65,8 @@ jobs:
               assert all(n.startswith("BO3-Customs/") and ".." not in pathlib.PurePosixPath(n).parts for n in names), "Unexpected console layout"
               assert set(updates).issubset(names), "Missing editable Lua in baseline"
               native = [n for n in names if n.endswith(".sprx")]
-              assert len(native) == 1 and native[0] == "BO3-Customs/BO3-Customs.sprx", "Unexpected native layout"
+              assert len(native) == 1 and native[0].startswith("BO3-Customs/") and pathlib.PurePosixPath(native[0]).name.lower().startswith("bo3-customs"), "Unexpected native layout: " + repr(native)
+              print("Replacing baseline SPRX at:", native[0])
               compiled = [n for n in names if n.startswith("BO3-Customs/lui/") and n.endswith(".lua")]
               assert len(compiled) == 39, "Compiled LUI inventory mismatch"
               editable = [n for n in names if n.startswith("BO3-Customs/ui_scripts/") and n.endswith(".lua")]
@@ -100,7 +101,7 @@ jobs:
           This is an unofficial community experimental test build, not an official Joker release. **Not console-validated or stable.** Back up the previous SPRX and console files before installing. Crashes and regressions remain possible.
 
           ### Update your console files first
-          Close BO3. Download `Console.zip` from this release and merge its `BO3-Customs/lui/` and `BO3-Customs/ui_scripts/` folders into `/data/BO3-Customs/`. Install `BO3-Customs-v4.00.1-dev.35-DEBUG.sprx` in your loader's plugin directory, enable only one Customs SPRX, then fully restart BO3. The ZIP also contains an identical `BO3-Customs/BO3-Customs.sprx` copy; do not load both. The ZIP retains all 39 compiled LUI files and seven editable scripts, with updated mods.lua and mapselect.lua.
+          Close BO3. Download `Console.zip` from this release and merge its `BO3-Customs/lui/` and `BO3-Customs/ui_scripts/` folders into `/data/BO3-Customs/`. Install `BO3-Customs-v4.00.1-dev.35-DEBUG.sprx` in your loader's plugin directory, enable only one Customs SPRX, then fully restart BO3. The ZIP also contains an identical SPRX copy in its original companion-package location; do not load both. The ZIP retains all 39 compiled LUI files and seven editable scripts, with updated mods.lua and mapselect.lua.
 
           ### Changes under test
           - Lua mod selection recovery and stale callback handling
