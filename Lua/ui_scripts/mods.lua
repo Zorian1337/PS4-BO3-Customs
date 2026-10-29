@@ -15,7 +15,6 @@ local UI = { logged = {}, pageSize = 6, rows = {} }
 rawset(_G, "BO3CustomsModsUI", UI)
 
 local ButtonId = "btnModsLoad"
-local ModeIds = { btnCP = true, btnMP = true, btnZM = true, btnCPZM = true, btnBonusModes = true }
 
 local function Log(text)
   local tabs = rawget(_G, "BO3CustomsMapTabs")
@@ -613,8 +612,10 @@ local function Define(name, fn)
   end
 end
 
-Define("Mods_Enabled", function()
-  return type(rawget(_G, "BO3CustomMods")) == "table"
+-- Keep the MODS entry available even before catalog discovery completes.
+-- An empty catalog must not prevent access to the disable/recovery menu.
+rawset(_G, "Mods_Enabled", function()
+  return true
 end)
 
 function UI.OpenAction(self, element, controller, param, menu)
@@ -1065,20 +1066,15 @@ else
 end
 
 local function AddModsButton(controller, buttons)
-  if type(buttons) ~= "table" or type(rawget(_G, "BO3CustomMods")) ~= "table" then
+  if type(buttons) ~= "table" then
     return
   end
-  local modes = false
+  -- The MODS entry is a recovery path, not a game-mode-dependent feature.
+  -- Lobby targets can have no mode buttons and the catalog can be empty.
   for _, entry in ipairs(buttons) do
-    if type(entry) == "table" then
-      if entry.customId == ButtonId then
-        return
-      end
-      modes = modes or ModeIds[entry.customId] == true
+    if type(entry) == "table" and entry.customId == ButtonId then
+      return
     end
-  end
-  if not modes then
-    return
   end
   local selected = false
   pcall(function()
@@ -1097,7 +1093,7 @@ local function AddModsButton(controller, buttons)
     warning = false,
   })
   UI.buttonAdded = true
-  LogOnce("added", "MODS button added (menu script v5)")
+  LogOnce("added", "MODS button added (menu script v6)")
 end
 
 local function HideOnline(buttons)
