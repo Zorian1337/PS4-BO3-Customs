@@ -13,6 +13,27 @@ Updated 2026-10-29. Source label: dev.34 DEBUG. **Unvalidated candidate, not a r
 | Persistent diagnostics | Separate bounded error log, context/stack capture, short-write handling and IO retry; session log behavior retained | Validate console append across restarts and kernel correlation during a real fault |
 | Content activation / joining | Transaction and readiness checks exist, with host regressions | Successful download is not proof of activation or matching BG-cache/schema; controlled peer testing remains necessary |
 
+## GPU completion and lighting diagnostics (source-only, 2026-10-29)
+
+- `SPRX/t7_maps.cpp` now reports completion-label changes and submission-counter
+  changes independently. An unchanged completion value is **not** a proven GPU
+  deadlock when the CPU may have stopped submitting work.
+- The lighting-blob summaries now treat state 2 as **loading**, not resident.
+  State 3 or higher is counted as resident, matching the per-record `[Blobs]`
+  description. The GPU sample identifies resident/total counts separately for
+  probes, volumes, sun-shadow trees, other resources and sky resources.
+- The latest GPU regression suite passes in GitHub Actions. These are
+  diagnostics/counter-correctness fixes, not forced GPU completion, a resource
+  allocator change or a demonstrated reduction in black-screen duration.
+
+**To establish a root cause on hardware:** use the exact matching experimental
+SPRX, reproduce a single map load on PS4 and PS5, and preserve the first
+`[GPU]`, `[Stream]`, `[Blobs]` and `[Stall]` sequence before restarting.
+Compare whether frame/submission counters advance while completion does not,
+and whether a specific required resource category remains loading. Include the
+first engine error and thread stack. Without that evidence, changing GPU waits
+or marking a deadlock fixed would be speculative.
+
 ## First next task: repeated menu operation
 
 1. Use the matching candidate SPRX and companion `Lua/ui_scripts/mods.lua`.
