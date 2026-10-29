@@ -79,6 +79,8 @@ jobs:
           EOF
           gh release create dev35-debug-experimental-20261029             build/candidate/BO3-Customs-dev35-DEBUG.sprx             build/candidate/target-validation.json             build/candidate/SHA256SUMS.txt             build/candidate/SOURCE_COMMIT.txt             --repo "${{ github.repository }}"             --target "${{ github.sha }}"             --title "dev.35 DEBUG — Experimental Testing Only"             --notes-file build/candidate/RELEASE_NOTES.md             --prerelease
       - name: Announce experimental candidate to Discord if webhook configured
+        # Notification delivery is external; never invalidate a verified SPRX release.
+        continue-on-error: true
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           RELEASE_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/dev35-debug-experimental-20261029
@@ -88,7 +90,7 @@ jobs:
             exit 0
           fi
           python3 - <<'PY'
-          import json, os, urllib.request
+          import json, os, urllib.request, urllib.error
           message = (
               "🧪 **BO3-Customs dev.35 DEBUG — EXPERIMENTAL TESTING ONLY**\\n"
               "**NO STABILITY CLAIMS.** Crashes, freezes, and regressions are possible. "
@@ -104,6 +106,13 @@ jobs:
           data = json.dumps({"content": message}).encode()
           req = urllib.request.Request(os.environ["DISCORD_WEBHOOK_URL"], data=data,
                                        headers={"Content-Type": "application/json"}, method="POST")
-          with urllib.request.urlopen(req, timeout=20) as response:
-              print("Discord announcement status:", response.status)
+          try:
+              with urllib.request.urlopen(req, timeout=20) as response:
+                  print("Discord announcement status:", response.status)
+          except urllib.error.HTTPError as error:
+              print(f"::warning::Discord webhook rejected announcement (HTTP {error.code}). Verify webhook permissions, URL and Discord network restrictions; SPRX release remains valid.")
+              raise SystemExit(1)
+          except urllib.error.URLError as error:
+              print("::warning::Discord webhook delivery failed due to network error; SPRX release remains valid.")
+              raise SystemExit(1)
           PY
