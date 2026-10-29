@@ -2499,7 +2499,7 @@ static void LogStreamGate(uint64_t waited, bool details)
         ++blobCount[category];
         blobBytes[category] += bytes;
 
-        if (state >= 2)
+        if (state >= 3)
         {
             ++blobLoaded[category];
             blobLoadedBytes[category] += bytes;
@@ -2684,7 +2684,8 @@ static void CountBlobs(uint32_t count[5], uint32_t loaded[5])
         const uint32_t category = *(const uint8_t*)(entry + 37) < 5 ? *(const uint8_t*)(entry + 37) : 3;
         ++count[category];
 
-        if (state >= 2)
+        // State 2 is still loading; state 3+ is resident.
+        if (state >= 3)
             ++loaded[category];
     }
 }
@@ -2984,6 +2985,7 @@ struct GpuProgressSample
     uint32_t completed = 0, wanted = 0, building = 0;
     uint32_t images = 0, missingImages = 0, meshes = 0, missingMeshes = 0;
     uint32_t blobs = 0, missingBlobs = 0;
+    uint32_t blobTotalByKind[5] = {}, blobResidentByKind[5] = {};
     int32_t pending = 0;
     uint8_t started = 0, done = 0;
     float sound = 0;
@@ -3046,6 +3048,8 @@ static GpuProgressSample ReadGpuProgress()
     {
         sample.blobs += count[i];
         sample.missingBlobs += count[i] - loaded[i];
+        sample.blobTotalByKind[i] = count[i];
+        sample.blobResidentByKind[i] = loaded[i];
     }
     sample.resourcesValid = true;
     return sample;
@@ -3098,6 +3102,13 @@ static void ReportGpuProgress(const char* reason, uint64_t level, uint64_t now)
                sample.resourcesValid ? 1u : 0u, sample.pending, sample.started, sample.done,
                sample.missingImages, sample.images, sample.missingMeshes, sample.meshes, sample.missingBlobs, sample.blobs,
                (double)sample.sound);
+    if (sample.resourcesValid && sample.missingBlobs)
+        ReportLine("[GPU] lighting still loading (resident/total): probes %u/%u, volumes %u/%u, sun-shadow trees %u/%u, other %u/%u, sky %u/%u",
+                   sample.blobResidentByKind[0], sample.blobTotalByKind[0],
+                   sample.blobResidentByKind[1], sample.blobTotalByKind[1],
+                   sample.blobResidentByKind[2], sample.blobTotalByKind[2],
+                   sample.blobResidentByKind[3], sample.blobTotalByKind[3],
+                   sample.blobResidentByKind[4], sample.blobTotalByKind[4]);
     previous = sample;
     previousLevel = level;
     previousAt = now;
