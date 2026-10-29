@@ -45,9 +45,17 @@ cleanup. Restoring the old bypass makes the provider-row regression fail. The
 new companion Lua was subsequently uploaded and verified byte-for-byte against
 source commit `8f9e31d`. No native SPRX changes or new build were needed.
 
-Next: test the updated `Lua/ui_scripts/mapselect.lua` with the existing dev.49
-plugin. Check Standard/Customs, colored aliases,
-selection, repeat opens and refreshes. The MapSelect trace now reports the input
+The user confirmed that duplicate rows are fixed. The latest companion Lua
+also preserves provider styling and meaningful compatibility metadata: full
+builder input, placeholder-aware row ranking, original colored labels and
+original warning/check callbacks. No provider names, palettes or compatibility
+tables are encoded in the implementation. The new regression fails before the
+fix and passes afterward, including incompatible status zero and conflicting
+style/status protection. Existing deduplication and reopen checks still pass.
+
+Next: test `Lua/ui_scripts/mapselect.lua` with the existing dev.49 plugin. Check
+colored names and the provider's compatibility warnings while confirming one
+row per map under Customs, selection, repeat opens and refreshes. The MapSelect trace reports the input
 and final row counts. Separately, resolve the Reaper nil operand from matching
 bytecode/debug evidence and review post-unload globals/module ownership. Do not
 assume invalid GSC opcode is the first cause: its record precedes the first

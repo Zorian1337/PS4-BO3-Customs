@@ -243,7 +243,7 @@ print("PASS: failed ZM list recovery retains valid stock/custom map IDs, exclude
 '''
 subprocess.run([lua, "-"], input=map_fixture, text=True, cwd=root, check=True)
 
-# Reaper-like compatibility rows must remain in Customs and collapse onto the
+# Provider compatibility rows must remain in Customs and collapse onto the
 # installed internal map row, regardless of whether their external ID is numeric.
 catalog_fixture = r'''
 local BO3CustomMaps={
@@ -262,23 +262,23 @@ local mapsTable={
   zm_nacht={session_mode=0,dlc_pack=0,unique_id=1,mapName="Nacht"},
   zm_backrooms={session_mode=0,dlc_pack=0,unique_id=2,mapName="Backrooms"},
   ["123456789"]={session_mode=0,dlc_pack=0,unique_id=90,publisherId=123456789,mapName="^1Backrooms Compatibility"},
-  reaper_alias={session_mode=0,dlc_pack=0,unique_id=91,ugc="123456789",mapName="A different compatibility title"},
+  catalog_alias={session_mode=0,dlc_pack=0,unique_id=91,ugc="123456789",mapName="A different compatibility title"},
   zm_other={session_mode=0,dlc_pack=0,unique_id=3,mapName="Other Map"},
-  reaper_title_alias={session_mode=0,dlc_pack=0,unique_id=92,mapTitle="^2Other Map"},
+  catalog_title_alias={session_mode=0,dlc_pack=0,unique_id=92,mapTitle="^2Other Map"},
   zm_shared_a={session_mode=0,dlc_pack=0,unique_id=4,mapName="Shared Map"},
   zm_shared_b={session_mode=0,dlc_pack=0,unique_id=5,mapName="Shared Map"},
-  reaper_ambiguous={session_mode=0,dlc_pack=0,unique_id=93,mapTitle="Shared Map"},
+  catalog_ambiguous={session_mode=0,dlc_pack=0,unique_id=93,mapTitle="Shared Map"},
 }
 local standard=VisibleMaps(mapsTable,0,false)
 assert(standard.zm_nacht~=nil and standard.zm_backrooms==nil and standard["123456789"]==nil and
-  standard.reaper_alias==nil and standard.zm_other==nil and standard.reaper_title_alias==nil and
-  standard.reaper_ambiguous==nil,
+  standard.catalog_alias==nil and standard.zm_other==nil and standard.catalog_title_alias==nil and
+  standard.catalog_ambiguous==nil,
   "custom catalog rows or compatibility aliases leaked into Standard")
 local custom=VisibleMaps(mapsTable,0,true)
 assert(custom.zm_backrooms==mapsTable.zm_backrooms and custom["123456789"]==nil and
-  custom.reaper_alias==nil and custom.zm_other==mapsTable.zm_other and custom.reaper_title_alias==nil and
+  custom.catalog_alias==nil and custom.zm_other==mapsTable.zm_other and custom.catalog_title_alias==nil and
   custom.zm_shared_a==mapsTable.zm_shared_a and custom.zm_shared_b==mapsTable.zm_shared_b and
-  custom.reaper_ambiguous==nil,
+  custom.catalog_ambiguous==nil,
   "Customs must keep installed rows once and omit unresolved aliases")
 print("PASS: catalog aliases stay out of Standard, canonical maps appear once, and ambiguous aliases fail closed")
 '''
@@ -297,6 +297,8 @@ local function Multiplayer() return 1 end
 local function LogOnce() end
 local function EnsureCustomEntries() end
 local function Current(c) return Tabs.current[c or 0] or "standard" end
+local function SquareButton() return 2 end
+local function AddRefreshButton() end
 local function Try(label,fn,...)
  local ok,err=pcall(fn,...);assert(ok,err);return ok
 end
@@ -319,6 +321,7 @@ provider_fixture += section(maps, "local function MapRowTitle(", "local function
 provider_fixture += section(maps, "local function TabOf(", 'DataSources.BO3CustomsMapTabs =')
 provider_fixture += section(maps, "local function RemoveInjectedEntries(", "local function WrapCombatRecord(")
 provider_fixture += section(maps, "local function AddTabs(", "local function Refresh(")
+provider_fixture += section(maps, "local function CreateWithRefresh(", "local function HasCustoms(")
 provider_fixture += section(maps, "local function RemoveOwnedTabs(", "local function RefreshMultiplayer(")
 provider_fixture += section(maps, "local function WrapMenu(", "local function WrapChangeMap(")
 provider_fixture += section(maps, "local function AddCustomsCategory(", "local function Install(")
@@ -434,6 +437,69 @@ LUI.createMenu.ZMMapSelection(0)
 assert(menu.BO3TabBar==nil and menu.BO3TabWatcher==nil and watcherClosed==1 and
  Tabs.current[0]==nil and menu.MapList==mapList and #list.rows==2,
  "existing provider category controls must remain authoritative")
+-- Placeholder fields must not outrank a classified provider row. Status zero
+-- is meaningful: retain the provider's original incompatible-map check.
+local warnings=0
+local originalCheck=function(row)
+ if tonumber(row.models.compatibilityStatus)==0 then warnings=warnings+1;return "confirm-incompatible" end
+ return "load:"..row.properties.mapId
+end
+local placeholder={models={displayText="Backrooms",compatibilityStatus=-1},
+ properties={mapId="zm_backrooms",workshopId="",mapStatsId="",onSelect=callback}}
+local decorated={models={displayText="^1Backrooms",mapName="Backrooms",compatibilityStatus=0},
+ properties={mapId="123456789",internalMapName="123456789",workshopId="123456789",
+ mapStatsId="stats-key",onSelect=originalCheck}}
+local kept=NormalizeMapRows({placeholder,decorated},0,true)
+assert(#kept==1 and kept[1].models.displayText=="^1Backrooms" and kept[1].models.compatibilityStatus==0,
+ "a plain placeholder replaced provider styling or compatibility status zero")
+assert(kept[1].properties.onSelect==originalCheck and kept[1].properties.onSelect(kept[1])=="confirm-incompatible" and warnings==1)
+assert(kept[1].properties.mapId=="zm_backrooms" and decorated.properties.mapId=="123456789")
+-- Styling may live on a lower-ranked duplicate. Borrow only its display label;
+-- keep the meaningful row's complete compatibility/callback contract.
+local classified={models={displayText="Backrooms",mapName="Backrooms",compatibilityStatus=0},
+ properties={mapId="zm_backrooms",workshopId="123456789",mapStatsId="stats-key",onSelect=originalCheck}}
+local styled={models={displayText="^3Backrooms"},properties={mapId="zm_backrooms"}}
+kept=NormalizeMapRows({classified,styled},0,true)
+assert(#kept==1 and kept[1].models.displayText=="^3Backrooms" and kept[1].models.compatibilityStatus==0 and
+ kept[1].properties.onSelect==originalCheck and classified.models.displayText=="Backrooms" and styled.models.compatibilityStatus==nil,
+ "preserving a colored label lost meaningful metadata or changed a reusable provider row")
+styled.models.compatibilityStatus=1;styled.models.displayText="^2Backrooms"
+kept=NormalizeMapRows({classified,styled},0,true)
+assert(kept[1].models.displayText=="Backrooms" and kept[1].models.compatibilityStatus==0,
+ "a colored alias with conflicting compatibility must not repaint the selected result")
+-- Input catalog pruning must not discard the provider's decorated source
+-- record before its builder has produced compatibility models and callbacks.
+owned=false
+CoD.mapsTable["123456789"]={session_mode=0,dlc_pack=0,mapName="Backrooms",mapNameCaps="^1Backrooms"}
+local function metadataBuilder()
+ local rows={placeholder}
+ if CoD.mapsTable["123456789"]~=nil then rows[#rows+1]=decorated end
+ return rows
+end
+DataSources.ZMMapsList={prepare=function(c,list)
+ return ListHelper_Prepare(list,c,"ZMMapsList",metadataBuilder)
+end}
+assert(WrapMapsList());Tabs.current[0]="custom"
+DataSources.ZMMapsList.prepare(0,list)
+assert(#list.rows==1 and list.rows[1].models.displayText=="^1Backrooms" and list.rows[1].properties.onSelect==originalCheck,
+ "the provider did not see its complete styled catalog")
+CoD.perController[0].mapCategory=10100
+kept=PrepareMaps(metadataBuilder,0,list)
+assert(#kept==1 and kept[1].models.compatibilityStatus==0 and kept[1].models.displayText=="^1Backrooms" and
+ CoD.mapsTable==full and CoD.perController[0].mapCategory==10100,
+ "category organization pruned provider compatibility input or leaked temporary state")
+local registered
+local nativeAdd=function(menu,element,c,button,key,action,condition)
+ registered=action;return "native registration"
+end
+CoD.Menu={AddButtonCallbackFunction=nativeAdd}
+local providerMenu={}
+local built=CreateWithRefresh(function()
+ assert(CoD.Menu.AddButtonCallbackFunction(providerMenu,{},0,1,"ENTER",originalCheck,function() return true end)=="native registration")
+ return providerMenu
+end,0,"zm")
+assert(built==providerMenu and registered==originalCheck and CoD.Menu.AddButtonCallbackFunction==nativeAdd and
+ registered(kept[1])=="confirm-incompatible", "map selection wrapping replaced the provider's compatibility action")
 print("PASS: completed provider rows dedupe across IDs/colors, stay in Customs, retain valid callbacks/metadata and recover without persistent mutations")
 '''
 subprocess.run([lua, "-"], input=provider_fixture, text=True, cwd=root, check=True)

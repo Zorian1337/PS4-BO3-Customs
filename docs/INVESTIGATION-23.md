@@ -308,3 +308,46 @@ An in-memory negative control restoring the unfiltered provider return fails at
 the Standard-category assertion. Following approval, the companion Lua was
 uploaded and verified byte-for-byte against source commit `8f9e31d`, using the
 existing dev.49 plugin. No SPRX rebuild was needed; frontend validation remains.
+
+## Preserve provider styling and compatibility metadata
+
+The user confirms that duplicate rows are gone, but wants the provider's colored
+titles and compatibility checks restored. The latest session confirms that the
+completed-row filter runs. Two source defects remain relevant: input-table
+deduplication can remove a decorated alias before the provider builds its rows,
+and row preference counts empty identifiers and an unknown compatibility value
+as informative merely because they are non-nil. A plain placeholder row can
+therefore win over a fully classified provider row. The log does not contain row
+payloads, so it does not prove which case occurred on the console.
+
+Plan: let the original builder see the complete catalog, then use the already
+tested output filter for organization. Prefer meaningful provider metadata,
+including zero-valued compatibility results, and retain an original colored
+display label separately when the metadata winner is plain. Keep original
+callbacks, compatibility values, stats identifiers and canonical load targets.
+Never synthesize a compatibility classification, palette or warning handler.
+
+Alternatives: changing colors from a hardcoded compatibility table would invent
+provider behavior; keeping the first colored row regardless of metadata can
+lose the check; restoring duplicate rows reintroduces the confirmed UI defect.
+The correction must remain generic and preserve the one-row result, provider
+source tables and temporary category-state restoration. Verify placeholder vs
+known status, incompatible status zero, split styling/metadata rows, full input
+visibility, category filtering and callback identity before deployment.
+
+The regression reproduced the placeholder-row loss before the correction and
+now passes. Builders see the full catalog; only their completed output is
+categorized/deduplicated. Row ranking now distinguishes meaningful metadata
+from placeholders and preserves a compatibility result of zero. Original
+formatted display labels are retained by matching target/title, even when a
+different duplicate supplies the better callback/stats metadata. A label from
+a conflicting declared compatibility result cannot repaint the chosen row.
+No compatibility palette, classifications or popup implementation are added.
+
+The focused tests retain the original incompatible-map callback through both
+row normalization and menu button registration, verify canonical selection
+targets, and preserve reusable source rows. The existing duplication, category,
+bridge-alias and reopen checks continue to pass. All 34 host programs passed,
+with focused checks repeated after the final compatibility-style guard. This
+change uses only companion Lua and requires no new SPRX build; console behavior
+remains to be checked.

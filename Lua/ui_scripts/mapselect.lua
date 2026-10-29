@@ -429,7 +429,34 @@ local function CopyMapFields(source)
   return copy
 end
 
-local function MapRowTarget(row, target, installed, selected)
+local function MapRowStatus(status)
+  local numeric = tonumber(status)
+  if numeric ~= nil then
+    if numeric >= 0 then return numeric end
+    return nil
+  end
+  if type(status) == "boolean" then return status end
+  if type(status) == "string" and string.find(status, "%S") ~= nil then
+    return string.lower(status)
+  end
+  return nil
+end
+
+local function MapRowMetadataScore(models, properties)
+  local score = MapRowStatus(models.compatibilityStatus) ~= nil and 8 or 0
+  local workshop = tonumber(properties.workshopId)
+  if workshop ~= nil and workshop > 0 then score = score + 4 end
+  local stats = properties.mapStatsId
+  if type(stats) == "number" or (type(stats) == "string" and string.find(stats, "%S") ~= nil) then
+    score = score + 2
+  end
+  if type(models.displayText) == "string" and string.find(models.displayText, "%^[0-9]") ~= nil then
+    score = score + 1
+  end
+  return score
+end
+
+local function MapRowTarget(row, target, installed, selected, displayText)
   local properties = type(row.properties) == "table" and row.properties or {}
   local models = type(row.models) == "table" and row.models or {}
   local changeProperties = properties.mapId ~= target or
@@ -437,7 +464,8 @@ local function MapRowTarget(row, target, installed, selected)
     (installed and properties.purchasable == true) or
     (selected and properties.selectIndex ~= true)
   local changeModels = (models.mapId ~= nil and models.mapId ~= target) or
-    (models.internalMapName ~= nil and models.internalMapName ~= target)
+    (models.internalMapName ~= nil and models.internalMapName ~= target) or
+    (displayText ~= nil and displayText ~= models.displayText)
   if not changeProperties and not changeModels then
     return row
   end
@@ -453,6 +481,7 @@ local function MapRowTarget(row, target, installed, selected)
     copy.models = CopyMapFields(models)
     if models.mapId ~= nil then copy.models.mapId = target end
     if models.internalMapName ~= nil then copy.models.internalMapName = target end
+    if displayText ~= nil then copy.models.displayText = displayText end
   end
   return copy
 end
@@ -463,6 +492,15 @@ local function NormalizeMapRows(items, mode, customs)
   end
   local maps = type(CoD.mapsTable) == "table" and CoD.mapsTable or {}
   local groups, byTarget, byTitle, validTargets = {}, {}, {}, {}
+  local styledTargets, styledTitles = {}, {}
+  local function keepStyle(styles, key, candidate)
+    if key ~= nil and (styles[key] == nil or candidate.score > styles[key].score) then
+      styles[key] = candidate
+    end
+  end
+  local function agrees(candidate, status)
+    return candidate ~= nil and (status == nil or candidate.status == nil or status == candidate.status)
+  end
   local function root(group)
     if group ~= nil and group.parent ~= nil then
       group.parent = root(group.parent)
@@ -521,13 +559,17 @@ local function NormalizeMapRows(items, mode, customs)
       score = installed and 100 or 0
       -- Keep the provider's compatibility/stats contract when its plain catalog
       -- row and enriched row describe the same installed map.
-      if models.compatibilityStatus ~= nil then score = score + 8 end
-      if properties.workshopId ~= nil then score = score + 4 end
-      if properties.mapStatsId ~= nil then score = score + 2 end
+      score = score + MapRowMetadataScore(models, properties)
     end
     if keep then
-      local candidate = { row = row, target = target, installed = installed,
-        score = score, selected = properties.selectIndex == true }
+      local candidate = { row = row, target = target, title = title, installed = installed,
+        status = MapRowStatus(models.compatibilityStatus), score = score,
+        selected = properties.selectIndex == true }
+      if title ~= nil and type(models.displayText) == "string" and
+        string.find(models.displayText, "%^[0-9]") ~= nil then
+        keepStyle(styledTargets, target, candidate)
+        keepStyle(styledTitles, title, candidate)
+      end
       local idGroup, titleGroup = root(target ~= nil and byTarget[target] or nil),
         root(title ~= nil and byTitle[title] or nil)
       local group = idGroup or titleGroup
@@ -551,8 +593,13 @@ local function NormalizeMapRows(items, mode, customs)
   for _, group in ipairs(groups) do
     if group.parent == nil then
       local best = group.best
+      local style = best.target ~= nil and styledTargets[best.target] or nil
+      local titleStyle = best.title ~= nil and styledTitles[best.title] or nil
+      if not agrees(style, best.status) then style = nil end
+      if agrees(titleStyle, best.status) and (style == nil or titleStyle.score > style.score) then style = titleStyle end
+      local displayText = style ~= nil and style.row.models.displayText or nil
       result[#result + 1] = best.target ~= nil and
-        MapRowTarget(best.row, best.target, best.installed, group.selected) or best.row
+        MapRowTarget(best.row, best.target, best.installed, group.selected, displayText) or best.row
     end
   end
   local unchanged = #items == #result
@@ -1588,10 +1635,6 @@ local function TabOf(info, id)
   return "standard"
 end
 
-local function TabTable(maps, tab)
-  return VisibleMaps(maps, Zombies(), tab == "custom")
-end
-
 local function Current(controller)
   return Tabs.current[controller or 0] or "standard"
 end
@@ -1700,7 +1743,9 @@ local function WrapMapsList()
       return prepare(controller, ...)
     end
     EnsureCustomEntries()
-    return BuildWith(TabTable(CoD.mapsTable, Current(controller)), prepare, controller, ...)
+    -- The provider needs all aliases to produce its own labels and metadata.
+    -- Category filtering and deduplication happen on its completed rows.
+    return prepare(controller, ...)
   end
   return true
 end
@@ -2135,8 +2180,6 @@ local function PrepareMaps(prepare, controller, list)
   end
   EnsureCustomEntries()
   local customs = perController.mapCategory == CustomsCategory
-  local only = VisibleMaps(maps, CoD.gameModeEnum, customs)
-  CoD.mapsTable = only
   if customs then
     perController.mapCategory = 0
   end
