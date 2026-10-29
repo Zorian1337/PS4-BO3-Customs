@@ -3823,7 +3823,9 @@ static uint64_t TexturesLoaded_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t
         // heartbeat preserves visibility between detailed snapshots.
         if (logs % 6 == 1)
             LogStreamGate(now - start, true);
-        else
+        else if (RangeReadable(g_base + kStreamPending, sizeof(int32_t)) &&
+                 RangeReadable(g_base + kStreamStarted, 1) &&
+                 RangeReadable(g_base + kStreamDone, 1))
             T7Log_Write("[Stream] %llu s waiting: pending %d, started %u, done %u",
                         (unsigned long long)((now - start) / 1000000),
                         *(const volatile int32_t*)(g_base + kStreamPending),
@@ -3870,7 +3872,8 @@ static uint64_t TexturesLoaded_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t
                     "required image/mesh parts are resident; applying the script-only fallback",
                     (unsigned long long)(kTextureWaitUs / 1000000), *(const uint8_t*)(g_base + kStreamStarted),
                     *(const uint8_t*)(g_base + kStreamDone), *(const int32_t*)(g_base + kStreamPending),
-                    *(const uint8_t*)(g_base + kStreamOverride));
+                    RangeReadable(g_base + kStreamOverride, 1)
+                        ? *(const uint8_t*)(g_base + kStreamOverride) : 0u);
         LogStreamGate(now - start, true);
     }
 
