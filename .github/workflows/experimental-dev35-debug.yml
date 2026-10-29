@@ -157,7 +157,6 @@ jobs:
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           RELEASE_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/dev35-debug-experimental-${{ github.sha }}
-          RELEASE_TAG: dev35-debug-experimental-${{ github.sha }}
         run: |
           if [ -z "$DISCORD_WEBHOOK_URL" ]; then
             echo "No DISCORD_WEBHOOK_URL secret configured; release published but Discord announcement skipped."
@@ -174,6 +173,8 @@ jobs:
               print("::warning::DISCORD_WEBHOOK_URL must be a Discord HTTPS webhook URL; announcement skipped.")
               raise SystemExit(0)
           release_url = os.environ["RELEASE_URL"].rsplit("-", 1)[0] + "-" + os.environ["GITHUB_SHA"][:12]
+          release_tag = "dev35-debug-experimental-" + os.environ["GITHUB_SHA"][:12]
+          download_base = "https://github.com/" + os.environ["GITHUB_REPOSITORY"] + "/releases/download/" + release_tag
           description = (
               "**dev.35 DEBUG** is an unofficial community experimental stabilization build based on "
               "[Joker's v4.00 release](https://github.com/ItsJokerZz/PS4-BO3-Customs/releases/tag/v4.00). "
@@ -191,11 +192,9 @@ jobs:
               "safe file reads, map-menu recovery and GPU diagnostics remain included.\\n\\n"
               "**Status:** native build and host checks passed for this candidate. "
               "**PS4/PS5 console testing is still required.** Crashes, freezes and regressions remain possible.\\n\\n"
-              "**Downloads:** [Console.zip](" + release_url + "/../download/" + os.environ["RELEASE_TAG"] + "/Console.zip) "
-              "| [SPRX](" + release_url + "/../download/" + os.environ["RELEASE_TAG"] + "/BO3-Customs-v4.00.1-dev.35-DEBUG.sprx)"
+              "**Downloads:** [Console.zip](" + download_base + "/Console.zip) "
+              "| [SPRX](" + download_base + "/BO3-Customs-v4.00.1-dev.35-DEBUG.sprx)"
           )
-          download_base = "https://github.com/" + os.environ["GITHUB_REPOSITORY"] + "/releases/download/" + os.environ["RELEASE_TAG"]
-          description = description.replace(release_url + "/../download/" + os.environ["RELEASE_TAG"], download_base)
           data = json.dumps({
               "username": "BO3 Customs Releases",
               "embeds": [{
