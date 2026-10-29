@@ -49,6 +49,10 @@ texture_gate = source[source.index("static uint64_t TexturesLoaded_h("):source.i
 assert "if (logs % 6 == 1)" in texture_gate
 assert "LogStreamGate(now - start, true);" in texture_gate
 assert "waiting: pending %d, started %u, done %u" in texture_gate
+assert "else if (RangeReadable(g_base + kStreamPending, sizeof(int32_t))" in texture_gate
+assert "RangeReadable(g_base + kStreamStarted, 1)" in texture_gate
+assert "RangeReadable(g_base + kStreamDone, 1)" in texture_gate
+assert "RangeReadable(g_base + kStreamOverride, 1)" in texture_gate
 assert "LogStreamGate(now - start, logs % 6 == 1);" not in texture_gate
 context = source[source.index("struct GpuLevelContext"):source.index("#endif", source.index("struct GpuLevelContext"))]
 readers = source[source.index("struct GpuProgressSample"):source.index("static void RaiseThread()")]
