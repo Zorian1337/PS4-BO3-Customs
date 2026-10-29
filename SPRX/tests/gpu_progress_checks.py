@@ -7,6 +7,15 @@ import tempfile
 
 root = Path(__file__).resolve().parents[1]
 source = (root / "t7_maps.cpp").read_text(encoding="utf-8")
+# A stale blob handle must never be dereferenced just because it looks like a
+# user-space address; keep the stream diagnostics crash-safe.
+stream_report = source[source.index("static void LogStreamGate("):source.index("static const char* ScriptStringArgument(")]
+assert "RangeReadable(item + 52, sizeof(uint32_t))" in stream_report
+assert "item <= UINTPTR_MAX - 56" in stream_report
+preview_reader = source[source.index("bool T7Maps_ModPreviewFile("):source.index("bool T7Maps_PreviewFile(")]
+assert "if (!path || !size)" in preview_reader
+assert "if (length < 0 || (size_t)length >= size)" in preview_reader
+
 # The streaming gate executes on a game/script thread. Retain a cheap status
 # heartbeat, but never run a full asset-metadata scan on every log interval.
 texture_gate = source[source.index("static uint64_t TexturesLoaded_h("):source.index("static bool CodeImageSet(") if source.index("static bool CodeImageSet(") > source.index("static uint64_t TexturesLoaded_h(") else source.index("static uint64_t TexturesLoaded_h(") + 4400]
