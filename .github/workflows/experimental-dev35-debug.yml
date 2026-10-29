@@ -97,7 +97,10 @@ jobs:
           cat > build/candidate/RELEASE_NOTES.md <<'EOF'
           ## BO3-Customs v4.00.1 dev.35 DEBUG — EXPERIMENTAL
 
-          This is an unofficial community experimental test build, not an official Joker release. **Not console-validated or stable.** Back up the previous SPRX and console files before installing. Crashes and regressions remain possible.\n\n          ### Update your console files first\n          Close BO3. Download `Console.zip` from this release and merge its `BO3-Customs/lui/` and `BO3-Customs/ui_scripts/` folders into `/data/BO3-Customs/`. Install `BO3-Customs-v4.00.1-dev.35-DEBUG.sprx` in your loader's plugin directory, enable only one Customs SPRX, then fully restart BO3. The ZIP also contains an identical `BO3-Customs/BO3-Customs.sprx` copy; do not load both. The ZIP retains all 39 compiled LUI files and seven editable scripts, with updated mods.lua and mapselect.lua.
+          This is an unofficial community experimental test build, not an official Joker release. **Not console-validated or stable.** Back up the previous SPRX and console files before installing. Crashes and regressions remain possible.
+
+          ### Update your console files first
+          Close BO3. Download `Console.zip` from this release and merge its `BO3-Customs/lui/` and `BO3-Customs/ui_scripts/` folders into `/data/BO3-Customs/`. Install `BO3-Customs-v4.00.1-dev.35-DEBUG.sprx` in your loader's plugin directory, enable only one Customs SPRX, then fully restart BO3. The ZIP also contains an identical `BO3-Customs/BO3-Customs.sprx` copy; do not load both. The ZIP retains all 39 compiled LUI files and seven editable scripts, with updated mods.lua and mapselect.lua.
 
           ### Changes under test
           - Lua mod selection recovery and stale callback handling
@@ -152,7 +155,7 @@ jobs:
               "multiple mods, repeated reloads, Zombies/Multiplayer, maps, GPU stalls, "
               "performance, and host/client activation.\\n"
               "Report reproduction steps and console logs.\\n"
-              "**Download and full notes:** " + os.environ["RELEASE_URL"]
+              "**Download and full notes:** " + release_url
           )
           data = json.dumps({"content": message}).encode()
           req = urllib.request.Request(os.environ["DISCORD_WEBHOOK_URL"], data=data,
