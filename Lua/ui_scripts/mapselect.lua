@@ -107,7 +107,44 @@ local function TitleOf(map)
   return map.id
 end
 
-local function IsCustom(info)
+local function CatalogKey(value)
+  if type(value) ~= "string" then
+    return nil
+  end
+  local text = string.lower(value)
+  text = string.gsub(text, "[%c%s%p]+", "")
+  return text ~= "" and text or nil
+end
+
+local function CatalogCustom(id, info)
+  local idKey = CatalogKey(id)
+  local infoKeys = {}
+  if type(info) == "table" then
+    for _, value in ipairs({ info.id, info.mapName, info.mapname, info.name, info.title }) do
+      local key = CatalogKey(value)
+      if key ~= nil then
+        infoKeys[key] = true
+      end
+    end
+  end
+  for _, map in ipairs(AllCustom()) do
+    if type(map) == "table" then
+      local mapKey = CatalogKey(map.id)
+      if idKey ~= nil and mapKey ~= nil and idKey == mapKey then
+        return true
+      end
+      for _, value in ipairs({ map.id, map.name, map.title }) do
+        local key = CatalogKey(value)
+        if key ~= nil and infoKeys[key] then
+          return true
+        end
+      end
+    end
+  end
+  return false
+end
+
+local function IsCustom(info, id)
   if type(info) ~= "table" then
     return false
   end
@@ -116,7 +153,30 @@ local function IsCustom(info)
   return info.bo3_custom == true or info.isCustom == true or info.is_custom == true or
     info.isModMap == true or info.is_mod_map == true or info.isUserMap == true or
     info.is_user_map == true or info.userMap == true or info.user_map == true or
-    info.mapType == "custom" or info.map_type == "custom"
+    info.mapType == "custom" or info.map_type == "custom" or CatalogCustom(id, info)
+end
+
+local function ValidMap(id, info, mode)
+  if type(id) ~= "string" or type(info) ~= "table" then
+    return false
+  end
+  if mode ~= nil and info.session_mode ~= mode then
+    return false
+  end
+  return info.dlc_pack ~= -1 and info.isFreeRunMap ~= true
+end
+
+local function NormalizeCatalogEntries(maps)
+  if type(maps) ~= "table" then
+    return
+  end
+  for id, info in pairs(maps) do
+    if type(info) == "table" and CatalogCustom(id, info) then
+      -- External map menus frequently omit their custom flag. Reuse the
+      -- existing row and classify it instead of cloning it into both tabs.
+      info.bo3_custom = true
+    end
+  end
 end
 
 local function Template(maps, mode)
@@ -138,6 +198,7 @@ local function EnsureCustomEntries()
   if type(maps) ~= "table" then
     return false
   end
+  NormalizeCatalogEntries(maps)
   local templates = {}
   for index, map in ipairs(AllCustom()) do
     if type(map) == "table" and type(map.id) == "string" and maps[map.id] == nil then
@@ -1174,8 +1235,8 @@ local function AddUninstallButton(menu, controller, kind)
   menu:AddButtonCallbackFunction(menu, controller, SquareButton(), nil, action, condition, false)
 end
 
-local function TabOf(info)
-  if IsCustom(info) then
+local function TabOf(info, id)
+  if IsCustom(info, id) then
     return "custom"
   end
   return "standard"
@@ -1184,7 +1245,7 @@ end
 local function TabTable(maps, tab)
   local only = {}
   for id, info in pairs(maps) do
-    if type(info) == "table" and info.session_mode == Zombies() and TabOf(info) == tab then
+    if ValidMap(id, info, Zombies()) and TabOf(info, id) == tab then
       only[id] = info
     end
   end
@@ -1199,7 +1260,7 @@ local function StartingTab(controller)
   local mapName = Engine.DvarString(nil, "ui_mapname")
   local info = type(CoD.mapsTable) == "table" and CoD.mapsTable[mapName] or nil
   if type(info) == "table" and info.session_mode == Zombies() then
-    return TabOf(info)
+    return TabOf(info, mapName)
   end
   return Current(controller)
 end
@@ -1316,7 +1377,7 @@ local function WrapCombatRecord()
     end
     local stock = {}
     for id, info in pairs(CoD.mapsTable) do
-      if not IsCustom(info) then
+      if ValidMap(id, info, Zombies()) and not IsCustom(info, id) then
         stock[id] = info
       end
     end
@@ -1453,8 +1514,8 @@ local function HasCustoms(sessionMode)
   if type(CoD.mapsTable) ~= "table" then
     return false
   end
-  for _, info in pairs(CoD.mapsTable) do
-    if IsCustom(info) and info.session_mode == sessionMode then
+  for id, info in pairs(CoD.mapsTable) do
+    if ValidMap(id, info, sessionMode) and IsCustom(info, id) then
       return true
     end
   end
@@ -1639,8 +1700,8 @@ local function AddCustomsCategory(items)
   end
   EnsureCustomEntries()
   local count = 0
-  for _, info in pairs(maps) do
-    if IsCustom(info) and info.session_mode == CoD.gameModeEnum then
+  for id, info in pairs(maps) do
+    if ValidMap(id, info, CoD.gameModeEnum) and IsCustom(info, id) then
       count = count + 1
     end
   end
@@ -1648,7 +1709,7 @@ local function AddCustomsCategory(items)
     return
   end
   local current = maps[Engine.DvarString(nil, "ui_mapname")]
-  local onCustom = IsCustom(current) and current.session_mode == CoD.gameModeEnum
+  local onCustom = type(current) == "table" and IsCustom(current, Engine.DvarString(nil, "ui_mapname")) and current.session_mode == CoD.gameModeEnum
   if onCustom then
     for _, item in ipairs(items) do
       if type(item) == "table" and type(item.properties) == "table" then
@@ -1683,7 +1744,7 @@ local function PrepareMaps(prepare, controller, list)
   local customs = perController.mapCategory == CustomsCategory
   local only = {}
   for id, info in pairs(maps) do
-    if IsCustom(info) == customs then
+    if ValidMap(id, info, CoD.gameModeEnum) and IsCustom(info, id) == customs then
       only[id] = info
     end
   end

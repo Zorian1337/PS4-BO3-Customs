@@ -179,6 +179,12 @@ Catalog classification also recognizes common user-map flags (`isCustom`,
 `isModMap`, `isUserMap` and snake-case variants), keeping those rows in the
 custom category rather than the standard category.
 
+The map selector now also cross-references the generic `BO3CustomMaps` catalog
+by internal ID and normalized display name. Existing rows are marked in place
+instead of cloned, invalid/locked rows are excluded from category data sources,
+and stock rows remain in Standard. This is deliberately catalog-driven and
+does not name or special-case Reaper Collection.
+
 The next capture showed the third-party frontend throwing before the stock
 `main` constructor existed. `mapselect.lua` now defers all map/list hooks when
 that constructor is absent and retries from its existing tick path after the
