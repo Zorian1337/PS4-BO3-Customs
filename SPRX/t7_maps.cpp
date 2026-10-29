@@ -7472,8 +7472,16 @@ int T7Maps_SelectMod(const char* list, char* message, size_t size)
             ++end;
 
         const size_t length = (size_t)(end - at);
+        // Never turn an overlong name into a different installed mod by
+        // truncating it to the native name buffer's prefix.
+        if (length >= kNameMax)
+        {
+            missing = true;
+            at = *end ? end + 1 : end;
+            continue;
+        }
         char name[kNameMax];
-        snprintf(name, sizeof(name), "%.*s", (int)(length < sizeof(name) ? length : sizeof(name) - 1), at);
+        snprintf(name, sizeof(name), "%.*s", (int)length, at);
         const int index = name[0] ? FindMod(name) : -1;
         bool duplicate = false;
 
