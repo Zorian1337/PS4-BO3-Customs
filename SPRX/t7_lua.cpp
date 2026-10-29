@@ -2304,12 +2304,21 @@ static uint64_t RetainModLua(const char* name, uint64_t original)
         ~Unlock() { g_retainedLuaLock.clear(std::memory_order_release); }
     } unlock;
 
+    // Each asset name needs its own stable RawFileAsset, but byte-identical
+    // HKS chunks can share immutable storage across different names. Keeping
+    // the headers distinct preserves native asset lookup and stock-file fallback.
+    const char* sharedBody = nullptr;
     for (RetainedLuaFile* file = g_retainedLua; file; file = file->next)
-        if (file->hash == hash && file->asset.length == raw.length &&
-            strcmp(file->asset.name, name) == 0 && memcmp(file->asset.buffer, raw.buffer, length) == 0)
+    {
+        if (file->hash != hash || file->asset.length != raw.length ||
+            memcmp(file->asset.buffer, raw.buffer, length) != 0)
+            continue;
+        if (strcmp(file->asset.name, name) == 0)
             return (uint64_t)&file->asset;
+        sharedBody = file->asset.buffer;
+    }
 
-    const size_t bytes = sizeof(RetainedLuaFile) + nameLength + 1 + 15 + length + 1;
+    const size_t bytes = sizeof(RetainedLuaFile) + nameLength + 1 + (sharedBody ? 0 : 15 + length + 1);
     const size_t used = g_retainedLuaBytes.load(std::memory_order_relaxed);
     if (g_retainedLuaCount.load(std::memory_order_relaxed) >= kRetainedLuaFileCountMax ||
         used > kRetainedLuaBudget || bytes > kRetainedLuaBudget - used)
@@ -2319,9 +2328,14 @@ static uint64_t RetainModLua(const char* name, uint64_t original)
         return RetainLuaFailure(name, original, "dedicated bytecode arena allocation failed");
     char* const stableName = (char*)(file + 1);
     memcpy(stableName, name, nameLength + 1);
-    char* const body = (char*)(((uintptr_t)(stableName + nameLength + 1) + 15) & ~(uintptr_t)15);
-    memcpy(body, raw.buffer, length);
-    body[length] = 0;
+    const char* body = sharedBody;
+    if (!body)
+    {
+        char* const ownedBody = (char*)(((uintptr_t)(stableName + nameLength + 1) + 15) & ~(uintptr_t)15);
+        memcpy(ownedBody, raw.buffer, length);
+        ownedBody[length] = 0;
+        body = ownedBody;
+    }
     file->asset = { stableName, raw.length, raw.padding, body };
     file->hash = hash;
     file->next = g_retainedLua;
