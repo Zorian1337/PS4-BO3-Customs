@@ -144,30 +144,49 @@ jobs:
             exit 0
           fi
           python3 - <<'PY'
-          import json, os, urllib.request, urllib.error
+          import json, os, time, urllib.request, urllib.error
+          from urllib.parse import urlsplit
+          from datetime import datetime, timezone
+
+          webhook = os.environ["DISCORD_WEBHOOK_URL"].strip()
+          parts = urlsplit(webhook)
+          if parts.scheme != "https" or parts.hostname not in ("discord.com", "discordapp.com") or not parts.path.startswith("/api/webhooks/"):
+              print("::warning::DISCORD_WEBHOOK_URL must be a Discord HTTPS webhook URL; announcement skipped.")
+              raise SystemExit(0)
           release_url = os.environ["RELEASE_URL"].rsplit("-", 1)[0] + "-" + os.environ["GITHUB_SHA"][:12]
           message = (
               "🧪 **BO3-Customs dev.35 DEBUG — EXPERIMENTAL TESTING ONLY**\\n"
               "**NO STABILITY CLAIMS.** Crashes, freezes, and regressions are possible. "
-              "This is not a stable release. Back up your previous SPRX.\\n\\n"
-              "**Changed:** Lua mod selection recovery, MODS main-menu placement, "
-              "native mod-name validation, Lua retention and GPU readiness diagnostics.\\n"
-              "**Test:** PS4/PS5 startup, MODS menu with empty catalog, mod on/off, "
-              "multiple mods, repeated reloads, Zombies/Multiplayer, maps, GPU stalls, "
-              "performance, and host/client activation.\\n"
-              "Report reproduction steps and console logs.\\n"
+              "This is not a stable release. Back up your previous SPRX and console files.\\n\\n"
+              "**Included:** Matching Console.zip with updated Lua and the standalone DEBUG SPRX.\\n"
+              "**Test:** PS4/PS5 startup, MODS on/off, repeated reloads, Zombies/Multiplayer, maps, GPU stalls and performance.\\n"
               "**Download and full notes:** " + release_url
           )
-          data = json.dumps({"content": message}).encode()
-          req = urllib.request.Request(os.environ["DISCORD_WEBHOOK_URL"], data=data,
-                                       headers={"Content-Type": "application/json"}, method="POST")
-          try:
-              with urllib.request.urlopen(req, timeout=20) as response:
-                  print("Discord announcement status:", response.status)
-          except urllib.error.HTTPError as error:
-              print(f"::warning::Discord webhook rejected announcement (HTTP {error.code}). Verify webhook permissions, URL and Discord network restrictions; SPRX release remains valid.")
-              raise SystemExit(1)
-          except urllib.error.URLError as error:
-              print("::warning::Discord webhook delivery failed due to network error; SPRX release remains valid.")
-              raise SystemExit(1)
+          data = json.dumps({"content": message, "allowed_mentions": {"parse": []}}).encode("utf-8")
+          for attempt in range(3):
+              req = urllib.request.Request(webhook, data=data, method="POST", headers={
+                  "Content-Type": "application/json; charset=utf-8",
+                  "Accept": "application/json",
+                  "User-Agent": "BO3-Customs-ReleaseBot/1.0 (GitHub Actions)"
+              })
+              try:
+                  with urllib.request.urlopen(req, timeout=20) as response:
+                      print("Discord announcement delivered (HTTP", response.status, ")")
+                  break
+              except urllib.error.HTTPError as error:
+                  retryable = error.code in (429, 500, 502, 503, 504)
+                  if retryable and attempt < 2:
+                      retry_after = error.headers.get("Retry-After", "2")
+                      try:
+                          delay = min(15, max(1, float(retry_after)))
+                      except ValueError:
+                          delay = 2
+                      print(f"::warning::Discord returned HTTP {error.code}; retrying in {delay:g}s")
+                      time.sleep(delay)
+                      continue
+                  print(f"::warning::Discord rejected announcement (HTTP {error.code}). Check webhook URL, channel permissions or Discord network filtering. Release remains published.")
+                  break
+              except urllib.error.URLError:
+                  print("::warning::Discord webhook network failure; release remains published.")
+                  break
           PY
