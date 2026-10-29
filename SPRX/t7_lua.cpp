@@ -3401,6 +3401,29 @@ void T7Lua_FrontendWillLoad()
     T7Lua::g_frontendInjectionBlocked.store(false, std::memory_order_release);
 }
 
+void T7Lua_OnUiLuaError(uintptr_t state)
+{
+    using namespace T7Lua;
+
+    if (!g_base || !state || state != *(const uintptr_t*)(g_base + kLuaState) ||
+        T7Maps_InLevel() || !T7Maps_UsingMods())
+        return;
+
+    bool expected = false;
+
+    if (!g_frontendInjectionBlocked.compare_exchange_strong(expected, true, std::memory_order_acq_rel))
+        return;
+
+    // A Lua exception invalidates the earlier AddMenu("main") observation,
+    // even when the engine reuses the same UI-state address. Keep selected mod
+    // zones intact, but stop adding compatibility UI to this broken generation.
+    g_completedMainState.store(0, std::memory_order_release);
+    g_menuInitPending.store(false, std::memory_order_release);
+    g_pcUtilState = 0;
+    g_mouseState = 0;
+    T7Log_Write("[Lua] UI error in a modded frontend; pausing compatibility injection until the next frontend generation");
+}
+
 void T7Lua_Tick()
 {
     using namespace T7Lua;

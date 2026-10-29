@@ -1,6 +1,7 @@
 #include "headers.hpp"
 #include "t7_log.hpp"
 #include "t7_maps.hpp"
+#include "t7_lua.hpp"
 
 #ifdef _DEBUG
 
@@ -938,6 +939,8 @@ static uint64_t UiLuaError(uint64_t L, uint64_t a2, uint64_t a3, uint64_t a4, ui
     if (count <= kUiErrorsLogged)
     {
         const bool ui = L == *(const uint64_t*)(g_base + kLuaState);
+        if (ui && T7Maps_UsingMods())
+            T7Lua_OnUiLuaError((uintptr_t)L);
         char last[kNameMax];
         uint32_t chainCount = 0;
 

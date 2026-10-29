@@ -1,15 +1,17 @@
 # Resume SPRX / Lua development
 
-**Active source line: `main`. Current candidate: dev.51 pool diagnostics and
-image-pool recovery. It is not a stable release; console validation remains
-pending.**
+**Active source line: `main`. Current candidate: dev.52 frontend Lua-error
+containment on top of dev.51 pool diagnostics. It is a debug test, not a stable
+release; console validation remains pending.**
 
 The dev.50 PS5 crash capture showed image-pool exhaustion immediately before a
-Database-thread fault. The dev.51 candidate grows only that evidenced pool and
-adds entry-size/singleton/free-list details to pool snapshots. Other pools
-reviewed from the same capture either already have lazy growth or lack a proven
-exhaustion/layout. See [development status](docs/DEVELOPMENT.md). This candidate
-does not claim a frame-rate improvement or a confirmed crash fix.
+Database-thread fault. dev.51 grows only that evidenced pool and adds
+entry-size/singleton/free-list details to snapshots. The dev.51 Reaper capture
+then showed UI 24280 in the mod's `leveling_io.lua`, followed by missing `main`
+and `Lobby` menus; our UI scripts also entered the failed generation. dev.52
+contains our injection after a modded UI error while retaining selected zones.
+It does not fix the third-party Lua nil access. See
+[development status](docs/DEVELOPMENT.md).
 
 ## Read first
 

@@ -1,12 +1,14 @@
 # Current development status
 
-Updated 2026-10-29. Reviewed source is consolidated on `main`. No new SPRX
-build or release was created in this review.
+Updated 2026-10-29. Reviewed source is consolidated on `main`.
 
-Current priority: investigate the dev.50 multi-mod native crash below. The
-frontend callback containment is a separate source correction; the camo and
-custom-map startup crashes remain unconfirmed. Issue #23 remains separate; see
-[its handoff](INVESTIGATION-23.md).
+Current candidate: dev.52 adds a frontend Lua-error containment guard after the
+dev.51 PS5 capture showed a third-party menu exception followed by our own
+compatibility scripts entering that failed UI state. It retains the selected
+mod stack. This does **not** fix the third-party Lua exception or prove that
+Reaper Collection can build its menus; console validation is required. The
+dev.50 multi-mod crash and camo/custom-map startup reports remain separate; see
+[Issue #23 investigation](INVESTIGATION-23.md).
 
 ## Frontend and custom-map review (2026-10-29)
 
@@ -27,6 +29,28 @@ custom-map startup crashes remain unconfirmed. Issue #23 remains separate; see
   need hardware logs.
 
 See [the sanitized investigation and continuation plan](INVESTIGATION-2026-10-29.md).
+
+## Frontend Lua exception containment (dev.51 evidence; dev.52 candidate)
+
+- The 2026-10-29 PS5 session identifies dev.51. Reaper Collection's `core_mod`
+  fastfile and its UI Lua zones were selected and reported loaded before the
+  frontend failed. The error is UI 24280 in `ui/uied/leveling_io.lua`, a nil
+  index at stripped location `3778239045:654`. UI 21544 (`main` missing) and UI
+  95515 (`Lobby` missing) follow. Those later errors are consistent with the
+  frontend failing to construct; the trace does not identify the nil field.
+- The local fastfile's asset walk confirms that the named Lua rawfile is
+  supplied by the mod. ACTS confirms the payload is compiled BO3 Lua 5.1
+  bytecode; it does not provide source lines or identify the nil operand from
+  this capture. No third-party Lua was changed or copied into the repository.
+- The trace then shows BO3-Customs' UI scripts entering the same failed
+  frontend generation. dev.52 changes only that behavior: after a UI error in
+  the active UI state while mods are selected, it clears stale `main`-menu
+  readiness and pauses our compatibility injection until the next frontend
+  generation. It leaves loaded zones and mod selection intact.
+- Focused regression checks cover one-shot latching, no extra UI probes,
+  generation reset, and ignoring in-game errors. This is fault containment, not
+  a repair to the mod's Lua; if the underlying exception persists, the menus
+  may still be unavailable in that session.
 
 ## Multi-mod crash and image-pool exhaustion (dev.50 evidence; dev.51 candidate)
 

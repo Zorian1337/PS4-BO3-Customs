@@ -228,6 +228,28 @@ that constructor is absent and retries from its existing tick path after the
 frontend rebuilds. This keeps BO3-Customs from compounding an incomplete UI
 state; it does not mask or claim to repair the third-party Lua exception.
 
+### 2026-10-29 dev.51 Reaper frontend failure
+
+The new PS5 session identifies dev.51 and records `reaper_collection` as
+selected and loaded before the frontend error. UI 24280 is a nil index in the
+mod-provided `ui/uied/leveling_io.lua` at stripped location `3778239045:654`.
+UI 21544 (missing `main`) and UI 95515 (missing `Lobby`) follow. The `core_mod`
+fastfile asset walk confirms that this rawfile is supplied by the mod. Its
+payload is compiled Lua bytecode; neither the log nor the available decompiler
+maps the stripped location to the nil operand. This is evidence of a mod UI
+exception, not a native fastfile load failure.
+
+The trace also shows BO3-Customs' own UI scripts entering the same failed
+frontend generation after the first exception. The dev.52 source candidate
+reacts to a UI error in the active UI state while mods are selected by
+invalidating the stale `main` readiness and blocking compatibility injection
+until the next frontend generation. It does not change mod data, unload the
+selected zones, or claim to fix `leveling_io.lua`; the user may still need a
+frontend reload to recover. A focused regression covers the latch/reset and
+in-game exclusion. The next console check should confirm the new log line
+appears once after the first UI error and that the plugin adds no follow-on UI
+errors in that generation.
+
 ## Reaper aliases in the Standard and Customs tabs
 
 The latest report says the map targets now resolve, but Reaper compatibility
