@@ -4,6 +4,7 @@
 #include "t7_config.hpp"
 #include "t7_share_lua.hpp"
 #include "t7_lua_files.hpp"
+#include "t7_lua_failure.hpp"
 #include <system_service.h>
 
 #include <atomic>
@@ -1107,6 +1108,28 @@ static const char k_zombieSeedLua[] =
     "if zombie.ZM_SUPPORT_BOARDS == nil then zombie.ZM_SUPPORT_BOARDS = { 'white' } end\n"
     "if zombie.ZM_SUPPORT_BOARDS_INDEX == nil then zombie.ZM_SUPPORT_BOARDS_INDEX = 1 end\n";
 
+static const char k_lobbyTargetLua[] =
+    "local G = _G\n"
+    "local function inner(t)\n"
+    "  if type(t) ~= 'table' then return nil end\n"
+    "  local original = rawget(t, '_originalTable')\n"
+    "  return type(original) == 'table' and original or t\n"
+    "end\n"
+    "  local data = inner(rawget(G, 'LobbyData'))\n"
+    "  if data == nil then return end\n"
+    "  local targets = inner(rawget(data, 'UITargets'))\n"
+    "  if type(targets) ~= 'table' or rawget(targets, 'UI_MPLOBBYONLINEMODGAME') ~= nil then return end\n"
+    "  local custom = rawget(targets, 'UI_MPLOBBYONLINECUSTOMGAME')\n"
+    "  if type(custom) ~= 'table' then return end\n"
+    "  local target = {}\n"
+    "  for key, value in pairs(custom) do target[key] = value end\n"
+    "  target.id = 320\n"
+    "  target.name = 'MPLobbyOnlineModGame'\n"
+    "  target.title = 'MENU_CUSTOMGAMES_CAPS'\n"
+    "  target.kicker = ''\n"
+    "  target.room = 'mp_custom'\n"
+    "  rawset(targets, 'UI_MPLOBBYONLINEMODGAME', target)\n";
+
 static const char k_lobbyParityLua[] =
     "local G = _G\n"
     "if rawget(G, 'BO3CustomsLobbyParity') ~= nil then return end\n"
@@ -2172,6 +2195,143 @@ struct RawFileAsset
     const char* buffer;
 };
 
+struct RetainedLuaFile
+{
+    RetainedLuaFile* next;
+    RawFileAsset asset;
+    uint64_t hash;
+};
+
+constexpr size_t kRetainedLuaBudget = 32u * 1024u * 1024u;
+constexpr size_t kRetainedLuaFileMax = 8u * 1024u * 1024u;
+constexpr uint32_t kRetainedLuaFileCountMax = 4096;
+static RetainedLuaFile* g_retainedLua = nullptr;
+static std::atomic_flag g_retainedLuaLock = ATOMIC_FLAG_INIT;
+static std::atomic<size_t> g_retainedLuaBytes{0};
+static std::atomic<uint32_t> g_retainedLuaCount{0};
+static std::atomic<uint32_t> g_retainedLuaFailures{0};
+
+struct RetainedLuaBlock
+{
+    RetainedLuaBlock* next;
+    size_t size;
+    size_t used;
+};
+
+static RetainedLuaBlock* g_retainedLuaBlocks = nullptr;
+static std::atomic<size_t> g_retainedLuaMapped{0};
+static std::atomic<int32_t> g_retainedLuaMapError{0};
+static std::atomic<size_t> g_retainedLuaMapRequest{0};
+
+// Caller owns g_retainedLuaLock. Keep bytecode out of the libc heap used to
+// load companion scripts, PNGs and other transient frontend data.
+static void* AllocateRetainedLua(size_t bytes)
+{
+    bytes = (bytes + 15) & ~(size_t)15;
+    RetainedLuaBlock* block = g_retainedLuaBlocks;
+    if (!block || bytes > block->size - block->used)
+    {
+        const size_t header = (sizeof(RetainedLuaBlock) + 15) & ~(size_t)15;
+        const size_t required = (header + bytes + 0x3FFF) & ~(size_t)0x3FFF;
+        const size_t mapped = g_retainedLuaMapped.load(std::memory_order_relaxed);
+        if (mapped > kRetainedLuaBudget || required > kRetainedLuaBudget - mapped)
+            return nullptr;
+        size_t size = required < 256u * 1024u ? 256u * 1024u : required;
+        if (size > kRetainedLuaBudget - mapped)
+            size = required;
+        void* memory = nullptr;
+        const int32_t mappedResult = sceKernelMmap(0, size, 1 | 2, 0x1000 | 0x2, -1, 0, &memory);
+        g_retainedLuaMapError.store(mappedResult, std::memory_order_relaxed);
+        g_retainedLuaMapRequest.store(size, std::memory_order_relaxed);
+        if (mappedResult < 0 || !memory) return nullptr;
+        block = (RetainedLuaBlock*)memory;
+        block->next = g_retainedLuaBlocks;
+        block->size = size;
+        block->used = header;
+        g_retainedLuaBlocks = block;
+        g_retainedLuaMapped.store(mapped + size, std::memory_order_release);
+    }
+    void* const memory = (char*)block + block->used;
+    block->used += bytes;
+    return memory;
+}
+
+static uint64_t RetainLuaFailure(const char* name, uint64_t original, const char* reason)
+{
+    (void)original;
+    static const RawFileAsset rejected = { "(unavailable UI module)", (int32_t)sizeof(kLuaRetentionFailure), 0,
+                                          (const char*)kLuaRetentionFailure };
+    const uint32_t count = g_retainedLuaFailures.fetch_add(1, std::memory_order_relaxed) + 1;
+    if (count <= 4 || (count & (count - 1)) == 0)
+        T7Log_Write("[Lua] rejected %s before loading borrowed bytecode: %s (%u failures, %llu mapped bytes); mod removal remains available",
+                    name, reason, count, (unsigned long long)g_retainedLuaMapped.load(std::memory_order_relaxed));
+    if (count <= 4)
+        T7Log_Write("[Lua] retention mapping request=%llu result=0x%X",
+                    (unsigned long long)g_retainedLuaMapRequest.load(std::memory_order_relaxed),
+                    (unsigned)g_retainedLuaMapError.load(std::memory_order_relaxed));
+    return (uint64_t)&rejected;
+}
+
+static uint64_t RetainModLua(const char* name, uint64_t original)
+{
+    if (!original || !RangeReadable(original, sizeof(RawFileAsset)))
+        return RetainLuaFailure(name, original, "unreadable rawfile header");
+    const RawFileAsset& raw = *(const RawFileAsset*)original;
+    if (raw.length >= 0 && raw.length < 4)
+        return original;
+    if (raw.length < 0 || !raw.buffer || !RangeReadable((uintptr_t)raw.buffer, 4))
+        return RetainLuaFailure(name, original, "unreadable Lua buffer");
+    // HKS can retain shared bytecode references after require returns. Source
+    // text is compiled into VM-owned objects and does not need this lifetime.
+    if (memcmp(raw.buffer, "\x1bLua", 4) != 0)
+        return original;
+    const size_t length = (size_t)raw.length;
+    size_t nameLength = 0;
+    while (nameLength < 192 && name[nameLength])
+        ++nameLength;
+    if (nameLength == 192 || length > kRetainedLuaFileMax ||
+        !RangeReadable((uintptr_t)raw.buffer, length))
+        return RetainLuaFailure(name, original, "invalid name, chunk size or byte range");
+
+    uint64_t hash = 14695981039346656037ull;
+    for (size_t i = 0; i < length; ++i)
+        hash = (hash ^ (uint8_t)raw.buffer[i]) * 1099511628211ull;
+
+    while (g_retainedLuaLock.test_and_set(std::memory_order_acquire))
+        sceKernelUsleep(50);
+    struct Unlock
+    {
+        ~Unlock() { g_retainedLuaLock.clear(std::memory_order_release); }
+    } unlock;
+
+    for (RetainedLuaFile* file = g_retainedLua; file; file = file->next)
+        if (file->hash == hash && file->asset.length == raw.length &&
+            strcmp(file->asset.name, name) == 0 && memcmp(file->asset.buffer, raw.buffer, length) == 0)
+            return (uint64_t)&file->asset;
+
+    const size_t bytes = sizeof(RetainedLuaFile) + nameLength + 1 + 15 + length + 1;
+    const size_t used = g_retainedLuaBytes.load(std::memory_order_relaxed);
+    if (g_retainedLuaCount.load(std::memory_order_relaxed) >= kRetainedLuaFileCountMax ||
+        used > kRetainedLuaBudget || bytes > kRetainedLuaBudget - used)
+        return RetainLuaFailure(name, original, "retained bytecode budget reached");
+    RetainedLuaFile* const file = (RetainedLuaFile*)AllocateRetainedLua(bytes);
+    if (!file)
+        return RetainLuaFailure(name, original, "dedicated bytecode arena allocation failed");
+    char* const stableName = (char*)(file + 1);
+    memcpy(stableName, name, nameLength + 1);
+    char* const body = (char*)(((uintptr_t)(stableName + nameLength + 1) + 15) & ~(uintptr_t)15);
+    memcpy(body, raw.buffer, length);
+    body[length] = 0;
+    file->asset = { stableName, raw.length, raw.padding, body };
+    file->hash = hash;
+    file->next = g_retainedLua;
+    g_retainedLua = file;
+    g_retainedLuaBytes.store(used + bytes, std::memory_order_release);
+    g_retainedLuaCount.fetch_add(1, std::memory_order_relaxed);
+    // Keep old versions for cached closures; only the process owns their lifetime.
+    return (uint64_t)&file->asset;
+}
+
 static const char* const k_graphicsDvars[] = { "r_vsync",
                                                "com_maxfps",
                                                "cg_drawFPS",
@@ -2766,7 +2926,7 @@ static uint64_t FindXAsset(uint64_t type, uint64_t name, uint64_t a3, uint64_t a
         }
     }
 
-    const uint64_t result =
+    uint64_t result =
         ((Passthrough_t)g_findAssetOriginal)(type, name, a3, a4, a5, a6, x0, x1, x2, x3, x4, x5, x6, x7);
 
     if (!result && (int32_t)type == kRawFileType && name != 0 &&
@@ -2791,6 +2951,9 @@ static uint64_t FindXAsset(uint64_t type, uint64_t name, uint64_t a3, uint64_t a
         }
     }
 
+    if (lua && !LuaMissing(result) && T7Maps_UsingMods() && T7Maps_NeedsLuaRetention(asset))
+        result = RetainModLua(asset, result);
+
     if (lua)
         T7Log_LuiBuffer(asset, (uintptr_t)result);
 
@@ -2798,6 +2961,9 @@ static uint64_t FindXAsset(uint64_t type, uint64_t name, uint64_t a3, uint64_t a
 }
 
 static void AddPcUtil();
+static std::atomic<bool> g_menuInitPending{false};
+static std::atomic<uintptr_t> g_completedMainState{0};
+static std::atomic<uint32_t> g_frontendGeneration{0};
 
 static void CheckMenus()
 {
@@ -2830,6 +2996,7 @@ static uint64_t Require_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, ui
     if (L && L == *(const uintptr_t*)(g_base + kLuaState) && T7Maps_UsingMods() && UiTryLock())
     {
         RunLuaOn(L, T7Maps_ModFilesLua(), "=bo3customs_mod_files");
+        RunLuaOn(L, k_lobbyTargetLua, "=bo3customs_lobby_target");
         RunLuaOn(L, k_lobbyParityLua, "=bo3customs_lobby");
         RunLuaOn(L, k_pcParityLua, "=bo3customs_parity_early");
         UiUnlock();
@@ -2862,7 +3029,18 @@ static uint64_t Require_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, ui
         UiUnlock();
     }
 
-    return ((Passthrough_t)g_requireOriginal)(a1, a2, a3, a4, a5, a6, x0, x1, x2, x3, x4, x5, x6, x7);
+    const uint64_t result =
+        ((Passthrough_t)g_requireOriginal)(a1, a2, a3, a4, a5, a6, x0, x1, x2, x3, x4, x5, x6, x7);
+
+    // A caller may retain the native require instead of our Lua wrapper.
+    // Refresh after LobbyData is loaded before that caller resumes building menus.
+    if (L && L == *(const uintptr_t*)(g_base + kLuaState) && T7Maps_UsingMods() && UiTryLock())
+    {
+        RunLuaOn(L, k_lobbyTargetLua, "=bo3customs_lobby_target_ready");
+        UiUnlock();
+    }
+
+    return result;
 }
 
 static void HookRequire()
@@ -2881,18 +3059,48 @@ static uint64_t AddMenu_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, ui
                           double x0, double x1, double x2, double x3, double x4, double x5, double x6, double x7)
 {
     const char* const menu = (const char*)a2;
-
-    if (menu && RangeReadable(a2, 5) && strcmp(menu, "main") == 0 && InMenus())
+    const bool main = menu && RangeReadable(a2, 5) && strcmp(menu, "main") == 0 && InMenus();
+    const uint64_t result =
+        ((Passthrough_t)g_addMenuOriginal)(a1, a2, a3, a4, a5, a6, x0, x1, x2, x3, x4, x5, x6, x7);
+    if (main)
     {
         T7Maps_MenusBuilt();
-        g_forceInject = true;
-        AddPcUtil();
-        InjectScripts();
-        g_forceInject = false;
-        CheckMenus();
+        g_completedMainState.store(*(const uintptr_t*)(g_base + kLuaState), std::memory_order_release);
+        g_menuInitPending = true;
     }
+    return result;
+}
 
-    return ((Passthrough_t)g_addMenuOriginal)(a1, a2, a3, a4, a5, a6, x0, x1, x2, x3, x4, x5, x6, x7);
+static bool FrontendReadyForInjection()
+{
+    const uintptr_t state = *(const uintptr_t*)(g_base + kLuaState);
+    if (!state || !UiUp()) return false;
+    if (T7Maps_InLevel() || state == g_completedMainState.load(std::memory_order_acquire))
+        return true;
+
+    // A late plugin injection may miss AddMenu. Probe only after native frames
+    // have progressed; do not require modules while the startup menu is building.
+    static uintptr_t candidate = 0;
+    static uint32_t frames = 0;
+    static uint32_t generation = 0;
+    static bool recoveryTried = false;
+    const uint32_t current = g_frontendGeneration.load(std::memory_order_acquire);
+    if (candidate != state || generation != current) { candidate = state; generation = current; frames = 0; recoveryTried = false; }
+    if (++frames < 30 || frames % 30 != 0 || !UiTryLock()) return false;
+    SetDvar("bo3customs_menus", "0");
+    const bool probed = RunLuaOn(state, k_menusProbeLua, "=bo3customs_startup_menu_probe");
+    const uintptr_t dvar = FindDvar("bo3customs_menus");
+    const char* const text = dvar ? DvarText(dvar) : nullptr;
+    const bool ready = probed && text && atoi(text) == 1;
+    const bool broken = probed && text && atoi(text) == 2;
+    if (ready) g_completedMainState.store(state, std::memory_order_release);
+    UiUnlock();
+    if (broken && !recoveryTried && T7Maps_UsingMods())
+    {
+        recoveryTried = true;
+        T7Maps_MenusBroken();
+    }
+    return ready;
 }
 
 static void HookAddMenu()
@@ -3085,11 +3293,18 @@ void T7Lua_Install(uintptr_t base)
     HookView();
 }
 
+void T7Lua_FrontendWillLoad()
+{
+    T7Lua::g_completedMainState.store(0, std::memory_order_release);
+    T7Lua::g_frontendGeneration.fetch_add(1, std::memory_order_acq_rel);
+    T7Lua::g_menuInitPending.store(false, std::memory_order_release);
+}
+
 void T7Lua_Tick()
 {
     using namespace T7Lua;
 
-    if (!g_base)
+    if (!g_base || T7Maps_UiTransitionBusy())
         return;
 
     ++g_ticks;
@@ -3107,7 +3322,21 @@ void T7Lua_Tick()
     }
 #endif
 
-    AddPcUtil();
+    if (!FrontendReadyForInjection())
+        return;
+
+    if (g_menuInitPending && UiUp() && UiTryLock())
+    {
+        g_menuInitPending = false;
+        g_forceInject = true;
+        AddPcUtil();
+        InjectScripts();
+        g_forceInject = false;
+        CheckMenus();
+        UiUnlock();
+    }
+    else
+        AddPcUtil();
 
     if ((g_ticks % 15) == 0)
         ShowShare();
@@ -3184,6 +3413,16 @@ void T7Lua_TraceState(const char* reason)
 bool T7Lua_IsUiState(uintptr_t L)
 {
     return T7Lua::g_base && L == *(const uintptr_t*)(T7Lua::g_base + T7Lua::kLuaState);
+}
+
+bool T7Lua_PrepareModUiUnload()
+{
+    using namespace T7Lua;
+    T7Log_Write("[Lua] mod unload keeps %u shared Lua chunk(s) alive (%llu retained bytes, %llu mapped bytes outside the script heap)",
+                g_retainedLuaCount.load(std::memory_order_relaxed),
+                (unsigned long long)g_retainedLuaBytes.load(std::memory_order_acquire),
+                (unsigned long long)g_retainedLuaMapped.load(std::memory_order_acquire));
+    return true;
 }
 
 void T7Lua_RunShareVm(uintptr_t L)

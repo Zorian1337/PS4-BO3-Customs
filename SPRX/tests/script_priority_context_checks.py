@@ -51,6 +51,7 @@ static uintptr_t g_base = 0;
 static bool g_buildMatched = false;
 static int g_stackCount = 0;
 static std::atomic<bool> g_usermapLevel{true};
+static void NoteLevelLua(uint64_t) {} // Ownership recording is exercised by its dedicated regression.
 static void GrowPool(int) {}
 static void T7Log_PoolOut(int) {}
 static void RenameStackAsset(uint64_t) {}

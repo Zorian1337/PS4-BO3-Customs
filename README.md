@@ -2,11 +2,15 @@
 
 A tool to convert BO3 customs to PS4 and a SPRX to load them on HEN consoles.
 
+For SPRX/Lua development, start with [RESUME.md](RESUME.md). The current DEBUG
+source is experimental and is not a plugin release. Approved distributions belong
+on [GitHub Releases](https://github.com/Zorian1337/PS4-BO3-Customs/releases), not in a source-tree Releases folder.
+
 ## What you need
 
 - A HEN console with BO3 **version 1.33** (**any region**).
 - **BO3 installed on PC**, plus the maps or mods you want to port.
-- The tool, `Console.zip` and the SPRX from the [Releases](../../releases) page.
+- The tool, `Console.zip` and the SPRX from the [Releases](https://github.com/Zorian1337/PS4-BO3-Customs/releases) page.
 
 ## Getting started
 

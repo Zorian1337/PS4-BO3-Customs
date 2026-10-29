@@ -62,6 +62,10 @@ int T7Maps_ModCount();
 
 bool T7Maps_UsingMods();
 
+bool T7Maps_NeedsLuaRetention(const char* name);
+
+bool T7Maps_UiTransitionBusy();
+
 bool T7Maps_HasMap(const char* name);
 
 int T7Maps_MapNames(char (*names)[kT7ShareName], int capacity);

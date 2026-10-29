@@ -576,8 +576,12 @@ function UI.Open(menu, controller, page)
 end
 
 function UI.OpenMenu(menu, controller)
+  controller = Controller(controller)
   if UI.pcMenu and type(OpenPopup) == "function" then
+    local opening = UI.opening
+    UI.opening = true
     local ok, err = pcall(OpenPopup, menu, "MenuModsLoad", controller)
+    UI.opening = opening
     if ok then
       return true
     end
@@ -613,16 +617,18 @@ Define("Mods_Enabled", function()
   return type(rawget(_G, "BO3CustomMods")) == "table"
 end)
 
-Define("Mods_OpenLoadMenu", function(self, element, controller, param, menu)
+function UI.OpenAction(self, element, controller, param, menu)
   local target = menu
   if not IsElement(target) then
     target = self
   end
-  local ok, err = pcall(UI.OpenMenu, target, controller)
+  local ok, err = pcall(UI.OpenMenu, target, Controller(controller))
   if not ok then
     Log("open failed: " .. tostring(err))
   end
-end)
+end
+
+Define("Mods_OpenLoadMenu", UI.OpenAction)
 
 Define("Mods_LoadMod", function(self, element, controller)
   local folder = ModelText(element, "folder")
@@ -1023,7 +1029,7 @@ if UI.pcMenu then
   end
   LUI.createMenu.MenuModsLoad = function(controller, ...)
     UI.creating = true
-    local made, menu = pcall(create, controller, ...)
+    local made, menu = pcall(create, Controller(controller), ...)
     UI.creating = false
     if not made then
       error(menu, 0)
@@ -1076,7 +1082,7 @@ local function AddModsButton(controller, buttons)
   end)
   table.insert(buttons, {
     optionDisplay = "MENU_MODS_CAPS",
-    action = rawget(_G, "Mods_OpenLoadMenu"),
+    action = UI.OpenAction,
     param = nil,
     customId = ButtonId,
     isLargeButton = false,
@@ -1128,6 +1134,29 @@ for name, action in pairs(ownedActions) do
     return original(self, element, controller, param, menu, ...)
   end)
 end
+
+
+local function BindMenuQuery(name, query)
+  local original = rawget(_G, name)
+  rawset(_G, name, function(...)
+    if UI.creating or UI.opening or UI.menu ~= nil or type(original) ~= "function" then
+      return query(...)
+    end
+    return original(...)
+  end)
+end
+
+BindMenuQuery("Mods_IsUsingMods", function()
+  return #ActiveList() > 0
+end)
+BindMenuQuery("Mods_UsingModsUgcName", function()
+  local active = ActiveList()[1]
+  return type(active) == "table" and (active.ugc or active.name or "") or ""
+end)
+BindMenuQuery("Mods_UsingModsInternalName", function()
+  local active = ActiveList()[1]
+  return type(active) == "table" and (active.internal or active.name or "") or ""
+end)
 
 RefreshLobby()
 Log("installed")

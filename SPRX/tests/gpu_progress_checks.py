@@ -11,6 +11,7 @@ context = source[source.index("struct GpuLevelContext"):source.index("#endif", s
 readers = source[source.index("struct GpuProgressSample"):source.index("static void RaiseThread()")]
 count_blobs = source[source.index("static void CountBlobs("):source.index("static void LogBlobs(")]
 watch = source[source.index("static void* StallWatch("):source.index("static void* StallMirror(")]
+zone_report = source[source.index("static void ReportLoadingZones("):source.index("static void* StallWatch(")]
 fixture = r'''
 #include "diagnostic_ring.hpp"
 #include <cassert>
@@ -23,6 +24,9 @@ constexpr uintptr_t kGpuFrameLabel=0,kFrontendData=8,kFrameDataA=128,kFrameDataB
 constexpr uintptr_t kStreamBlobs=512,kPartsRequired=640,kPartsInMemory=648,kMeshRequired=656,kMeshInMemory=660;
 constexpr uintptr_t kStreamPending=664,kStreamStarted=668,kStreamDone=669,kSoundLoaded=672;
 constexpr int kPartWords=2,kMeshWords=1,kStreamBlobCount=2;
+constexpr uintptr_t kZoneNames=1200;
+constexpr int kZoneNameSlots=4;
+constexpr size_t kZoneNameStride=80,kZoneStateAt=72;
 alignas(uintptr_t) static unsigned char memory[2048];
 static uintptr_t g_base=(uintptr_t)memory, denied=0;
 static std::atomic<uint64_t> g_lastFrameAt{1000000};
@@ -63,7 +67,7 @@ static void ReportDispatches() {}
 static void SampleStalledThreads(uint32_t,uint64_t) {
     ++gameplayStalls; ReportGpuProgress("gameplay-stall",g_levelStart,mockNow);
 }
-''' + watch + r'''
+''' + zone_report + watch + r'''
 static void RunWatch(int scenario,int limit) {
     static uint64_t start=10000000;
     start+=100000000;
@@ -74,6 +78,16 @@ static void RunWatch(int scenario,int limit) {
     try { StallWatch(nullptr); } catch(const Stop&) {}
 }
 int main() {
+    ReportLoadingZones();
+    assert(output.find("no zone-name slot")!=std::string::npos);
+    output.clear();
+    const size_t slot=kZoneNames+kZoneNameStride;
+    memcpy(memory+slot,"pending_zone",13); Set<int32_t>(slot+kZoneStateAt,1);
+    ReportLoadingZones();
+    assert(output.find("zone slot 1 is still loading: pending_zone")!=std::string::npos);
+    denied=g_base+slot; output.clear(); ReportLoadingZones();
+    assert(output.find("pending_zone")==std::string::npos);
+    denied=0; Set<int32_t>(slot+kZoneStateAt,2); output.clear();
     Set(kGpuFrameLabel,g_base+1024); Set(kFrontendData,g_base+kFrameDataA);
     Set<uint32_t>(1024,7); Set<uint32_t>(kFrameDataB+kFrameLabelWanted,8); Set<uint32_t>(kFrameDataA+kFrameLabelWanted,9);
     Set<uint32_t>(kPartsRequired,11); Set<uint32_t>(kPartsRequired+4,8); Set<uint32_t>(kPartsInMemory,1);

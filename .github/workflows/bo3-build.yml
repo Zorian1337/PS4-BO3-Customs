@@ -22,7 +22,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install host regression dependencies
-        run: sudo apt-get update && sudo apt-get install -y clang liblua5.4-0
+        run: sudo apt-get update && sudo apt-get install -y clang lua5.1 liblua5.4-0
       - name: Validate GitHub Actions workflows
         run: |
           curl -fsSL https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz -o "$RUNNER_TEMP/actionlint.tar.gz"

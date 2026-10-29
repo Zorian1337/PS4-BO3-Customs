@@ -7,3 +7,17 @@ obj/
 /Tool/work
 /Deps
 /Tool/tests
+
+# Local builds, captures and workspace state are never source artifacts.
+/build/
+/.local/
+/reports/
+/research/
+/private/
+/[Rr]eleases/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+console.local.json
+*.uploading

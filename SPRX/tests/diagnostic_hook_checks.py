@@ -125,12 +125,12 @@ alignas(uintptr_t) static unsigned char mapsMemory[64] = {};
 static uintptr_t g_base=(uintptr_t)mapsMemory;
 constexpr uintptr_t kSessionModes=0;
 static std::atomic<bool> g_applyWanted{false};
-static char g_loaded[kMaxStack][kNameMax]={"zm8p"};
+static char g_loaded[kMaxStack][kNameMax]={"test_content"};
 static int LoadedModeCommon() { return 1; }
 static int SessionModeCommon() { return 2; }
 static bool ModeCommonOnTop() { return false; }
 static bool ZoneLoaded(const char* z) { return std::strcmp(z,"zm_mod")==0; }
-static int ChosenForLoad(char (*names)[kNameMax]) { std::strcpy(names[0],"zm8p"); return 1; }
+static int ChosenForLoad(char (*names)[kNameMax]) { std::strcpy(names[0],"test_content"); return 1; }
 static unsigned mapPreflights=0;
 static void TraceMapFastfilePreflight(const char*) { ++mapPreflights; }
 static void TraceBgCacheState(const char*) {}

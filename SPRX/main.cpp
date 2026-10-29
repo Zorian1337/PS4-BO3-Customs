@@ -22,10 +22,11 @@ uint64_t Frame_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5
 {
     T7Maps_FrameWork();
     T7Share_Tick();
-    T7Lua_Tick();
     T7Builtins_Tick();
 
-    return ((Hook_t)g_frameOriginal)(a1, a2, a3, a4, a5, a6, x0, x1, x2, x3, x4, x5, x6, x7);
+    const uint64_t result = ((Hook_t)g_frameOriginal)(a1, a2, a3, a4, a5, a6, x0, x1, x2, x3, x4, x5, x6, x7);
+    T7Lua_Tick();
+    return result;
 }
 
 bool IsBlackOps3(uintptr_t base)
@@ -97,7 +98,7 @@ static void* start_thread(void*)
 
     T7Log_Install(base);
 #ifdef _DEBUG
-    T7Log_Write("[Build] BO3-Customs-v4.00.1-dev.26-DEBUG");
+    T7Log_Write("[Build] BO3-Customs-v4.00.1-dev.34-DEBUG");
     if (!is_ps5)
     {
         for (size_t i = 0; i < kDriveCount; ++i)

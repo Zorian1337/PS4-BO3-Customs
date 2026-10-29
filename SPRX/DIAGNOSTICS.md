@@ -67,8 +67,8 @@ Host checks do not validate engine offsets or reproduce a console crash. Build
 the Debug SPRX with the repository's supported PS4 toolchain, then validate mode
 switches and map/peer joins on console. Exact clientfield-schema comparisons and
 VM caller-stack decoding still require verified engine layouts; this change
-does not guess them. Complex mismatch, bot/post-spawn crashes and the reported
-save warning remain runtime investigation targets.
+does not guess them. Native gameplay crashes, UI recovery and peer-join failures remain runtime
+investigation targets.
 
 ## Failed-import record lifetime
 
@@ -90,7 +90,7 @@ Debug error reporting, not the underlying unresolved import or map mismatch.
 
 ## In-match GSC dvar capture
 
-Debug ticks poll `bo3customs_gsc_log` every six ticks without requiring a ready
+Debug ticks poll `bo3customs_gsc_log` every 30 ticks during gameplay and every six ticks in menus without requiring a ready
 UI or acquiring its lock. During gameplay the legacy `bo3customs_log` channel is
 also drained. The menu path captures a pending legacy value before running the
 UI queue, so UI messages cannot replace it first; a failed Lua call does not
@@ -162,3 +162,10 @@ That package used source `5c3dd70434d128f5d2b51e0f1445770963656512`, with SHA-25
 `b1d236bfd421900ae00c6aedd6937314543c805d11da4c60b5faa32ede3637cb`.
 This confirms the reported image regression; it does not validate unrelated
 gameplay crash reports. See [fork issue 17](https://github.com/Zorian1337/PS4-BO3-Customs/issues/17).
+
+## Persistent error capture
+
+The session log still resets on startup. DEBUG candidates with persistent error
+capture append bounded context to crash-errors.log across restarts. See
+[the diagnostic reader](../tools/console_diagnostics/README.md) for commands,
+rotation bounds, storage failures and the limits of game-side crash reporting.

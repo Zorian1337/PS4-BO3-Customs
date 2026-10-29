@@ -1,3 +1,4 @@
+#include "t7_lua_ownership.hpp"
 #include "headers.hpp"
 #include "t7_lua_files.hpp"
 #include "diagnostic_ring.hpp"
@@ -322,6 +323,11 @@ static int                     g_unshownCount = 0;
 static bool                    g_frontendReloadReady = false;
 static bool                    g_quietReload = false;
 static bool                    g_reloadCheck = false;
+static std::atomic<bool>        g_frontendApplyPending{false};
+static std::atomic<bool>        g_frontendApplying{false};
+static std::atomic<bool>        g_frontendApplyLoading{false};
+static std::atomic<uint64_t>    g_frontendApplySince{0};
+static std::atomic<uint32_t>    g_modFilesRevision{1};
 static uint64_t                g_reloadSince = 0;
 static int                     g_waitFrom = 0;
 static char                    g_uiMods[kMaxMods][kNameMax];
@@ -332,6 +338,7 @@ constexpr int                  kMaxModUiFiles = 1024;
 static char                    g_modUiFiles[kMaxModUiFiles][96];
 static char                    g_modUiOwners[kMaxModUiFiles][kNameMax];
 static int                     g_modUiFileCount = 0;
+static T7LuaOwnership::Index    g_modLuaOwnership;
 static char                    g_modNotice[224];
 static char                    g_waitZones[64][kNameMax];
 static int                     g_waitZoneCount = 0;
@@ -629,7 +636,7 @@ struct PoolGrowth
     uint32_t    size;
     uint32_t    limit;
     uint32_t    grown;
-    bool        capped;
+    std::atomic<bool> capped{false};
 };
 
 static PoolGrowth g_poolGrowth[] =
@@ -1295,6 +1302,7 @@ static void ScanStackFolder(StackMod& entry, const char* folder)
 
 static void SetStack(const char (*names)[kNameMax], int count)
 {
+    g_modFilesRevision.fetch_add(1, std::memory_order_relaxed);
     g_stackCount = 0;
 
     for (int i = 0; i < count && g_stackCount < kMaxStack; ++i)
@@ -1671,6 +1679,7 @@ static const char* InternName(const char* text)
 
 static void ResetScriptClaims()
 {
+    g_modFilesRevision.fetch_add(1, std::memory_order_relaxed);
     ClaimLock locked;
     g_scriptClaimCount = 0;
 }
@@ -1814,13 +1823,15 @@ static void NoteUiFile(uintptr_t header, int index)
 {
     const char* const name = *(const char* const*)header;
 
-    if (!name || !RangeReadable((uintptr_t)name, 4) || name[0] != 'u' || name[1] != 'i')
+    if (!name || !RangeReadable((uintptr_t)name, 4))
         return;
 
     const size_t n = strlen(name);
 
-    if (n < 8 || !EqualsNoCase(name + n - 4, ".lua"))
+    if (n < 4 || !EqualsNoCase(name + n - 4, ".lua"))
         return;
+
+    g_modLuaOwnership.Mark(name);
 
     const char* const mod = g_stack[index].mod.name;
     const bool dll = ContainsNoCase(name, "t7overcharged") || LoadsOvercharged(header);
@@ -1838,6 +1849,8 @@ static void NoteUiFile(uintptr_t header, int index)
         {
             snprintf(g_modUiFiles[g_modUiFileCount], sizeof(g_modUiFiles[0]), "%s", name);
             snprintf(g_modUiOwners[g_modUiFileCount++], kNameMax, "%s", mod);
+            filed = true;
+            g_modFilesRevision.fetch_add(1, std::memory_order_relaxed);
             g_modsLuaDirty.store(true);
         }
 
@@ -1951,7 +1964,7 @@ static void GrowPool(int32_t type)
 {
     PoolGrowth* const growth = GrowthFor(type);
 
-    if (!growth || growth->capped)
+    if (!growth || growth->capped.load(std::memory_order_acquire))
         return;
 
     AssetPool* const pool = (AssetPool*)(g_base + kAssetPools + sizeof(AssetPool) * (uintptr_t)type);
@@ -1966,6 +1979,9 @@ static void GrowPool(int32_t type)
     {
         ~GrowthUnlock() { g_poolGrowthLock.clear(std::memory_order_release); }
     } unlock;
+
+    if (growth->capped.load(std::memory_order_acquire))
+        return;
 
     // Allow selected low-per-entry-cost asset pools to reach triple their
     // initial capacity (two extra originals), without enlarging heavy sound,
@@ -2057,6 +2073,25 @@ static void GrowPool(int32_t type)
     g_poolGrowthBytes += bytes;
 }
 
+static void NoteLevelLua(uint64_t asset)
+{
+    if (!g_usermapLevel.load(std::memory_order_acquire) || !asset || *(const int32_t*)asset != kRawFileAsset ||
+        g_loadingThread.load(std::memory_order_acquire) != (uint64_t)scePthreadSelf()) return;
+    const char* const zone = (const char*)g_loadingZone.load(std::memory_order_acquire);
+    if (!zone || !RangeReadable((uintptr_t)zone, 4)) return;
+    char relative[kNameMax];
+    const int length = snprintf(relative, sizeof(relative), "%s.ff", zone);
+    if (length <= 0 || (size_t)length >= sizeof(relative)) return;
+    ListReader reading;
+    if (MapPackageFile(relative) < 0 && !EqualsNoCase(zone, "zm_levelcommon")) return;
+    const uintptr_t header = *(const uintptr_t*)(asset + 8);
+    if (!header || !RangeReadable(header, 24)) return;
+    const char* const name = *(const char* const*)header;
+    if (!name || !RangeReadable((uintptr_t)name, 4)) return;
+    const size_t n = strlen(name);
+    if (n >= 4 && EqualsNoCase(name + n - 4, ".lua")) g_modLuaOwnership.Mark(name);
+}
+
 static uint64_t LinkXAsset_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5, uint64_t a6,
                              double x0, double x1, double x2, double x3, double x4, double x5, double x6, double x7)
 {
@@ -2072,6 +2107,9 @@ static uint64_t LinkXAsset_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4,
 
     if (a1 && g_stackCount > 0)
         RenameStackAsset(a1);
+
+    if (a1 && g_buildMatched)
+        NoteLevelLua(a1);
 
     if (g_usermapLevel.load(std::memory_order_relaxed) && a1 && *(const int32_t*)a1 == kScriptParseTree)
     {
@@ -3286,6 +3324,35 @@ static void SampleThreads()
     g_stallTarget.store(0, std::memory_order_release);
 }
 
+static void ReportLoadingZones()
+{
+    if (!g_base)
+        return;
+
+    const uintptr_t table = g_base + kZoneNames;
+    int loading = 0;
+
+    for (int i = 1; i < kZoneNameSlots; ++i)
+    {
+        const uintptr_t entry = table + kZoneNameStride * (uintptr_t)i;
+        if (!RangeReadable(entry, kZoneNameStride))
+            continue;
+
+        const int32_t state = *(const int32_t*)(entry + kZoneStateAt);
+        if (state != 1)
+            continue;
+
+        char name[65];
+        memcpy(name, (const void*)entry, 64);
+        name[64] = 0;
+        ReportLine("[Stall] zone slot %d is still loading: %s", i, name[0] ? name : "(unnamed)");
+        ++loading;
+    }
+
+    if (!loading)
+        ReportLine("[Stall] no zone-name slot reports state=loading");
+}
+
 static void* StallWatch(void*)
 {
     RaiseThread();
@@ -3345,6 +3412,7 @@ static void* StallWatch(void*)
             g_poolsWanted.store(true, std::memory_order_release);
             ++idleRounds;
             ReportGpuProgress(loading ? "load-stall" : "engine-idle", start, now);
+            ReportLoadingZones();
             if (start && g_usermapLevel.load(std::memory_order_relaxed))
                 ReportDispatches();
             SampleThreads();
@@ -3838,6 +3906,7 @@ static int StackEntries(int from, int mode, ZoneInfo* out, int room, int* record
 
 static void SetLoaded(int count)
 {
+    g_modFilesRevision.fetch_add(1, std::memory_order_relaxed);
     g_loadedCount = 0;
 
     for (int i = 0; i < count && i < g_stackCount; ++i)
@@ -4024,11 +4093,26 @@ static void WaitForModZones(const ZoneInfo* zones, int count, int from)
 }
 
 static void TraceModTransition(const char* when, const char* level);
+static void ApplyModsAtFrontend(const ZoneInfo* zones, int count);
 
 static uint64_t LoadXAssets_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5, uint64_t a6,
                               double x0, double x1, double x2, double x3, double x4, double x5, double x6,
                               double x7)
 {
+    if (a1 && (uint32_t)a2 <= kMaxZoneCall)
+    {
+        const ZoneInfo* const zones = (const ZoneInfo*)a1;
+        for (uint32_t i = 0; i < (uint32_t)a2; ++i)
+            if ((zones[i].freeFlags & 0x800000) ||
+                (zones[i].name && (zones[i].allocFlags & 0x800000) && EqualsNoCase(zones[i].name, "core_frontend")))
+            {
+                T7Lua_FrontendWillLoad();
+                break;
+            }
+    }
+
+    if (a1 && (int)(uint32_t)a2 > 0 && (int)(uint32_t)a2 <= kMaxZoneCall)
+        ApplyModsAtFrontend((const ZoneInfo*)a1, (int)(uint32_t)a2);
 #ifdef _DEBUG
     if (a1 && (int)(uint32_t)a2 > 0 && (int)(uint32_t)a2 <= kMaxZoneCall &&
         (g_modCount > 0 || g_loadedCount > 0))
@@ -4675,52 +4759,10 @@ static void SetRefreshOnClose(bool refresh)
 
 static void PrefetchMods()
 {
-    if (!g_loadOriginal || !ModHooksReady() || g_inLevel)
-        return;
-
-    if (AnyZoneLoading())
-    {
-        g_prefetchWanted.store(true);
-        return;
-    }
-
-    char names[kMaxStack][kNameMax];
-    const int wanted = ChosenForLoad(names);
-    int keep = 0;
-
-    while (keep < g_loadedCount && keep < wanted && EqualsNoCase(g_loaded[keep], names[keep]))
-        ++keep;
-
-    if (keep == wanted || keep < g_loadedCount)
-        return;
-
-    const int mode = LoadedModeCommon();
-
-    if (mode < 0)
-    {
-        LoadModeCommonForMods();
-
-        for (int i = 0; i < g_loadedCount; ++i)
-            NoteUnshown(g_loaded[i]);
-
-        g_modsLuaDirty.store(true);
-        return;
-    }
-
-    if (!ModeCommonOnTop())
-    {
-        T7Log_Write("[Mods] another zone sits above %s, so the ticked mods load when MODS closes",
-                    k_modeCommons[mode]);
-        g_modsLuaDirty.store(true);
-        return;
-    }
-
-    T7Log_Write("[Mods] loading %d ticked mod(s) while MODS is open; the menus refresh when it closes",
-                wanted - keep);
-    AppendMods(names, wanted, mode);
-
-    for (int i = keep; i < wanted; ++i)
-        NoteUnshown(names[i]);
+    // A selected zone can replace UI assets even before it is known to be a
+    // UI mod. Keep the active Mods overlay intact until its close callback.
+    if (!g_inLevel)
+        SetRefreshOnClose(true);
 }
 
 static void ApplyModsNow()
@@ -4728,7 +4770,7 @@ static void ApplyModsNow()
     if (!g_loadOriginal || !ModHooksReady() || g_inLevel)
         return;
 
-    if (AnyZoneLoading())
+    if (!g_frontendApplying && (g_frontendApplyPending || AnyZoneLoading()))
     {
         g_applyWanted.store(true);
         return;
@@ -4743,6 +4785,23 @@ static void ApplyModsNow()
 
     if (keep == g_loadedCount && keep == wanted)
         return;
+
+    if (g_loadedCount > 0 && (keep < g_loadedCount || g_sessionModCount >= 0) &&
+        !T7Lua_PrepareModUiUnload())
+        return;
+
+    if (g_sessionModCount < 0 && !g_frontendApplying)
+    {
+        if (!g_frontendReloadReady)
+        {
+            T7Log_Write("[Mods] frontend shutdown is unavailable; keeping loaded zones until the next mode change");
+            return;
+        }
+        g_frontendApplySince = sceKernelGetProcessTime();
+        g_frontendApplyPending = true;
+        ReloadFrontend("mod changes wait for the current frontend to shut down");
+        return;
+    }
 
     const int mode = LoadedModeCommon();
 
@@ -4814,10 +4873,34 @@ static void ApplyModsNow()
     if (wanted > keep)
         AppendMods(names, wanted, mode);
 
+    if (g_frontendApplying)
+        return;
     if (removedUi && g_reloadCheck)
         g_reloadForced = true;
     else if (removedUi)
         ReloadFrontend("a mod with menu files was unloaded");
+}
+
+static void ApplyModsAtFrontend(const ZoneInfo* zones, int count)
+{
+    if (!g_frontendApplyPending || g_frontendApplying)
+        return;
+    for (int i = 0; i < count; ++i)
+    {
+        if (!zones[i].name || !(zones[i].allocFlags & 0x800000) ||
+            !EqualsNoCase(zones[i].name, "core_frontend"))
+            continue;
+        g_frontendApplyPending = false;
+        g_applyWanted.store(false);
+        g_frontendApplying = true;
+        g_frontendApplyLoading = true;
+        T7Log_Write("[Mods] applying queued changes before the new core_frontend loads");
+        // The database serializes these zone requests before the new frontend.
+        // Do not restart it again after the mod zones finish.
+        ApplyModsNow();
+        g_frontendApplying = false;
+        break;
+    }
 }
 
 #ifdef _DEBUG
@@ -7054,6 +7137,20 @@ void T7Maps_FrameWork()
     if (!g_base)
         return;
 
+    if (g_frontendApplyPending && sceKernelGetProcessTime() - g_frontendApplySince > kModLoadWaitUs)
+    {
+        g_frontendApplyPending = false;
+        g_applyWanted.store(false);
+        T7Log_Write("[Mods] frontend handoff timed out; loaded zones stay intact, restart BO3 to apply the selection");
+        return;
+    }
+
+    if (g_frontendApplyLoading && !g_reloadCheck && !AnyZoneLoading())
+    {
+        g_frontendApplyLoading = false;
+        T7Log_Write("[Mods] frontend handoff completed without additional mod zones");
+    }
+
 #ifdef _DEBUG
     g_comFrames.fetch_add(1, std::memory_order_relaxed);
 #endif
@@ -7106,6 +7203,7 @@ void T7Maps_FrameWork()
         return;
     }
 
+    const bool frontendApplied = g_frontendApplyLoading;
     const bool forced = g_reloadForced;
     bool ui = forced;
 
@@ -7120,7 +7218,14 @@ void T7Maps_FrameWork()
 
     g_reloadCheck = false;
     g_reloadForced = false;
+    g_frontendApplyLoading = false;
     SetRefreshOnClose(false);
+
+    if (frontendApplied)
+    {
+        T7Log_Write("[Mods] queued mod zones are ready; the new frontend owns their UI assets");
+        return;
+    }
 
     if (!ui)
     {
@@ -7278,7 +7383,7 @@ int T7Maps_SelectMod(const char* list, char* message, size_t size)
     for (int i = 0; extends && i < g_loadedCount; ++i)
         extends = EqualsNoCase(g_loaded[i], names[i]);
 
-    if (!extends || g_inLevel)
+    if (!extends || g_inLevel || g_sessionModCount < 0)
     {
         snprintf(message, size, "Your mod changes apply %s.%s", ModChangesApply(), note);
         return 3;
@@ -7314,7 +7419,10 @@ const char* T7Maps_ModFilesLua()
     size_t used = 0;
 
     out[0] = 0;
-    Append(out, size, &used, "if rawget(_G, \"BO3CustomsModFiles\") ~= nil then return end\nrawset(_G, \"BO3CustomsModFiles\", {\n");
+    const uint32_t revision = g_modFilesRevision.load(std::memory_order_relaxed);
+    char header[256];
+    snprintf(header, sizeof(header), "if rawget(_G, \"BO3CustomsModFilesRevision\") == %u then return end\nrawset(_G, \"BO3CustomsModFilesRevision\", %u)\nrawset(_G, \"BO3CustomsModFiles\", {\n", revision, revision);
+    Append(out, size, &used, header);
     AppendModFiles(out, size, &used);
     Append(out, size, &used, "})\n");
     return out;
@@ -7333,6 +7441,17 @@ int T7Maps_ModCount()
 bool T7Maps_UsingMods()
 {
     return T7Maps::g_loadedCount > 0 || T7Maps::g_usermapLevel.load(std::memory_order_relaxed);
+}
+
+bool T7Maps_NeedsLuaRetention(const char* name)
+{
+    return T7Maps::g_modLuaOwnership.MayContain(name);
+}
+
+bool T7Maps_UiTransitionBusy()
+{
+    using namespace T7Maps;
+    return g_base && (g_frontendApplyPending || g_frontendApplying || g_frontendApplyLoading || AnyZoneLoading());
 }
 
 static_assert(T7Maps::kNameMax == kT7ShareName, "shared names use the map name size");

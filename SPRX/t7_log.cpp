@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include "script_error_budget.hpp"
+#include "error_capture.hpp"
 
 namespace T7Log
 {
@@ -270,6 +271,12 @@ static void Unlock()
     __sync_lock_release(&g_lock);
 }
 
+constexpr const char* kErrorPath = "/data/BO3-Customs/crash-errors.log";
+constexpr const char* kPreviousErrorPath = "/data/BO3-Customs/crash-errors.log.1";
+constexpr uint64_t kErrorLogMax = 8u * 1024u * 1024u;
+static T7ErrorCapture::Buffer g_errorCapture;
+static char g_errorFlushing[kQueueBytes + 128];
+
 static char             g_queue[kQueueBytes];
 static char             g_flushing[kQueueBytes + 128];
 static size_t           g_queued = 0;
@@ -288,15 +295,50 @@ static void QueueUnlock()
     __sync_lock_release(&g_queueLock);
 }
 
+static bool WriteAll(int fd, const char* bytes, size_t size)
+{
+    size_t used = 0;
+    while (used < size)
+    {
+        const auto count = sceKernelWrite(fd, bytes + used, size - used);
+        if (count <= 0 || (uint64_t)count > size - used) return false;
+        used += (size_t)count;
+    }
+    return true;
+}
+
+static bool AppendErrorFile(const char* bytes, size_t size)
+{
+    if (!size) return true;
+    SceKernelStat info{};
+    if (sceKernelStat(kErrorPath, &info) == 0 && (uint64_t)info.st_size + size > kErrorLogMax)
+    {
+        // A single previous error log is retained. Never rotate the session log.
+        if (sceKernelRename(kErrorPath, kPreviousErrorPath) < 0) return false;
+    }
+    const int fd = sceKernelOpen(kErrorPath, SCE_KERNEL_O_WRONLY | SCE_KERNEL_O_CREAT | SCE_KERNEL_O_APPEND, 0777);
+    if (fd < 0) return false;
+    const bool written = WriteAll(fd, bytes, size);
+    const bool synced = sceKernelFsync(fd) >= 0;
+    const bool closed = sceKernelClose(fd) >= 0;
+    return written && synced && closed;
+}
+
 static void Append(const char* text, size_t size)
 {
     if (!g_writerUp)
     {
+        QueueLock();
+        g_errorCapture.Push(text, size, sceKernelGetProcessTime());
+        uint32_t lost = 0;
+        const size_t errors = g_errorCapture.Drain(g_errorFlushing, kQueueBytes, &lost);
+        QueueUnlock();
+        AppendErrorFile(g_errorFlushing, errors);
         const int fd = sceKernelOpen(kLogPath, SCE_KERNEL_O_WRONLY | SCE_KERNEL_O_CREAT | SCE_KERNEL_O_APPEND, 0777);
 
         if (fd >= 0)
         {
-            sceKernelWrite(fd, text, size);
+            WriteAll(fd, text, size);
             sceKernelClose(fd);
         }
 
@@ -304,6 +346,7 @@ static void Append(const char* text, size_t size)
     }
 
     QueueLock();
+    g_errorCapture.Push(text, size, sceKernelGetProcessTime());
 
     if (g_queued + size <= sizeof(g_queue))
     {
@@ -321,6 +364,8 @@ static void Append(const char* text, size_t size)
 static void* Writer(void*)
 {
     int fd = -1;
+    size_t pendingErrors = 0;
+    uint64_t errorNoticeAt = 0;
 
     for (;;)
     {
@@ -332,7 +377,31 @@ static void* Writer(void*)
         g_queued = 0;
         const uint32_t dropped = g_dropped;
         g_dropped = 0;
+        uint32_t errorsDropped = 0;
+        if (!pendingErrors)
+            pendingErrors = g_errorCapture.Drain(g_errorFlushing, kQueueBytes, &errorsDropped);
         QueueUnlock();
+
+        if (errorsDropped)
+        {
+            const int note = snprintf(g_errorFlushing + pendingErrors, sizeof(g_errorFlushing) - pendingErrors,
+                                      "[Log] %u error-context line(s) dropped: capture queue full\n", errorsDropped);
+            if (note > 0) pendingErrors += (size_t)note < sizeof(g_errorFlushing) - pendingErrors ? (size_t)note : sizeof(g_errorFlushing) - pendingErrors - 1;
+        }
+        if (pendingErrors)
+        {
+            if (AppendErrorFile(g_errorFlushing, pendingErrors))
+                pendingErrors = 0;
+            else
+            {
+                const uint64_t now = sceKernelGetProcessTime();
+                if (!errorNoticeAt || now - errorNoticeAt >= 5000000)
+                {
+                    errorNoticeAt = now;
+                    DebugOut("[BO3-Customs] could not persist crash/error context; keeping the batch for retry\n");
+                }
+            }
+        }
 
         if (dropped)
         {
@@ -347,7 +416,7 @@ static void* Writer(void*)
         if (fd < 0)
             fd = sceKernelOpen(kLogPath, SCE_KERNEL_O_WRONLY | SCE_KERNEL_O_CREAT | SCE_KERNEL_O_APPEND, 0777);
 
-        if (fd >= 0 && sceKernelWrite(fd, g_flushing, size) < 0)
+        if (fd >= 0 && !WriteAll(fd, g_flushing, size))
         {
             sceKernelClose(fd);
             fd = -1;
@@ -1349,6 +1418,7 @@ void T7Log_Install(uintptr_t base)
     }
 
     T7Log_Write("BO3-Customs debug log (Debug build of %s %s)", __DATE__, __TIME__);
+    T7Log_Write("[Log] errors persist in %s (8 MiB plus one previous log); session log still resets", kErrorPath);
     T7Log_Write("[Log] running on a %s; lines also go to %s", IsPs5() ? "PS5" : "PS4",
                 DebugSink() ? DebugSink() : "this file only");
 
@@ -1412,7 +1482,7 @@ void T7Log_LuiBuffer(const char* name, uintptr_t rawFile)
 {
     using namespace T7Log;
 
-    if (!g_base || !name || !name[0] || !rawFile || !RangeReadable(rawFile, 24))
+    if (!g_base || !name || !name[0] || !rawFile || T7Maps_UiTransitionBusy() || !RangeReadable(rawFile, 24))
         return;
 
     const int32_t length = *(const int32_t*)(rawFile + 8);
@@ -1471,6 +1541,18 @@ void T7Log_Zone(const char* name, int32_t allocFlags, int32_t freeFlags)
 
     if (g_base)
         ShowShutdownNotes();
+
+    if (freeFlags && !((uint32_t)freeFlags & 0x40000000u))
+    {
+        // Diagnostic Lua entries borrow buffers from database zones. Invalidate
+        // them before the native unload can release/reuse those buffers.
+        Lock();
+        g_luaFileCount = 0;
+        g_lastLui[0] = 0;
+        g_chainAt = 0;
+        g_chainShown = 0;
+        Unlock();
+    }
 
     T7Log_Write("[Zones] %s %s (flags 0x%X)", allocFlags ? "load" : "unload", name ? name : "(unnamed)",
                 (unsigned)(allocFlags ? allocFlags : freeFlags));

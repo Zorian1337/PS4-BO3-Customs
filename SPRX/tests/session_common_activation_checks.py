@@ -19,6 +19,12 @@ constexpr int kMaxStack=4, kNameMax=56, kModeCommonFlags=0x40;
 struct ZoneInfo { const char* name; int allocFlags; int freeFlags; };
 static bool g_loadOriginal=true, g_inLevel=false, loading=false, hooks=true, onTop=true;
 static bool g_reloadCheck=false, g_reloadForced=false;
+static bool g_frontendApplyPending=false, g_frontendApplying=false, g_frontendApplyLoading=false;
+static bool g_frontendReloadReady=true;
+static bool canUnload=true;
+static bool T7Lua_PrepareModUiUnload() { return canUnload; }
+static uint64_t g_frontendApplySince=0;
+static uint64_t sceKernelGetProcessTime() { return 1234; }
 static std::atomic<bool> g_applyWanted{false};
 static int g_loadedCount=0, wanted=2, mode=1, g_sessionModCount=2;
 static int keepAssets=0, reloads=0, appends=0, frees=0, syncs=0, clears=0, frontend=0;
@@ -69,11 +75,26 @@ int main() {
     ApplyModsNow(); assert(reloads==1); // Already manually enabled: untouched.
     std::strcpy(g_loaded[0],"lobby"); std::strcpy(g_loaded[1],"bots");
     ApplyModsNow(); assert(reloads==2 && appends==0); // Wrong order also needs whole reload.
-    wanted=0; ApplyModsNow(); assert(reloads==3); // Empty host removes local extras.
+    wanted=0; canUnload=false; ApplyModsNow(); assert(reloads==2 && frees==0);
+    canUnload=true; ApplyModsNow(); assert(reloads==3); // Empty host removes local extras.
     g_loadedCount=0; wanted=2; g_sessionModCount=-1;
-    ApplyModsNow(); assert(reloads==3 && appends==1); // Personal menu path preserved.
+    ApplyModsNow(); assert(reloads==3 && appends==0 && frontend==1 && g_frontendApplyPending);
+    // Ordinary zone requests cannot unload the still-active frontend's mods.
+    ZoneInfo unrelated{"zm_mod",0x40,0};
+    ApplyModsAtFrontend(&unrelated,1);
+    assert(g_frontendApplyPending && appends==0);
+    ApplyModsNow(); assert(frontend==1 && appends==0);
+    ZoneInfo frontendZone{"core_frontend",0x800000,0};
+    // Other database jobs may be queued ahead of this boundary. Preserve their
+    // native FIFO ordering, but do not repeatedly postpone the queued stack.
+    loading=true;
+    ApplyModsAtFrontend(&frontendZone,1);
+    assert(!g_frontendApplyPending && !g_frontendApplying && g_frontendApplyLoading);
+    assert(appends==1 && frontend==1);
+    loading=false;
+    ApplyModsAtFrontend(&frontendZone,1); assert(appends==1);
     g_sessionModCount=2; mode=-1; ApplyModsNow(); assert(reloads==4); // No common loaded yet.
-    assert(frontend==0);
+    assert(frontend==1);
     std::puts("PASS: host common transaction, exact-order no-op, empty host, zone/memory guards and personal activation");
 }
 '''.replace("FUNCTION", body)

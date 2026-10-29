@@ -22,10 +22,17 @@ prefix = r'''
 #include <vector>
 static std::vector<std::string> lines;
 static bool inLevel=false;
+static bool transitionBusy=false;
+static bool T7Maps_UiTransitionBusy() { return transitionBusy; }
 static bool T7Maps_InLevel() { return inLevel; }
 namespace T7Lua {
 static uintptr_t g_base=1;
 static unsigned g_ticks=0;
+static bool g_menuInitPending=false, g_forceInject=false;
+static unsigned pcUpdates=0, menuInjections=0, menuChecks=0;
+static bool uiReady=false, lockAvailable=false;
+static bool FrontendReadyForInjection() { return inLevel || uiReady; }
+static unsigned lockDepth=0;
 static bool menus=false, luaSuccess=true;
 static std::map<std::string,std::string> dvars;
 static const char* const k_logFlushLua="UI log drain";
@@ -40,13 +47,14 @@ static bool RunLua(const char* script,const char*)
     return true;
 }
 static bool InMenus() { return menus; }
-static bool UiTryLock() { return false; }
-static bool UiUp() { return false; }
-static void UiUnlock() { assert(false); }
-static void AddPcUtil() {}
+static bool UiTryLock() { if (!lockAvailable) return false; ++lockDepth; return true; }
+static bool UiUp() { return uiReady; }
+static void UiUnlock() { assert(lockDepth>0); --lockDepth; }
+static void AddPcUtil() { ++pcUpdates; }
 static void ShowShare() {}
 static void PollGraphics() {}
-static void InjectScripts() {}
+static void InjectScripts() { ++menuInjections; }
+static void CheckMenus() { ++menuChecks; }
 static void T7Log_Write(const char* format,...)
 {
     char text[2048]; va_list args; va_start(args,format);
@@ -66,7 +74,7 @@ int main()
     FlushLuaLog();
     assert(lines.size()==1 && lines[0].find("survives Lua error")!=std::string::npos);
     lines.clear();
-    dvars["bo3customs_gsc_log"]="[ZM8P-LIFE] in-match event\nsecond line";
+    dvars["bo3customs_gsc_log"]="[TEST-LIFE] in-match event\nsecond line";
     g_ticks=29; menus=false; inLevel=true;
     T7Lua_Tick(); // No UI lock or ready state, and not the menu injection cadence.
     assert(lines.size()==2 && lines[0].find("in-match event")!=std::string::npos);
@@ -82,6 +90,15 @@ int main()
     g_ticks=17; inLevel=false; T7Lua_Tick();
     assert(lines.size()==1 && lines[0].find("dedicated channel")!=std::string::npos);
     assert(dvars["bo3customs_log"]=="pending menu event");
+    g_menuInitPending=true; transitionBusy=true;
+    const auto updates=pcUpdates, injections=menuInjections, checks=menuChecks, ticks=g_ticks;
+    T7Lua_Tick();
+    assert(g_menuInitPending && g_ticks==ticks && pcUpdates==updates && menuInjections==injections);
+    transitionBusy=false; T7Lua_Tick();
+    assert(g_menuInitPending && menuChecks==checks); // Retry after the UI lock becomes available.
+    uiReady=true; lockAvailable=true; T7Lua_Tick();
+    assert(!g_menuInitPending && !g_forceInject && pcUpdates==updates+1 && menuChecks==checks+1 && !lockDepth);
+    assert(menuInjections==injections+1);
     puts("PASS: pending message ordering, Lua failure, in-match/no-UI capture and menu routing");
 }
 '''
