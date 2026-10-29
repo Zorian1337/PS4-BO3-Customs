@@ -1,7 +1,7 @@
 # Current development status
 
-Updated 2026-10-29. Source is being consolidated to `main` per the current
-request. No new SPRX build or release was created in this review.
+Updated 2026-10-29. Reviewed source is consolidated on `main`. No new SPRX
+build or release was created in this review.
 
 Current priority: [2026-10-29 frontend/map-start investigation](INVESTIGATION-2026-10-29.md).
 The menu wrapper now contains exceptions thrown by the stock lobby-button
