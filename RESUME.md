@@ -1,8 +1,13 @@
 # Resume SPRX / Lua development
 
-**Active branch: `testing/dev35-debug-build`. Dev.49 plugin plus updated companion Lua uploaded for testing; not a release.**
-Native build/format checks and focused host regressions pass. Console stability,
-repeated menu switching and native crash resolution are not confirmed.
+**Active source line: `main` after the 2026-10-29 source consolidation. No new SPRX
+build or release was created for this investigation.**
+
+The latest change contains an exception from the stock lobby-button builder,
+which previously escaped the Lua wrapper and could abort a UI target refresh.
+The menu regression and full host suite pass. Camo selection and custom-map
+startup crashes remain unconfirmed; see
+[the sanitized incident review](docs/INVESTIGATION-2026-10-29.md).
 
 ## Read first
 
@@ -15,10 +20,12 @@ branch/diff and the specific source or incident needed for the next task.
 
 ## Where to continue
 
-The active task is [Issue #23](https://github.com/Zorian1337/PS4-BO3-Customs/issues/23):
-multi-mod infinite loading and a separate Reaper Collection frontend Lua failure.
-Read [the investigation handoff](docs/INVESTIGATION-23.md) for the exact timeline,
-package inspection, demonstrated defects, alternatives and remaining validation.
+The current source review is summarized in
+[docs/INVESTIGATION-2026-10-29.md](docs/INVESTIGATION-2026-10-29.md). It records
+the LUI callback boundary fix, why the supplied camo and custom-map logs do not
+prove a root cause, and what console evidence is still needed. Issue #23 remains
+separate; read [docs/INVESTIGATION-23.md](docs/INVESTIGATION-23.md) before
+resuming its multi-mod loading and Lua-state restoration work.
 
 Verified source corrections isolate zone/XPAK/asset ownership per loader worker
 and restore exact temporary Lua platform flags, including frontend table replacement.

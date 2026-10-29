@@ -149,6 +149,46 @@ print("PASS: MODS is independent of catalog and mode buttons, unique on main men
 '''
 subprocess.run([lua, "-"], input=button_fixture, text=True, cwd=root, check=True)
 
+# The stock LobbyMenus callback is engine-owned code and may throw while a
+# frontend target is being rebuilt. The production wrapper must contain that
+# exception without leaking a previous target's button table.
+button_wrapper = r'''
+local UI={logged={}}
+local function LogOnce(key,text)
+  if UI.logged[key] == nil then UI.logged[key]=text end
+end
+local function HideOnline() end
+local added={}
+local function AddModsButton(controller,id,buttons)
+  added[#added+1]={controller=controller,id=id,buttons=buttons}
+end
+local lobbyMenus={}
+local originalButtons={{customId="stock"}}
+local received
+local stockAdd=function(...)
+  received={...}
+  return originalButtons
+end
+'''
+button_wrapper += section(mods, "lobbyMenus.AddButtonsForTarget = function", "-- The PC utility or a mod may already define these actions.")
+button_wrapper += r'''
+local result=lobbyMenus.AddButtonsForTarget(3,2,"extra")
+assert(result==originalButtons and received[1]==3 and received[2]==2 and received[3]=="extra")
+assert(#added==1 and added[1].id==2 and added[1].buttons==originalButtons)
+local previous=originalButtons
+stockAdd=function() error("stock builder nil access") end
+local recovered=lobbyMenus.AddButtonsForTarget(3,410,"extra")
+assert(type(recovered)=="table" and #recovered==0 and recovered~=previous,
+  "failed stock target must return a fresh empty list, not stale buttons")
+assert(#added==1, "do not append the main-menu Mods entry after stock target construction failed")
+assert(type(UI.logged["stock target 410"])=="string" and
+  string.find(UI.logged["stock target 410"],"stock builder nil access",1,true))
+lobbyMenus.AddButtonsForTarget(3,410)
+assert(#added==1 and UI.logged["stock target 410"]~=nil)
+print("PASS: stock LobbyMenus errors are contained; success is unchanged and failures do not reuse or augment stale buttons")
+'''
+subprocess.run([lua, "-"], input=button_wrapper, text=True, cwd=root, check=True)
+
 
 map_fixture = r'''
 assert(loadfile("Lua/ui_scripts/mapselect.lua"))

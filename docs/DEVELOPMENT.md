@@ -1,11 +1,33 @@
 # Current development status
 
-Updated 2026-10-29. Active branch: `testing/dev35-debug-build`.
-Dev.35 base with unbuilt source corrections; no new release.
+Updated 2026-10-29. Source is being consolidated to `main` per the current
+request. No new SPRX build or release was created in this review.
 
-Current priority: [Issue #23 investigation and verified corrections](INVESTIGATION-23.md).
-The multi-mod hang and Reaper frontend failure remain separate, unresolved runtime
-validation targets. Earlier GPU/menu findings below remain historical evidence.
+Current priority: [2026-10-29 frontend/map-start investigation](INVESTIGATION-2026-10-29.md).
+The menu wrapper now contains exceptions thrown by the stock lobby-button
+builder. The camo crash and custom-map startup crash remain unconfirmed and
+unresolved runtime targets; no SPRX change or console build was made for them.
+Issue #23 remains a separate investigation; see [its handoff](INVESTIGATION-23.md).
+
+## Frontend and custom-map review (2026-10-29)
+
+- A supplied LUI trace includes the stock `AddButtonsForTarget` callback under
+  our wrapper, which previously did not contain stock callback exceptions. The
+  wrapper now logs once and returns a fresh empty table on exception, while
+  preserving the stock return table exactly on success. It does not reuse
+  buttons between targets or append the Mods item after a failed stock build.
+- A focused Lua regression passes for the success path, exception recovery,
+  non-reuse, log-once behavior and absence of menu injection on failure.
+- The submitted camo logs do not show a definitive crash trace tied to selecting
+  camo. No pool, weapon, or camo logic was modified.
+- The custom-map startup capture shows a long loading interval and continued
+  frames, but no definitive crash marker. No streaming or pool behavior was
+  changed based on that evidence.
+- Full host suite: 34 regression programs passed. This does not establish
+  console/LUI stability; the menu path and exact camo/map reproductions still
+  need hardware logs.
+
+See [the sanitized investigation and continuation plan](INVESTIGATION-2026-10-29.md).
 
 ## Evidence and present behavior
 

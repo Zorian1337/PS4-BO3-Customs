@@ -1181,7 +1181,13 @@ local function HideOnline(buttons)
 end
 
 lobbyMenus.AddButtonsForTarget = function(controller, id, ...)
-  local buttons = stockAdd(controller, id, ...)
+  local ok, buttons = pcall(stockAdd, controller, id, ...)
+  if not ok then
+    -- A stock menu-builder error must not escape this recovery wrapper and
+    -- abort the LUI target refresh. Do not reuse a prior target's buttons.
+    LogOnce("stock target " .. tostring(id), "stock lobby button build failed: " .. tostring(buttons))
+    return {}
+  end
   pcall(HideOnline, buttons)
   local ok, err = pcall(AddModsButton, controller, id, buttons)
   if not ok then
