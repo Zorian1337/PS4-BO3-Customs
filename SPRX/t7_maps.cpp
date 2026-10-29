@@ -3720,7 +3720,17 @@ static uint64_t TexturesLoaded_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t
     {
         g_gateLogged.store(now, std::memory_order_relaxed);
         g_gateLogs.store(logs + 1, std::memory_order_relaxed);
-        LogStreamGate(now - start, logs % 6 == 1);
+        // A full stream report scans thousands of image/mesh records and
+        // texture metadata. Sample it sparingly while loading; the cheap
+        // heartbeat preserves visibility between detailed snapshots.
+        if (logs % 6 == 1)
+            LogStreamGate(now - start, true);
+        else
+            T7Log_Write("[Stream] %llu s waiting: pending %d, started %u, done %u",
+                        (unsigned long long)((now - start) / 1000000),
+                        *(const volatile int32_t*)(g_base + kStreamPending),
+                        (unsigned)*(const volatile uint8_t*)(g_base + kStreamStarted),
+                        (unsigned)*(const volatile uint8_t*)(g_base + kStreamDone));
     }
 
     if (now < start || now - start < kTextureWaitUs)
