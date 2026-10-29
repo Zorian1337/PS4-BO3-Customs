@@ -12,6 +12,12 @@ source = (root / "t7_maps.cpp").read_text(encoding="utf-8")
 stream_report = source[source.index("static void LogStreamGate("):source.index("static const char* ScriptStringArgument(")]
 assert "RangeReadable(item + 52, sizeof(uint32_t))" in stream_report
 assert "item <= UINTPTR_MAX - 56" in stream_report
+assert "diagnostic tables unavailable during transition" in stream_report
+assert "kPartsWanted, kPartWords * sizeof(uint32_t)" in stream_report
+assert "kSoundSlots, kSoundSlotCount * kSoundSlotSize" in stream_report
+assert "RangeReadable((uintptr_t)name, kDiagnosticNameMax)" in stream_report
+assert "'%.*s' part" in stream_report
+assert "RangeReadable((uintptr_t)name, 1)" not in stream_report
 preview_reader = source[source.index("bool T7Maps_ModPreviewFile("):source.index("bool T7Maps_PreviewFile(")]
 assert "if (!path || !size)" in preview_reader
 assert "if (length < 0 || (size_t)length >= size)" in preview_reader
