@@ -708,7 +708,8 @@ end
 local function CheckColor()
   local colors = rawget(_G, "ColorSet")
   local orange = type(colors) == "table" and colors.Orange or nil
-  if type(orange) == "table" and type(orange.r) == "number" then
+  if type(orange) == "table" and type(orange.r) == "number"
+      and type(orange.g) == "number" and type(orange.b) == "number" then
     return orange.r, orange.g, orange.b
   end
   return 1, 0.5, 0.1
@@ -790,7 +791,10 @@ local function ScrollStick(state, event)
       state.offset = ScrollAt(state)
       state.generation = state.generation + 1
     end
-    local elapsed = type(event) == "table" and tonumber(event.timeElapsed) or 16
+    local elapsed = type(event) == "table" and tonumber(event.timeElapsed) or nil
+    if elapsed == nil or elapsed ~= elapsed or elapsed <= 0 then
+      elapsed = 16
+    end
     local offset = state.offset - y * Details.stickSpeed * math.min(elapsed, 100) / 1000
     ScrollMove(state, math.max(0, math.min(state.distance, offset)))
     state.touched = now
