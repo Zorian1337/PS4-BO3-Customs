@@ -2470,7 +2470,9 @@ static void LogStreamGate(uint64_t waited, bool details)
 
         const uint32_t category = *(const uint8_t*)(entry + 37) < 5 ? *(const uint8_t*)(entry + 37) : 3;
         const uintptr_t item = *(const uintptr_t*)(entry + 48);
-        const uint64_t bytes = item >= 0x10000 && item < 0x800000000000ull ? *(const uint32_t*)(item + 52) : 0;
+        const uint64_t bytes = item >= 0x10000 && item <= UINTPTR_MAX - 56 &&
+                               RangeReadable(item + 52, sizeof(uint32_t))
+                             ? *(const uint32_t*)(item + 52) : 0;
 
         ++blobCount[category];
         blobBytes[category] += bytes;
@@ -7030,13 +7032,21 @@ bool T7Maps_ModPreviewFile(uint32_t key, char* path, size_t size)
 {
     using namespace T7Maps;
 
+    if (!path || !size)
+        return false;
+    path[0] = 0;
     ListReader reading;
 
     for (int i = 0; g_base && i < g_modCount; ++i)
     {
         if (g_mods[i].preview[0] && ModPictureKey(g_mods[i].name) == key)
         {
-            snprintf(path, size, "%s", g_mods[i].preview);
+            const int length = snprintf(path, size, "%s", g_mods[i].preview);
+            if (length < 0 || (size_t)length >= size)
+            {
+                path[0] = 0;
+                return false;
+            }
             return true;
         }
     }
