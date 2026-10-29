@@ -3814,7 +3814,8 @@ static uint64_t TexturesLoaded_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t
 
     const uint32_t logs = g_gateLogs.load(std::memory_order_relaxed);
 
-    if (now - g_gateLogged.load(std::memory_order_relaxed) >= (logs < 12 ? kGateLogUs : kGateLogSlowUs))
+    if (now >= g_gateLogged.load(std::memory_order_relaxed) &&
+        now - g_gateLogged.load(std::memory_order_relaxed) >= (logs < 12 ? kGateLogUs : kGateLogSlowUs))
     {
         g_gateLogged.store(now, std::memory_order_relaxed);
         g_gateLogs.store(logs + 1, std::memory_order_relaxed);
