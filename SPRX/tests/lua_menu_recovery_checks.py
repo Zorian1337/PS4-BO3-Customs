@@ -108,3 +108,44 @@ assert(not pcall(ListHelper_Prepare,list,0,"ChangeMapMaps",function() error("MP 
 print("PASS: failed ZM list recovery retains valid stock/custom map IDs, excludes locked/hidden/MP maps, preserves successful builders and restores map tables")
 '''
 subprocess.run([lua, "-"], input=map_fixture, text=True, cwd=root, check=True)
+
+# Exercise details scrolling with incomplete console UI event metadata.
+scroll_fixture = r'''
+local Details={deadzone=0.25,stickSpeed=260,resume=3000,hold=3000,speed=24}
+local scrolls=0
+local function StickY() return 1 end
+local function Now() return 100 end
+local function ScrollAt(state) return state.offset end
+local function ScrollMove(state,offset)
+  assert(type(offset)=="number" and offset==offset and offset>=0 and offset<=state.distance)
+  scrolls=scrolls+1
+  state.offset=offset
+end
+local function ScrollAnimate() error("unexpected animation") end
+'''
+scroll_fixture += section(mods, "local function ScrollStick(", "local function ScrollReset(")
+scroll_fixture += r'''
+local state={distance=100,offset=50,generation=0}
+for _, event in ipairs({{}, {timeElapsed="garbage"}, {timeElapsed=0}, {timeElapsed=0/0}, {timeElapsed=500}, {timeElapsed="16"}}) do
+  ScrollStick(state,event)
+end
+ScrollStick(state,nil)
+assert(scrolls==7 and state.offset>=0 and state.offset<=100)
+print("PASS: MODS details scrolling survives missing and malformed UI elapsed time")
+'''
+subprocess.run([lua, "-"], input=scroll_fixture, text=True, cwd=root, check=True)
+
+color_fixture = r'''
+local function CheckColor()
+'''
+color_fixture += section(mods, "local function CheckColor()", "local function AddCheckbox(").split("local function CheckColor()\n", 1)[1]
+color_fixture += r'''
+ColorSet={Orange={r=0.5}}
+local r,g,b=CheckColor()
+assert(r==1 and g==0.5 and b==0.1)
+ColorSet.Orange.g=0.6; ColorSet.Orange.b=0.7
+r,g,b=CheckColor()
+assert(r==0.5 and g==0.6 and b==0.7)
+print("PASS: incomplete optional accent colors use complete fallback RGB")
+'''
+subprocess.run([lua, "-"], input=color_fixture, text=True, cwd=root, check=True)
