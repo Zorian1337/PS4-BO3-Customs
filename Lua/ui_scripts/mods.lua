@@ -478,7 +478,13 @@ function UI.Choose(menu, controller, name)
     return
   end
   UI.controller = Controller(controller)
-  UI.pending = { menu = menu, controller = Controller(controller) }
+  -- Preserve the last confirmed menu choice until the native callback
+  -- reports whether this request was accepted.
+  local previous = {}
+  for i, selected in ipairs(ChosenList()) do
+    previous[i] = selected
+  end
+  UI.pending = { menu = menu, controller = Controller(controller), request = name, previous = previous }
   Log("chose " .. tostring(name) .. " (controller " .. type(controller) .. ")")
   local ok, err = pcall(engine.SetDvar, "bo3customs_mod", name)
   if not ok then
@@ -606,7 +612,15 @@ end
 
 function UI.Applied(name, state, message)
   local pending = UI.pending
+  -- A newer request must not be rolled back by an older completion.
+  if pending ~= nil and pending.request ~= name then
+    Log("ignored stale selection response: " .. tostring(name))
+    return
+  end
   UI.pending = nil
+  if state == -1 and pending ~= nil and pending.previous ~= nil then
+    UI.SetChosen(pending.previous)
+  end
   Log("applied " .. tostring(name) .. ": state " .. tostring(state) .. ", " .. tostring(message))
   if UI.SetStatus(tostring(message)) or state ~= -1 or pending == nil or not IsElement(pending.menu) or
       pending.menu ~= UI.menu then
