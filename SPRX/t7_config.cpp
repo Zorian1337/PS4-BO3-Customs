@@ -64,6 +64,13 @@ static int64_t ReadAll(const char* path, char* out, size_t size)
         if (got == 0)
             break;
 
+        // Never trust a platform read count beyond the requested span.
+        // A bogus result must fail closed instead of advancing past out[].
+        if ((uint64_t)got > size - 1 - used)
+        {
+            failed = true;
+            break;
+        }
         used += (size_t)got;
     }
 
@@ -99,7 +106,7 @@ static bool WriteAll(const char* text, size_t length)
     while (used < length)
     {
         const int64_t put = sceKernelWrite(fd, text + used, length - used);
-        if (put <= 0)
+        if (put <= 0 || (uint64_t)put > length - used)
             break;
         used += (size_t)put;
     }
