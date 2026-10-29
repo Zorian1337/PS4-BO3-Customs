@@ -7,6 +7,13 @@ import tempfile
 
 root = Path(__file__).resolve().parents[1]
 source = (root / "t7_maps.cpp").read_text(encoding="utf-8")
+# The streaming gate executes on a game/script thread. Retain a cheap status
+# heartbeat, but never run a full asset-metadata scan on every log interval.
+texture_gate = source[source.index("static uint64_t TexturesLoaded_h("):source.index("static bool CodeImageSet(") if source.index("static bool CodeImageSet(") > source.index("static uint64_t TexturesLoaded_h(") else source.index("static uint64_t TexturesLoaded_h(") + 4400]
+assert "if (logs % 6 == 1)" in texture_gate
+assert "LogStreamGate(now - start, true);" in texture_gate
+assert "waiting: pending %d, started %u, done %u" in texture_gate
+assert "LogStreamGate(now - start, logs % 6 == 1);" not in texture_gate
 context = source[source.index("struct GpuLevelContext"):source.index("#endif", source.index("struct GpuLevelContext"))]
 readers = source[source.index("struct GpuProgressSample"):source.index("static void RaiseThread()")]
 count_blobs = source[source.index("static void CountBlobs("):source.index("static void LogBlobs(")]
