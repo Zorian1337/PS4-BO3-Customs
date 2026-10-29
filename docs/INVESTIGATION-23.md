@@ -178,3 +178,9 @@ deliberately generic and does not claim that a third-party Lua error is fixed.
 Catalog classification also recognizes common user-map flags (`isCustom`,
 `isModMap`, `isUserMap` and snake-case variants), keeping those rows in the
 custom category rather than the standard category.
+
+The next capture showed the third-party frontend throwing before the stock
+`main` constructor existed. `mapselect.lua` now defers all map/list hooks when
+that constructor is absent and retries from its existing tick path after the
+frontend rebuilds. This keeps BO3-Customs from compounding an incomplete UI
+state; it does not mask or claim to repair the third-party Lua exception.

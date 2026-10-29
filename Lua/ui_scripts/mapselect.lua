@@ -1761,6 +1761,12 @@ local ListPrepares = {
   ZMMapsList = PrepareZMMaps,
 }
 
+local function FrontendMenuReady()
+  local lui = rawget(_G, "LUI")
+  return type(lui) == "table" and type(lui.createMenu) == "table" and
+    type(lui.createMenu.main) == "function"
+end
+
 local function WrapListPrepare()
   if Tabs.listPrepareWrapped then
     return true
@@ -1793,6 +1799,10 @@ local function WrapListPrepare()
 end
 
 local function Install()
+  if not FrontendMenuReady() then
+    LogOnce("frontend deferred", "frontend menu is not ready; map hooks deferred")
+    return false
+  end
   WrapListPrepare()
   WrapMapsList()
   WrapCombatRecord()
