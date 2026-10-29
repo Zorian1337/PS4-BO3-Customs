@@ -7448,9 +7448,14 @@ int T7Maps_SelectMod(const char* list, char* message, size_t size)
 {
     using namespace T7Maps;
 
-    if (!g_buildMatched || !g_base || !ModHooksReady())
+    const bool off = !list || !list[0] || strcmp(list, "!off") == 0;
+    // Deselecting mods must remain possible even if the optional load hooks
+    // are unavailable. That records the user's off choice without touching
+    // loaded assets; the engine can retire them at a safe transition.
+    if ((!g_buildMatched || !g_base || !ModHooksReady()) && !off)
     {
-        snprintf(message, size, "Mods need the PS4 1.33 game.");
+        if (message && size)
+            snprintf(message, size, "Mods need the PS4 1.33 game.");
         return -1;
     }
 
@@ -7458,7 +7463,6 @@ int T7Maps_SelectMod(const char* list, char* message, size_t size)
     int count = 0;
     bool missing = false;
     bool trimmed = false;
-    const bool off = !list || !list[0] || strcmp(list, "!off") == 0;
 
     for (const char* at = off ? "" : list; *at;)
     {
