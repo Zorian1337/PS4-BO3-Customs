@@ -33,7 +33,7 @@ Mods_LoadMod=function(...) delegated=delegated+1; return "original load",select(
 mod_fixture += section(mods, "function UI.Choose(", "function UI.SetChosen(")
 mod_fixture += section(mods, "function UI.Toggle(", "function UI.Unload(")
 mod_fixture += section(mods, "function UI.Unload(", "function UI.Open(")
-mod_fixture += section(mods, "local ownedActions = {}", 'Define("Mods_Enabled"')
+mod_fixture += section(mods, "local ownedActions = {}", "-- Keep the MODS entry available")
 mod_fixture += section(mods, 'Define("Mods_LoadMod"', 'Define("Mods_RefreshListMods"')
 mod_fixture += section(mods, "for name, action in pairs(ownedActions) do", '\nRefreshLobby()\nLog("installed")')
 mod_fixture += r'''
@@ -61,6 +61,39 @@ assert(writes==4)
 print("PASS: unload routes only owned menus, delegates other contexts, protects host choices and queues before widget refresh")
 '''
 subprocess.run([lua, "-"], input=mod_fixture, text=True, cwd=root, check=True)
+
+# Verify main-menu-only insertion without relying on any game-mode buttons
+# or the availability of the mod catalog.
+button_fixture = r'''
+local ButtonId="btnModsLoad"
+local UI={logged={}}
+local cod={LobbyMenus={History={}}}
+local function LogOnce() end
+local LobbyData={UITargets={UI_MODESELECT={id=1},UI_CPLOBBY={id=2}},GetLobbyNav=function() return 1 end}
+'''
+button_fixture += section(mods, "local function IsMainMenuTarget(", "local function HideOnline(")
+button_fixture += r'''
+assert(IsMainMenuTarget(1))
+assert(not IsMainMenuTarget(2))
+assert(not IsMainMenuTarget(999))
+local main={}
+AddModsButton(0,1,main)
+assert(#main==1 and main[1].customId==ButtonId and main[1].disabled==false)
+AddModsButton(0,1,main)
+assert(#main==1)
+local secondary={}
+AddModsButton(0,2,secondary)
+assert(#secondary==0)
+local empty={}
+AddModsButton(0,999,empty)
+assert(#empty==0)
+LobbyData.UITargets.UI_MODESELECT=nil
+AddModsButton(0,1,{})
+assert(not IsMainMenuTarget(1))
+print("PASS: MODS is independent of catalog and mode buttons, unique on main menu, absent elsewhere")
+'''
+subprocess.run([lua, "-"], input=button_fixture, text=True, cwd=root, check=True)
+
 
 map_fixture = r'''
 assert(loadfile("Lua/ui_scripts/mapselect.lua"))
