@@ -28,10 +28,10 @@ fixture+=r'''
 local ButtonId="btnModsLoad"
 local ModeIds={btnZM=true}
 local cod={LobbyMenus={History={}}}
-LobbyData={GetLobbyNav=function()return 0 end}
+LobbyData={UITargets={UI_MODESELECT={id=0}},GetLobbyNav=function()return 0 end}
 BO3CustomMods={{name="ds4c"}}
 '''
-fixture+=section('local function AddModsButton(','local function HideOnline(')
+fixture+=section('local function IsMainMenuTarget(','local function HideOnline(')
 fixture+=r'''
 local parent={}
 OpenPopup=function(menu,name,controller)
@@ -42,7 +42,7 @@ end
 BO3CustomsActiveMods={{name="ds4c",ugc="ugc1",internal="core_mod"}}
 for i=1,20 do
  local buttons={{customId="btnZM"}}
- AddModsButton(nil,buttons)
+ AddModsButton(nil,0,buttons)
  assert(#buttons==2 and buttons[2].action~=nativeOpen)
  buttons[2].action(parent,nil,nil)
  assert(opened==i and delegated==0 and not UI.opening)
