@@ -11,6 +11,14 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# Reading a slot during worker teardown must confirm ownership after reading
+# the context, so a newly claimed worker is not misattributed.
+context = (ROOT / "mod_load_context.hpp").read_text()
+current = context[context.index("uintptr_t Current("):]
+assert current.count("slot.owner.load(std::memory_order_acquire) == thread") >= 2
+assert current.index("const uintptr_t value = slot.value.load") < current.rindex("slot.owner.load(std::memory_order_acquire) == thread")
+
+
 
 def function(source, name):
     start = source.index("static uint64_t " + name + "(")
