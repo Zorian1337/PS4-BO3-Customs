@@ -108,6 +108,9 @@ local function TitleOf(map)
 end
 
 local function CatalogKey(value)
+  if type(value) == "number" then
+    value = tostring(value)
+  end
   if type(value) ~= "string" then
     return nil
   end
@@ -137,8 +140,8 @@ local function CatalogCustom(id, info)
       if idKey ~= nil and mapKey ~= nil and idKey == mapKey then
         return true
       end
-      for _, value in pairs({ map.id, map.name, map.title, map.ugc, map.publisherId,
-        map.publisherID, map.workshopId, map.workshopID, map.workshop_id }) do
+      for _, value in pairs({ map.id, map.name, map.title, map.displayName, map.mapTitle,
+        map.ugc, map.publisherId, map.publisherID, map.workshopId, map.workshopID, map.workshop_id }) do
         local key = CatalogKey(value)
         if key ~= nil and (infoKeys[key] or key == idKey) then
           return true
@@ -152,6 +155,14 @@ end
 local function CanonicalCatalogId(id, info)
   if type(info) ~= "table" then
     return nil
+  end
+  -- An installed internal ID is authoritative even when its display title is
+  -- shared by another catalog entry.
+  for _, map in ipairs(AllCustom()) do
+    if type(map) == "table" and type(map.id) == "string" and
+      (tostring(id) == map.id or tostring(info.id or "") == map.id) then
+      return map.id
+    end
   end
   -- Reaper-style catalogs commonly key a compatibility row by the Workshop
   -- PublisherID. Resolve that exact identifier before falling back to title
@@ -197,8 +208,8 @@ local function CanonicalCatalogId(id, info)
   local match = nil
   for _, map in ipairs(AllCustom()) do
     if type(map) == "table" and type(map.id) == "string" then
-      for _, value in pairs({ map.id, map.name, map.title, map.ugc, map.publisherId,
-        map.publisherID, map.workshopId, map.workshopID, map.workshop_id }) do
+      for _, value in pairs({ map.id, map.name, map.title, map.displayName, map.mapTitle,
+        map.ugc, map.publisherId, map.publisherID, map.workshopId, map.workshopID, map.workshop_id }) do
         local key = CatalogKey(value)
         if key ~= nil and infoKeys[key] then
           if match ~= nil and match ~= map.id then
@@ -237,7 +248,7 @@ local function ExistingCatalogEntry(maps, map)
   return nil
 end
 
-local function IsCustom(info, id)
+local function ExplicitCustom(info)
   if type(info) ~= "table" then
     return false
   end
@@ -246,7 +257,17 @@ local function IsCustom(info, id)
   return info.bo3_custom == true or info.isCustom == true or info.is_custom == true or
     info.isModMap == true or info.is_mod_map == true or info.isUserMap == true or
     info.is_user_map == true or info.userMap == true or info.user_map == true or
-    info.mapType == "custom" or info.map_type == "custom" or CatalogCustom(id, info)
+    info.mapType == "custom" or info.map_type == "custom"
+end
+
+local function IsCustom(info, id, canonicalId, canonicalChecked, catalogMatch)
+  if ExplicitCustom(info) then
+    return true
+  end
+  if canonicalChecked then
+    return canonicalId ~= nil or catalogMatch == true
+  end
+  return CatalogCustom(id, info)
 end
 
 local function ValidMap(id, info, mode)
@@ -272,8 +293,8 @@ local function DisplayKey(id, info)
   return CatalogKey(id)
 end
 
-local function MapPriority(id, info)
-  local score = 0
+local function MapPriority(id, info, canonicalId)
+  local score = id == canonicalId and 100 or 0
   if type(id) == "string" and tonumber(id) == nil then
     score = score + 2
   end
@@ -293,17 +314,25 @@ local function VisibleMaps(maps, mode, customs)
     return visible
   end
   for id, info in pairs(maps) do
-    local canonicalId = customs and CanonicalCatalogId(id, info) or nil
-    local generatedDuplicate = canonicalId ~= nil and type(id) == "string" and tonumber(id) ~= nil and
-      canonicalId ~= id
-    if not generatedDuplicate and ValidMap(id, info, mode) and IsCustom(info, id) == customs then
-      local key = DisplayKey(id, info) or id
+    local canonicalId = customs and type(info) == "table" and CanonicalCatalogId(id, info) or nil
+    local catalogMatch = customs and canonicalId == nil and type(info) == "table" and
+      not ExplicitCustom(info) and CatalogCustom(id, info)
+    local unresolvedAlias = customs and catalogMatch and not (type(id) == "string" and
+        (string.sub(id, 1, 3) == "zm_" or string.sub(id, 1, 3) == "mp_"))
+    if not unresolvedAlias and ValidMap(id, info, mode) and
+      IsCustom(info, id, canonicalId, customs, catalogMatch) == customs then
+      -- Group compatibility aliases by the installed internal map ID first.
+      -- Display titles are only a fallback because aliases can carry translated,
+      -- colored or compatibility-specific labels that differ from the installed row.
+      local key = (customs and canonicalId) or DisplayKey(id, info) or id
       local previous = winners[key]
-      if previous == nil or MapPriority(id, info) > previous.priority then
+      local priority = MapPriority(id, info, canonicalId)
+      if previous == nil or priority > previous.priority or
+        (priority == previous.priority and tostring(id) < tostring(previous.id)) then
         if previous ~= nil then
           visible[previous.id] = nil
         end
-        winners[key] = { id = id, priority = MapPriority(id, info) }
+        winners[key] = { id = id, priority = priority }
         visible[id] = info
       end
     end

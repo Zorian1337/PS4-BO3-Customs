@@ -233,6 +233,47 @@ print("PASS: failed ZM list recovery retains valid stock/custom map IDs, exclude
 '''
 subprocess.run([lua, "-"], input=map_fixture, text=True, cwd=root, check=True)
 
+# Reaper-like compatibility rows must remain in Customs and collapse onto the
+# installed internal map row, regardless of whether their external ID is numeric.
+catalog_fixture = r'''
+local BO3CustomMaps={
+  {id="zm_backrooms", name="Backrooms", ugc=123456789},
+  {id="zm_other", displayName="Other Map"},
+  {id="zm_shared_a", name="Shared Map"},
+  {id="zm_shared_b", title="Shared Map"},
+}
+local function AllCustom() return BO3CustomMaps end
+local function Zombies() return 0 end
+local function Multiplayer() return 1 end
+'''
+catalog_fixture += section(maps, "local function ModeOf(", "local function Template(")
+catalog_fixture += r'''
+local mapsTable={
+  zm_nacht={session_mode=0,dlc_pack=0,unique_id=1,mapName="Nacht"},
+  zm_backrooms={session_mode=0,dlc_pack=0,unique_id=2,mapName="Backrooms"},
+  ["123456789"]={session_mode=0,dlc_pack=0,unique_id=90,publisherId=123456789,mapName="^1Backrooms Compatibility"},
+  reaper_alias={session_mode=0,dlc_pack=0,unique_id=91,ugc="123456789",mapName="A different compatibility title"},
+  zm_other={session_mode=0,dlc_pack=0,unique_id=3,mapName="Other Map"},
+  reaper_title_alias={session_mode=0,dlc_pack=0,unique_id=92,mapTitle="^2Other Map"},
+  zm_shared_a={session_mode=0,dlc_pack=0,unique_id=4,mapName="Shared Map"},
+  zm_shared_b={session_mode=0,dlc_pack=0,unique_id=5,mapName="Shared Map"},
+  reaper_ambiguous={session_mode=0,dlc_pack=0,unique_id=93,mapTitle="Shared Map"},
+}
+local standard=VisibleMaps(mapsTable,0,false)
+assert(standard.zm_nacht~=nil and standard.zm_backrooms==nil and standard["123456789"]==nil and
+  standard.reaper_alias==nil and standard.zm_other==nil and standard.reaper_title_alias==nil and
+  standard.reaper_ambiguous==nil,
+  "custom catalog rows or compatibility aliases leaked into Standard")
+local custom=VisibleMaps(mapsTable,0,true)
+assert(custom.zm_backrooms==mapsTable.zm_backrooms and custom["123456789"]==nil and
+  custom.reaper_alias==nil and custom.zm_other==mapsTable.zm_other and custom.reaper_title_alias==nil and
+  custom.zm_shared_a==mapsTable.zm_shared_a and custom.zm_shared_b==mapsTable.zm_shared_b and
+  custom.reaper_ambiguous==nil,
+  "Customs must keep installed rows once and omit unresolved aliases")
+print("PASS: catalog aliases stay out of Standard, canonical maps appear once, and ambiguous aliases fail closed")
+'''
+subprocess.run([lua, "-"], input=catalog_fixture, text=True, cwd=root, check=True)
+
 # Exercise details scrolling with incomplete console UI event metadata.
 scroll_fixture = r'''
 local Details={deadzone=0.25,stickSpeed=260,resume=3000,hold=3000,speed=24}

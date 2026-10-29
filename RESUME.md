@@ -1,6 +1,6 @@
 # Resume SPRX / Lua development
 
-**Active branch: `testing/dev35-debug-build`. Dev.35 base plus unbuilt source corrections; not a new release.**
+**Active branch: `testing/dev35-debug-build`. Dev.48 base plus unbuilt source corrections; not a new release.**
 Native build/format checks and focused host regressions pass. Console stability,
 repeated menu switching and native crash resolution are not confirmed.
 
@@ -31,11 +31,18 @@ native frontend rebuilding, automatic recovery and bytecode-lifetime protection.
 Complete arbitrary-mod Lua-state restoration still requires lifecycle evidence;
 do not replace it with broad global/module resets or a restart-only unload lock.
 
-Next: resolve the Reaper nil operand from matching chunk/debug evidence and review
-post-unload globals/module ownership. Do not assume invalid GSC opcode is the first
-cause: its record precedes the first printed watchdog warning but lies inside the
-warning's reported no-progress interval. Existing GPU findings remain in
-[development status](docs/DEVELOPMENT.md).
+Latest source task: generic map catalog cleanup. Compatibility aliases now match
+catalog `displayName`/`mapTitle` fields and Customs groups aliases by canonical
+installed ID, preferring the real internal row. Regression tests pass under the
+existing Lua 5.1 runner in WSL, and all 34 registered host regression programs
+pass. No SPRX build/upload was done; console behavior still needs validation.
+
+Next: verify Standard contains only stock rows and Customs only one installed
+row per map on console. Separately, resolve the Reaper nil operand from matching
+bytecode/debug evidence and review post-unload globals/module ownership. Do not
+assume invalid GSC opcode is the first cause: its record precedes the first
+printed watchdog warning but lies inside the warning's reported no-progress
+interval. Existing GPU findings remain in [development status](docs/DEVELOPMENT.md).
 
 ## Resume from Chat
 

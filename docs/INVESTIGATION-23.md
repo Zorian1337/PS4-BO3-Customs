@@ -137,15 +137,15 @@ turn those undefined values into valid gameplay objects. The same captures also
 contain map-specific missing assets and script failures. Those remain separate
 mod/map compatibility issues and their original files were not changed here.
 
-The scrolling capture has one source-identifiable private Lua failure:
-`lua/shared/zm8p_rewards.lua` raises UI error 3019 while subtracting a nil value.
-That file is not part of BO3-Customs, so it remains a private-mod fix target rather
-than an SPRX change. The frontend captures repeatedly show LobbyVM error 74046
-after the Mods menu is closed and rebuilt. A safe source-side improvement is now
-implemented: closing an unchanged menu no longer requests a native mod-stack
-apply. An explicit pending request or a real chosen-versus-active change still
-uses the existing apply path. This reduces needless frontend rebuilds and the
-associated unload/reload race without hiding errors or changing selected mods.
+One scrolling capture contains a nil-value Lua arithmetic failure in a selected
+third-party script, outside this repository. It is not an SPRX-owned failure and
+that script was not changed. The frontend captures repeatedly show LobbyVM error
+74046 after the Mods menu is closed and rebuilt. A safe source-side improvement
+is now implemented: closing an unchanged menu no longer requests a native
+mod-stack apply. An explicit pending request or a real chosen-versus-active
+change still uses the existing apply path. This reduces needless frontend
+rebuilds and the associated unload/reload race without hiding errors or changing
+selected mods.
 
 The captures also show UI errors 24280/21544 in `ui/uied/leveling_io.lua` during
 multi-mod frontend loading. Their missing menu/nil dependency is not proven to be
@@ -186,10 +186,10 @@ and stock rows remain in Standard. This is deliberately catalog-driven and
 does not name or special-case Reaper Collection.
 
 The console trace also showed duplicate custom rows: a canonical loadable
-`zm_*` row followed by a numeric compatibility row with the same display name.
-The selector now drops numeric rows when they match the custom catalog, keeps
-the canonical nonnumeric row, and deduplicates the remaining categories by
-normalized display name.
+`zm_*` row followed by a compatibility row for the same map. The selector now
+matches aliases by catalog identity first and normalized display title as a
+fallback, keeps the canonical installed row, and deduplicates remaining title
+matches deterministically.
 
 When a Workshop-ID row matches a catalog entry, the selector resolves that row
 to the catalog's canonical internal map ID (for example `zm_complex`) and uses
@@ -227,3 +227,31 @@ The next capture showed the third-party frontend throwing before the stock
 that constructor is absent and retries from its existing tick path after the
 frontend rebuilds. This keeps BO3-Customs from compounding an incomplete UI
 state; it does not mask or claim to repair the third-party Lua exception.
+
+## Reaper aliases in the Standard and Customs tabs
+
+The latest report says the map targets now resolve, but Reaper compatibility
+rows appear in Standard and beside the installed custom rows in Customs. Source
+review found two gaps that can produce that result: custom classification did
+not compare the installed catalog's `displayName`/`mapTitle` fields, and
+duplicate suppression only discarded aliases whose IDs parsed as numbers. A
+compatibility row using another ID format or a map-title field could miss both
+protections. This is a source-supported explanation for the reported behavior,
+not a claim that every Reaper row has that shape.
+
+The map selector now includes those generic catalog title fields in matching.
+Standard classification uses the catalog match, while Customs groups matches
+under their canonical installed map ID and gives the actual installed row
+priority. Ties are resolved deterministically. This applies to any external map
+catalog; there is no Reaper name check or mod-specific branch. If installed maps
+ambiguously share a title and have no exact Workshop identifier, the canonical
+resolver still fails closed instead of guessing a launch target.
+
+Other options considered: filtering all external rows would also hide valid maps
+that lack an installed catalog match; deduplicating only by colored display
+title misses aliases with different labels; mutating the third-party catalog
+could break its own selectors. The selected approach only reclassifies and
+deduplicates rows that resolve to an installed custom map, and leaves unmatched
+external rows to their owner. Regression cases cover numeric and nonnumeric
+aliases, Workshop-ID matches, colored title matches, stock rows and ambiguous
+titles. Console behavior still needs validation.

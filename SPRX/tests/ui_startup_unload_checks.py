@@ -30,8 +30,10 @@ static uintptr_t state=0x10000,g_base=(uintptr_t)&state;
 constexpr uintptr_t kLuaState=0;
 static std::atomic<uintptr_t> g_completedMainState{0};
 static std::atomic<uint32_t> g_frontendGeneration{0};
+static std::atomic<bool> g_frontendInjectionBlocked{false};
 static std::atomic<bool> g_menuInitPending{false};
 static const char* k_menusProbeLua="probe";
+static void T7Log_Write(const char*, ...){}
 static bool UiUp(){return uiReady;}
 static bool UiTryLock(){return !locked;}
 static void UiUnlock(){}
