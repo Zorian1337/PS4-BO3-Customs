@@ -7214,7 +7214,12 @@ void T7Maps_FrameWork()
         g_unshownCount = 0;
     }
 
-    if (g_applyWanted.exchange(false))
+    // Do not consume a mod selection while gameplay is still active or the
+    // required loader hooks are unavailable. The request belongs to the next
+    // safe frontend frame, not a one-shot attempt that silently disappears.
+    if (g_applyWanted.load(std::memory_order_acquire) && !g_inLevel &&
+        g_loadOriginal && ModHooksReady() &&
+        g_applyWanted.exchange(false, std::memory_order_acq_rel))
         ApplyModsNow();
     else if (g_prefetchWanted.exchange(false))
         PrefetchMods();
