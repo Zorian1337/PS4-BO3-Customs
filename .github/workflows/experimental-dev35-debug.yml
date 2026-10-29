@@ -145,7 +145,8 @@ jobs:
           fi
           python3 - <<'PY'
           import json, os, urllib.request, urllib.error
-          release_url = os.environ["RELEASE_URL"].rsplit("-", 1)[0] + "-" + os.environ["GITHUB_SHA"][:12]\n          message = (
+          release_url = os.environ["RELEASE_URL"].rsplit("-", 1)[0] + "-" + os.environ["GITHUB_SHA"][:12]
+          message = (
               "🧪 **BO3-Customs dev.35 DEBUG — EXPERIMENTAL TESTING ONLY**\\n"
               "**NO STABILITY CLAIMS.** Crashes, freezes, and regressions are possible. "
               "This is not a stable release. Back up your previous SPRX.\\n\\n"
