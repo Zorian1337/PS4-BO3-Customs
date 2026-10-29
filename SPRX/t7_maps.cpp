@@ -2389,6 +2389,28 @@ static void Appendf(char* out, size_t size, size_t* used, const char* format, ..
 static void LogStreamGate(uint64_t waited, bool details)
 {
 #ifdef _DEBUG
+    // A diagnostic must not fault when streaming tables are unavailable
+    // during a map transition or after the engine has torn them down.
+    const struct { uintptr_t offset; size_t length; } snapshotRegions[] = {
+        { kPartsRequired, kPartWords * sizeof(uint32_t) },
+        { kPartsWanted, kPartWords * sizeof(uint32_t) },
+        { kPartsInMemory, kPartWords * sizeof(uint32_t) },
+        { kMeshRequired, kMeshWords * sizeof(uint32_t) },
+        { kMeshWanted, kMeshWords * sizeof(uint32_t) },
+        { kMeshInMemory, kMeshWords * sizeof(uint32_t) },
+        { kStreamBlobs, kStreamBlobCount * 56 },
+        { kSoundSlots, kSoundSlotCount * kSoundSlotSize },
+        { kImagePool, sizeof(uintptr_t) },
+        { kStreamLevelLoad, 1 }, { kStreamStarted, 1 }, { kStreamDone, 1 },
+        { kSoundLoaded, sizeof(float) },
+    };
+    for (const auto& region : snapshotRegions)
+        if (!RangeReadable(g_base + region.offset, region.length))
+        {
+            T7Log_Write("[Stream] %llu s: diagnostic tables unavailable during transition",
+                        (unsigned long long)(waited / 1000000));
+            return;
+        }
     const uint32_t* const required = (const uint32_t*)(g_base + kPartsRequired);
     const uint32_t* const wanted = (const uint32_t*)(g_base + kPartsWanted);
     const uint32_t* const inMemory = (const uint32_t*)(g_base + kPartsInMemory);
@@ -2545,8 +2567,12 @@ static void LogStreamGate(uint64_t waited, bool details)
         const char* const name = *(const char* const*)(entry + 288);
         const uint64_t flags = *(const uint64_t*)(entry + 32 + 40 * part);
 
-        T7Log_Write("[Stream]   not in memory: image %llu '%s' part %llu, %llu bytes, %s %llu at offset 0x%llX, key %llX",
-                    (unsigned long long)image, name && RangeReadable((uintptr_t)name, 1) ? name : "?", (unsigned long long)part,
+        // Limit the readable name span and the formatter length; validating
+        // only its first byte cannot make an unbounded %s safe.
+        constexpr size_t kDiagnosticNameMax = 96;
+        const char* const safeName = name && RangeReadable((uintptr_t)name, kDiagnosticNameMax) ? name : "?";
+        T7Log_Write("[Stream]   not in memory: image %llu '%.*s' part %llu, %llu bytes, %s %llu at offset 0x%llX, key %llX",
+                    (unsigned long long)image, (int)kDiagnosticNameMax, safeName, (unsigned long long)part,
                     (unsigned long long)*(const uint64_t*)(entry + 24 + 40 * part), (flags & 0x80) ? "xpak" : "NOT IN AN XPAK, slot",
                     (unsigned long long)(flags & 0x3F), (unsigned long long)*(const uint64_t*)(entry + 16 + 40 * part),
                     (unsigned long long)*(const uint64_t*)(entry + 8 + 40 * part));
