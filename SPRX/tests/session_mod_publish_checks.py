@@ -6,6 +6,14 @@ import subprocess
 import tempfile
 
 source = (Path(__file__).resolve().parents[1] / "t7_maps.cpp").read_text(encoding="utf-8")
+
+# Native selection must not resolve an overlong requested folder name by
+# truncating it into a different installed mod's valid prefix.
+selection = source[source.index("int T7Maps_SelectMod("):source.index("const char* T7Maps_ModsLua()", source.index("int T7Maps_SelectMod("))]
+assert "if (length >= kNameMax)" in selection
+assert selection.index("if (length >= kNameMax)") < selection.index("FindMod(name)")
+assert "at = *end ? end + 1 : end;" in selection
+
 # Applying a stack during gameplay must not consume the request before a safe
 # frontend frame can process it. Keep the guard ahead of the atomic exchange.
 frame = source[source.index("void T7Maps_FrameWork()"):source.index("int T7Maps_MapCount()") if source.index("int T7Maps_MapCount()") > source.index("void T7Maps_FrameWork()") else len(source)]
