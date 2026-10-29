@@ -187,6 +187,7 @@ end
 '''
 map_fixture += section(maps, "local function BuildWith(", "local function WrapMapsList(")
 map_fixture += section(maps, "local function PrepareZMMaps(", "local function Install()")
+map_fixture += section(maps, "local function RemoveOwnedTabs(", "local function RefreshMultiplayer(")
 map_fixture += r'''
 assert(WrapListPrepare())
 local list={}
@@ -212,6 +213,23 @@ choosing=true
 assert(not pcall(ListHelper_Prepare,list,0,"ZMMapsList",function() error("playlist failure") end))
 choosing=false
 assert(not pcall(ListHelper_Prepare,list,0,"ChangeMapMaps",function() error("MP failure") end))
+-- A Reaper-owned menu must remain the only selector after a refresh. If
+-- BO3-Customs created its bar before ownership was observed, remove only our
+-- bar and leave the owner's map list intact.
+local added,removed,updated=0,0,0
+AddTabs=function() added=added+1 end
+local ownedMenu={
+  BO3TabBar={close=function() removed=removed+1 end},
+  MapList={updateDataSource=function() updated=updated+1 end},
+}
+owned=true
+RefreshZombies(ownedMenu,0)
+assert(added==0 and removed==1 and updated==1 and ownedMenu.BO3TabBar==nil,
+  "owned menu refresh must suppress duplicate BO3-Customs tabs")
+owned=false
+local stockMenu={MapList={}}
+RefreshZombies(stockMenu,0)
+assert(added==1, "stock menu refresh must retain BO3-Customs tabs")
 print("PASS: failed ZM list recovery retains valid stock/custom map IDs, excludes locked/hidden/MP maps, preserves successful builders and restores map tables")
 '''
 subprocess.run([lua, "-"], input=map_fixture, text=True, cwd=root, check=True)

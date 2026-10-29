@@ -1443,7 +1443,34 @@ local function HasCustoms(sessionMode)
   return false
 end
 
+local function RemoveOwnedTabs(menu)
+  -- A mod-owned ZM menu is already the authoritative selector. If ownership
+  -- changes after creation, remove only the tab bar injected by this script;
+  -- leave the owner's map list and compatibility rows untouched.
+  local bar = menu ~= nil and menu.BO3TabBar or nil
+  if bar == nil then
+    return
+  end
+  if type(menu.removeElement) == "function" then
+    pcall(menu.removeElement, menu, bar)
+  elseif type(bar.close) == "function" then
+    pcall(bar.close, bar)
+  end
+  menu.BO3TabBar = nil
+  if menu.MapList ~= nil and type(menu.MapList.setTopBottom) == "function" then
+    pcall(menu.MapList.setTopBottom, menu.MapList, true, false, 92, 548)
+  end
+end
+
 local function RefreshZombies(menu, controller)
+  if ModOwns(ZMMenuFile) then
+    RemoveOwnedTabs(menu)
+    if menu ~= nil and menu.MapList ~= nil and type(menu.MapList.updateDataSource) == "function" then
+      pcall(menu.MapList.updateDataSource, menu.MapList)
+    end
+    LogOnce("owned tabs suppressed", "mod-owned zm menu retained as the single map selector")
+    return
+  end
   if menu.BO3TabBar == nil then
     AddTabs(menu, controller)
     return

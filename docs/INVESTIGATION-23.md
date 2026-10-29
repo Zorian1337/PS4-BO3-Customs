@@ -160,7 +160,11 @@ replaced the map table with stock-only entries. That made custom maps
 unselectable while Reaper was active. The compatibility path now keeps the
 mod-owned menu but supplies the complete engine map table whenever custom map
 entries are present; it retains the stock-only fallback when none are present.
-This does not rewrite Reaper's menu or its scripts.
+This does not rewrite Reaper's menu or its scripts. The refresh path now also
+recognizes that ownership and suppresses BO3-Customs' injected tab bar/counter.
+If the BO3-Customs bar was created before ownership was detected, only that bar
+is removed; Reaper's map list and compatibility rows remain intact. Stock ZM
+menus retain the BO3-Customs tabs.
 
 The original log files remain outside the repository. The next validation should
 run the same selected stack with only this menu-apply change, then repeat with
