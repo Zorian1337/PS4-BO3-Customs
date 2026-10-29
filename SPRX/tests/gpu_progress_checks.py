@@ -12,6 +12,9 @@ assert "if (state >= 3)" in blob_counter
 stream_gate = source[source.index("static void LogStreamGate("):source.index("static const char* ScriptStringArgument(")]
 assert "if (state >= 3)" in stream_gate
 assert "lighting still loading (resident/total)" in source
+report = source[source.index("static void ReportGpuProgress("):source.index("static void RaiseThread()")]
+assert "submission-changed=%s" in report
+assert "previous.wanted != sample.wanted || previous.building != sample.building" in report
 
 # A stale blob handle must never be dereferenced just because it looks like a
 # user-space address; keep the stream diagnostics crash-safe.
