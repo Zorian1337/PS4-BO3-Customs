@@ -151,7 +151,7 @@ jobs:
               build/candidate/SOURCE_COMMIT.txt \
               --repo "${{ github.repository }}" --clobber
             gh release edit "$TAG" --repo "${{ github.repository }}" \
-              --title "BO3-Customs v4.00.1 - DEBUG dev.35 (Experimental)" \
+              --title "BO3-Customs v4-35 - DEBUG dev.35" \
               --notes-file build/candidate/RELEASE_NOTES.md --prerelease --latest=false
           else
             gh release create "$TAG" \
@@ -161,7 +161,7 @@ jobs:
               build/candidate/SHA256SUMS.txt \
               build/candidate/SOURCE_COMMIT.txt \
               --repo "${{ github.repository }}" --target "${{ github.sha }}" \
-              --title "BO3-Customs v4.00.1 - DEBUG dev.35 (Experimental)" \
+              --title "BO3-Customs v4-35 - DEBUG dev.35" \
               --notes-file build/candidate/RELEASE_NOTES.md --prerelease --latest=false
           fi
 
