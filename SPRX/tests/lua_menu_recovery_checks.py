@@ -24,6 +24,13 @@ local function StatusText() return "host owns selection" end
 local function ChosenList() return BO3CustomsChosenMods end
 local function Same(a,b) return string.lower(a)==string.lower(b) end
 local function ModelText(element,key) return element[key] end
+local recoveryPopups=0
+local function ShowChoice(menu,controller,title,message,choices,kind)
+ assert(menu==UI.menu and controller==0 and title=="MODS" and message=="unsupported")
+ assert(kind=="Error" and #choices==1 and choices[1].label=="OK")
+ recoveryPopups=recoveryPopups+1
+ return true
+end
 UI.SetStatus=function() end
 UI.SetChosen=function(list) BO3CustomsChosenMods=list end
 UI.RefreshChecks=function() end
@@ -93,7 +100,7 @@ UI.SetChosen=function(list) BO3CustomsChosenMods=list end
 UI.Choose(menu,0,"!off")
 UI.SetChosen({})
 UI.Applied("!off",-1,"unsupported")
-assert(BO3CustomsChosenMods[1]=="ds4c" and UI.pending==nil)
+assert(BO3CustomsChosenMods[1]=="ds4c" and UI.pending==nil and recoveryPopups==1)
 UI.Choose(menu,0,"ds4c")
 UI.Choose(menu,0,"!off")
 UI.Applied("ds4c",-1,"stale")
