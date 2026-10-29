@@ -40,6 +40,12 @@ mod_fixture += r'''
 local menu={}
 UI.menu=menu
 BO3CustomsChosenMods={}
+-- Invalid catalog values must never reach the native comma-separated selector.
+UI.Toggle(menu,0,nil)
+UI.Toggle(menu,0,{name="bad"})
+UI.Toggle(menu,0,"")
+UI.Toggle(menu,0,"mod,other")
+assert(writes==0 and #BO3CustomsChosenMods==0)
 Mods_LoadMod(menu,{folder="ds4c"},0)
 assert(writes==1 and BO3CustomsChosenMods[1]=="ds4c" and delegated==0)
 Mods_Unload(menu,nil,0)
