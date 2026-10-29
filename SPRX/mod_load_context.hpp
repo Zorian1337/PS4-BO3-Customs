@@ -87,7 +87,14 @@ public:
         for (const Slot& slot : slots_)
         {
             if (slot.owner.load(std::memory_order_acquire) == thread)
-                return slot.value.load(std::memory_order_acquire);
+            {
+                const uintptr_t value = slot.value.load(std::memory_order_acquire);
+                // A worker can release this slot while a diagnostic reader is
+                // observing it. Never attribute a slot reused by a different
+                // worker to the previous owner.
+                if (slot.owner.load(std::memory_order_acquire) == thread)
+                    return value;
+            }
         }
 
         return 0;
