@@ -137,8 +137,14 @@ local empty={}
 AddModsButton(0,999,empty)
 assert(#empty==0)
 LobbyData.UITargets.UI_MODESELECT=nil
-AddModsButton(0,1,{})
-assert(not IsMainMenuTarget(1))
+assert(IsMainMenuTarget(1), "PS5 main menu target 1 must remain supported without UI_MODESELECT")
+assert(not IsMainMenuTarget(410), "secondary lobby target must not receive MODS")
+local ps5main={}
+AddModsButton(0,1,ps5main)
+assert(#ps5main==1 and ps5main[1].customId==ButtonId)
+local ps5secondary={}
+AddModsButton(0,410,ps5secondary)
+assert(#ps5secondary==0)
 print("PASS: MODS is independent of catalog and mode buttons, unique on main menu, absent elsewhere")
 '''
 subprocess.run([lua, "-"], input=button_fixture, text=True, cwd=root, check=True)
