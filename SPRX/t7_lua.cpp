@@ -2983,6 +2983,10 @@ static void AddPcUtil();
 static std::atomic<bool> g_menuInitPending{false};
 static std::atomic<uintptr_t> g_completedMainState{0};
 static std::atomic<uint32_t> g_frontendGeneration{0};
+// Once the stock/mod frontend probe reports a broken menu graph, do not keep
+// injecting compatibility scripts into the same failed Lua state. A later
+// frontend generation clears this latch and gets a clean retry.
+static std::atomic<bool> g_frontendInjectionBlocked{false};
 
 static void CheckMenus()
 {
@@ -3092,6 +3096,8 @@ static uint64_t AddMenu_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, ui
 
 static bool FrontendReadyForInjection()
 {
+    if (g_frontendInjectionBlocked.load(std::memory_order_acquire))
+        return false;
     const uintptr_t state = *(const uintptr_t*)(g_base + kLuaState);
     if (!state || !UiUp()) return false;
     if (T7Maps_InLevel() || state == g_completedMainState.load(std::memory_order_acquire))
@@ -3117,6 +3123,8 @@ static bool FrontendReadyForInjection()
     if (broken && !recoveryTried && T7Maps_UsingMods())
     {
         recoveryTried = true;
+        g_frontendInjectionBlocked.store(true, std::memory_order_release);
+        T7Log_Write("[Lua] frontend probe failed; compatibility injection disabled until the next frontend generation");
         T7Maps_MenusBroken();
     }
     return ready;
@@ -3317,6 +3325,7 @@ void T7Lua_FrontendWillLoad()
     T7Lua::g_completedMainState.store(0, std::memory_order_release);
     T7Lua::g_frontendGeneration.fetch_add(1, std::memory_order_acq_rel);
     T7Lua::g_menuInitPending.store(false, std::memory_order_release);
+    T7Lua::g_frontendInjectionBlocked.store(false, std::memory_order_release);
 }
 
 void T7Lua_Tick()

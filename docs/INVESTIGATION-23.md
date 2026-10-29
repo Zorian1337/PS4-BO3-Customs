@@ -185,6 +185,12 @@ instead of cloned, invalid/locked rows are excluded from category data sources,
 and stock rows remain in Standard. This is deliberately catalog-driven and
 does not name or special-case Reaper Collection.
 
+When a frontend probe reports a broken menu graph (for example, a provider
+throws before `main`/`Lobby` exists), compatibility injection is now latched
+off for that frontend generation. This prevents repeated BO3-Customs Lua
+injection from compounding a provider's failure; a fresh frontend generation
+clears the latch and allows a clean retry.
+
 The next capture showed the third-party frontend throwing before the stock
 `main` constructor existed. `mapselect.lua` now defers all map/list hooks when
 that constructor is absent and retries from its existing tick path after the
