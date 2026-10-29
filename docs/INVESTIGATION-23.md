@@ -191,6 +191,18 @@ The selector now drops numeric rows when they match the custom catalog, keeps
 the canonical nonnumeric row, and deduplicates the remaining categories by
 normalized display name.
 
+### Numeric compatibility IDs
+
+The numeric rows are not the map's internal fastfile name. They are generated
+compatibility/catalog identifiers exposed by the replacement map frontend. In
+the captured session, examples such as `2444580439`, `3303537924`, and
+`3818361117` appeared beside canonical rows like `zm_complex`, `zm_dshouse`,
+and `zm_onewindow_cave`. Their shared display names and missing canonical
+`zm_*` route identify them as compatibility projections rather than separate
+loadable maps. They may be useful later for compatibility/status lookups, so
+the selector filters them from the visible lists instead of deleting or
+rewriting the catalog data.
+
 When a frontend probe reports a broken menu graph (for example, a provider
 throws before `main`/`Lobby` exists), compatibility injection is now latched
 off for that frontend generation. This prevents repeated BO3-Customs Lua
