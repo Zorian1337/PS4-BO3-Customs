@@ -2,6 +2,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Windows.Controls;
+using FFPorter.Core;
 using FFPorter.Desktop;
 using FFPorter.Desktop.Models;
 using FFPorter.Desktop.Services;
@@ -11,6 +12,26 @@ internal static class ExtraChecks
     public static void Run(string scratch)
     {
         Console.WriteLine("== smaller things");
+        string progress = ProgressProtocol.Format(3, 5, "converting archive");
+        Program.Check(ProgressProtocol.TryParse(progress, out int done, out int total, out string stage) &&
+                      done == 3 && total == 5 && stage == "converting archive",
+            "progress round-trips counters and a stage with spaces");
+        Program.Check(ProgressProtocol.TryParse("FFPORTER_PROGRESS 0/1", out done, out total, out stage) &&
+                      done == 0 && total == 1 && stage == "",
+            "progress supports zero completed work and an omitted stage");
+        foreach (string invalid in new[] {
+            "FFPORTER_PROGRESS -1/2 stage",
+            "FFPORTER_PROGRESS 3/2 stage",
+            "FFPORTER_PROGRESS 1/0 stage",
+            "FFPORTER_PROGRESS 1/2/3 stage",
+            "FFPORTER_PROGRESS 2147483648/2147483648 stage",
+            "FFPORTER_PROGRESS 1/x stage",
+            "FFPORTER_PROGRESS +1/2 stage",
+        })
+            Program.Check(!ProgressProtocol.TryParse(invalid, out done, out total, out stage) &&
+                          done == 0 && total == 0 && stage == "",
+                $"invalid progress rejected without leaking partial counters: {invalid}");
+
         string site = Path.Combine(scratch, "extras", "site");
         Directory.CreateDirectory(Path.Combine(site, "t7"));
         object[] entries =
