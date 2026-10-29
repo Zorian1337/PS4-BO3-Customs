@@ -3084,6 +3084,7 @@ static void ReportGpuProgress(const char* reason, uint64_t level, uint64_t now)
     const bool comparable = previousLevel == level && previous.frameValid && sample.frameValid &&
                             previous.label == sample.label && now >= previousAt;
     const bool advanced = comparable && previous.completed != sample.completed;
+    const bool submitted = comparable && (previous.wanted != sample.wanted || previous.building != sample.building);
     if (!comparable || advanced)
         changedAt = now;
     const uint64_t gap = previousAt && now >= previousAt && previousLevel == level ? now - previousAt : 0;
@@ -3097,6 +3098,8 @@ static void ReportGpuProgress(const char* reason, uint64_t level, uint64_t now)
                sample.frameValid ? 1u : 0u, (unsigned long long)sample.label, sample.completed, sample.wanted, sample.building,
                comparable ? (advanced ? "yes" : "no") : "unknown",
                (unsigned long long)(comparable && now >= changedAt ? (now - changedAt) / 1000 : 0));
+    ReportLine("[GPU] submission-changed=%s; completed and submission counters are observations, not proof of GPU deadlock",
+               comparable ? (submitted ? "yes" : "no") : "unknown");
     ReportLine("[GPU] resources-readable=%u pending=%d started=%u done=%u; missing required image parts=%u/%u mesh parts=%u/%u "
                "lighting blobs=%u/%u; sound-loaded=%.3f (observed counters, not a crash diagnosis)",
                sample.resourcesValid ? 1u : 0u, sample.pending, sample.started, sample.done,
