@@ -498,6 +498,11 @@ function UI.SetChosen(list)
 end
 
 function UI.Toggle(menu, controller, folder)
+  -- Native selection uses comma-separated folder names. Reject malformed
+  -- catalog entries before they can alter the user's selected mod stack.
+  if type(folder) ~= "string" or folder == "" or string.find(folder, ",", 1, true) then
+    return
+  end
   if type(rawget(_G, "BO3CustomsSessionMods")) == "table" then
     UI.SetStatus(StatusText())
     return
