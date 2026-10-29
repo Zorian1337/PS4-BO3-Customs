@@ -16,7 +16,7 @@ LUA_ARGUMENTS = {
     'session_mod_ui_checks.py': ['Lua/ui_scripts/mods.lua', '{lua}'],
 }
 ARGUMENTS = {name: LUA_ARGUMENTS.get(name, []) for name in (
-    'bg_cache_snapshot_checks.py config_io_bounds_checks.py diagnostic_hook_checks.py error_capture_checks.py 
+    'bg_cache_snapshot_checks.py config_io_bounds_checks.py diagnostic_hook_checks.py error_capture_checks.py '
     'frontend_reload_checks.py game_log_bridge_checks.py gpu_progress_checks.py '
     'lobby_target_timing_checks.py lua_file_roots_checks.py lua_menu_recovery_checks.py '
     'lua_menu_reload_checks.py lua_ownership_index_checks.py lua_zone_lifetime_checks.py '
