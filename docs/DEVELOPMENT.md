@@ -28,7 +28,7 @@ custom-map startup crashes remain unconfirmed. Issue #23 remains separate; see
 
 See [the sanitized investigation and continuation plan](INVESTIGATION-2026-10-29.md).
 
-## Multi-mod crash and image-pool exhaustion (dev.50, 2026-10-29)
+## Multi-mod crash and image-pool exhaustion (dev.50 evidence; dev.51 candidate)
 
 - The persistent PS5 log records a Database-thread SIGSEGV while mods were
   loading in the frontend. Immediately beforehand, the engine reported the
@@ -39,20 +39,32 @@ See [the sanitized investigation and continuation plan](INVESTIGATION-2026-10-29
   Earlier GSC errors are from untracked scripts and do not identify the native
   crash cause. The `snddriverglobals` 1/1 report is not treated as exhaustion
   without proving it is not a singleton pool.
+- Review of the same snapshot did not justify expanding more pools yet:
+  material was at 22,220/22,870 after already growing from its 19,712 baseline;
+  localize, rawfile, stringtable, scriptparsetree, weapon-camo, FX, leaderboard
+  and font pools already have lazy growth handlers. XModel was at 9,204/10,240,
+  not exhausted, and XModelMesh had no captured exhaustion event or validated
+  entry layout. Raising those limits preemptively would spend memory without
+  evidence that it helps performance. Pool growth prevents allocator
+  exhaustion; it does not increase frame rate by itself.
 - The working tree adds lazy growth for image assets only when the runtime
   entry size and initial limit match the observed BO3 1.33 layout. It limits
   the additional reserve to 25%, allocates in the existing 1 MiB batches, and
   uses the shared 64 MiB budget. It fails closed on a mismatched pool layout.
   Debug streaming scans stay within the original contiguous image table because
   overflow entries are separate free-list blocks.
-- The focused pool-growth regression passes, including the free-list, bounded
-  capacity and mismatch cases. The changed PS4 source passes an OpenOrbis-target
-  Clang syntax check. The full host suite was not run because no Lua 5.1 runtime
-  is installed in the local WSL environment.
-- This source change has not been built or validated on console. A matching
-  PS5 test is required before calling the crash fixed. If the image pool fills
-  again, capture the new growth/cap log and test the same mod stack one item at
-  a time before extending other pools.
+- Pool snapshots now include entry size, singleton status and free-list state.
+  This separates true exhaustion from expected 1/1 singleton records and gives
+  us the runtime layout evidence needed before considering XModel or other
+  additional pools.
+- The previous focused pool-growth regression passed, including free-list,
+  bounded-capacity and mismatch cases. The current candidate also changes
+  pool-snapshot diagnostics; it must pass the hosted source checks and native
+  build before upload. No console validation has been done for this candidate.
+- The candidate build label is dev.51. A matching PS5 test is required before
+  calling the crash fixed. If the image pool fills again, capture the new
+  growth/cap log and test the same mod stack one item at a time before extending
+  other pools.
 
 ## Evidence and present behavior
 

@@ -1,13 +1,15 @@
 # Resume SPRX / Lua development
 
-**Active source line: `main` after the 2026-10-29 source consolidation. No new SPRX
-build or release was created for this investigation.**
+**Active source line: `main`. Current candidate: dev.51 pool diagnostics and
+image-pool recovery. It is not a stable release; console validation remains
+pending.**
 
-The latest change contains an exception from the stock lobby-button builder,
-which previously escaped the Lua wrapper and could abort a UI target refresh.
-The menu regression and full host suite pass. Camo selection and custom-map
-startup crashes remain unconfirmed; see
-[the sanitized incident review](docs/INVESTIGATION-2026-10-29.md).
+The dev.50 PS5 crash capture showed image-pool exhaustion immediately before a
+Database-thread fault. The dev.51 candidate grows only that evidenced pool and
+adds entry-size/singleton/free-list details to pool snapshots. Other pools
+reviewed from the same capture either already have lazy growth or lack a proven
+exhaustion/layout. See [development status](docs/DEVELOPMENT.md). This candidate
+does not claim a frame-rate improvement or a confirmed crash fix.
 
 ## Read first
 

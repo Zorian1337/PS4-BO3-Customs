@@ -1596,14 +1596,22 @@ void T7Log_Pools(const char* when, uint32_t percent)
     for (uint32_t type = 0; type < kTypeCount; ++type)
     {
         const uintptr_t pool = g_base + kAssetPools + 32 * (uintptr_t)type;
+        const uint32_t entrySize = *(const uint32_t*)(pool + 8);
         const uint32_t limit = *(const uint32_t*)(pool + 12);
+        const uint8_t single = *(const uint8_t*)(pool + 16);
         const uint32_t used = *(const uint32_t*)(pool + 20);
+        const uintptr_t free = *(const uintptr_t*)(pool + 24);
 
         if (!limit || limit > 0x400000 || used > 0x400000 || (uint64_t)used * 100 < (uint64_t)limit * percent)
             continue;
 
-        T7Log_Write("[Pools] %s: %s %u of %u%s", when, k_typeNames[type], used, limit,
-                    used >= limit ? " - FULL" : "");
+        // A 1/1 singleton is expected for several engine tables and is not an
+        // allocatable-pool exhaustion. Report the allocator state explicitly
+        // so high occupancy is distinguishable from a genuinely empty free list.
+        const char* state = single ? " - SINGLE" : (!free ? " - NO FREE ENTRIES" : "");
+        T7Log_Write("[Pools] %s: %s %u of %u (entry=%u, single=%u, free=%s)%s",
+                    when, k_typeNames[type], used, limit, entrySize, single,
+                    free ? "yes" : "no", state);
     }
 }
 
