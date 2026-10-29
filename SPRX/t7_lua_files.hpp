@@ -23,7 +23,9 @@ inline bool SafePath(const char* path, bool absolute)
         if (!c || c == '/')
         {
             const size_t length = (size_t)(at - segment);
-            if ((length == 1 && segment[0] == '.') ||
+            // Empty components admit ambiguous filesystem normalization,
+            // including trailing separators and double slashes.
+            if (!length || (length == 1 && segment[0] == '.') ||
                 (length == 2 && segment[0] == '.' && segment[1] == '.'))
                 return false;
             segment = at + 1;
