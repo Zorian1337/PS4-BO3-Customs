@@ -33,6 +33,7 @@ Mods_LoadMod=function(...) delegated=delegated+1; return "original load",select(
 mod_fixture += section(mods, "function UI.Choose(", "function UI.SetChosen(")
 mod_fixture += section(mods, "function UI.Toggle(", "function UI.Unload(")
 mod_fixture += section(mods, "function UI.Unload(", "function UI.Open(")
+mod_fixture += section(mods, "function UI.Applied(", "local ownedActions = {}")
 mod_fixture += section(mods, "local ownedActions = {}", "-- Keep the MODS entry available")
 mod_fixture += section(mods, 'Define("Mods_LoadMod"', 'Define("Mods_RefreshListMods"')
 mod_fixture += section(mods, "for name, action in pairs(ownedActions) do", '\nRefreshLobby()\nLog("installed")')
@@ -84,6 +85,20 @@ UI.Unload(menu,0)
 assert(#BO3CustomsChosenMods==1 and BO3CustomsChosenMods[1]=="ds4c" and UI.pending==nil)
 UI.Toggle(menu,0,"ds4c")
 assert(#BO3CustomsChosenMods==1 and BO3CustomsChosenMods[1]=="ds4c" and UI.pending==nil)
+-- A native rejection must roll back the optimistic choice; stale replies
+-- must not undo a more recent request.
+engine.SetDvar=function(name,value) writes=writes+1 end
+UI.SetChosen=function(list) BO3CustomsChosenMods=list end
+UI.Choose(menu,0,"!off")
+UI.SetChosen({})
+UI.Applied("!off",-1,"unsupported")
+assert(BO3CustomsChosenMods[1]=="ds4c" and UI.pending==nil)
+UI.Choose(menu,0,"ds4c")
+UI.Choose(menu,0,"!off")
+UI.Applied("ds4c",-1,"stale")
+assert(UI.pending ~= nil and UI.pending.request=="!off")
+UI.Applied("!off",0,"off")
+assert(UI.pending==nil)
 print("PASS: unload routes only owned menus, delegates other contexts, protects host choices and preserves selection on native request failure")
 '''
 subprocess.run([lua, "-"], input=mod_fixture, text=True, cwd=root, check=True)
