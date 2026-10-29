@@ -255,3 +255,55 @@ deduplicates rows that resolve to an installed custom map, and leaves unmatched
 external rows to their owner. Regression cases cover numeric and nonnumeric
 aliases, Workshop-ID matches, colored title matches, stock rows and ambiguous
 titles. Console behavior still needs validation.
+
+## Completed provider rows bypassed the catalog filter
+
+The next report confirms that compatible map targets work but duplicate rows
+remain. Source review identifies a separate defect: both external-owner paths
+in `WrapMapsList` and `PrepareZMMaps` return the provider's rows without category
+filtering. The provider can also append engine mod-catalog rows independently of
+`CoD.mapsTable`, so filtering that input table cannot cover its completed list.
+The earlier table-only regression did not exercise this path.
+
+Correction plan: keep the provider's builder and row metadata, normalize its
+completed map rows to installed load targets, then filter categories and dedupe
+by both target ID and displayed name without color escapes. Prefer useful
+provider metadata when choosing between duplicate rows. Keep map-stat and
+Workshop identifiers as metadata, restore temporary table/category state on
+failure, and avoid persistent provider-row mutations across load/unload/reload.
+The existing ZM tab bar can drive the provider's own MapList when it has no
+category selector; an existing category selector must retain ownership.
+
+Alternatives: another input-table-only filter misses appended rows; replacing
+the builder loses compatibility labels and callbacks; deleting provider records
+permanently risks stale references after unloading. Output normalization is the
+selected narrow correction. Validate actual wrapper calls, repeated preparation,
+colored-name duplicates with different IDs, bridge aliases, category boundaries,
+valid selection properties, provider exceptions and restoration, plus playlist
+and unrecognized row contracts. These are source checks, not console proof.
+
+Implemented in companion `mapselect.lua`: the completed ZM and ChangeMap row
+lists now pass through the same category/identity/title filter, including the
+existing recovery path. Duplicate groups join by either load target or title
+with numeric color escapes removed; bridge aliases cannot leave two winners.
+Provider compatibility/stats fields and callbacks take preference over plain
+catalog rows, while selection targets use installed internal map IDs. Copies
+are made only for changed selection properties; source rows are not rewritten.
+Pure numeric IDs that cannot resolve to an installed map are omitted.
+
+Replacement ZM menus keep their menu object, original MapList and callbacks.
+Shared tabs can drive that list when it has no category control. A provider's
+existing category control remains authoritative, and removing shared tabs also
+closes their model watcher. Repeat category preparation does not append another
+Customs entry. Normalization runs during list preparation with local state;
+there is no added polling or persistent provider-row cache. Count-change traces
+use the existing MapSelect log bridge.
+
+All 34 host regression programs passed. The focused Lua checks also passed after
+the final watcher/logging changes. The regression executes actual wrappers with
+a provider that appends rows independently of the map table, checks colors and
+different IDs, every ordering of a three-row bridge, callbacks/metadata, repeated
+preparation/reopening, category ownership, playlist bypass, and error restoration.
+An in-memory negative control restoring the unfiltered provider return fails at
+the Standard-category assertion. No SPRX was built or console Lua uploaded for
+this source correction; real frontend validation is still required.

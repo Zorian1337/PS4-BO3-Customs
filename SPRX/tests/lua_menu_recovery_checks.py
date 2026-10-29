@@ -152,16 +152,19 @@ subprocess.run([lua, "-"], input=button_fixture, text=True, cwd=root, check=True
 
 map_fixture = r'''
 assert(loadfile("Lua/ui_scripts/mapselect.lua"))
-local Tabs={lists={}}
+local Tabs={lists={},current={}}
 local choosing,owned=false,false
 local function Choosing() return choosing end
 local function Zombies() return 0 end
 local function ExternalZMOwner() return owned end
+local function CustomList() return {1} end
 local function LogOnce() end
 local function EnsureCustomEntries() end
 -- PrepareZMMaps calls the catalog normalizer in production; this fixture is
 -- testing ownership/table preservation and intentionally supplies no catalog.
 local function NormalizeCatalogEntries() end
+local function NormalizeMapRows(items) return items end
+local function NormalizeZMRows(items) return items end
 local PrepareCategories,PrepareMaps=function(p,c,l) return p(c,l) end,function(p,c,l) return p(c,l) end
 CoD={mapsTable={
   zm_good={session_mode=0,dlc_pack=0,unique_id=1,mapName="Good"},
@@ -212,23 +215,30 @@ choosing=true
 assert(not pcall(ListHelper_Prepare,list,0,"ZMMapsList",function() error("playlist failure") end))
 choosing=false
 assert(not pcall(ListHelper_Prepare,list,0,"ChangeMapMaps",function() error("MP failure") end))
--- A Reaper-owned menu must remain the only selector after a refresh. If
--- BO3-Customs created its bar before ownership was observed, remove only our
--- bar and leave the owner's map list intact.
+-- Keep the provider's MapList and use one category control. Existing category
+-- controls own navigation; otherwise our existing tabs drive the provider list.
 local added,removed,updated=0,0,0
 AddTabs=function() added=added+1 end
 local ownedMenu={
-  BO3TabBar={close=function() removed=removed+1 end},
+  BO3TabBar={close=function() removed=removed+1 end,
+    Tabs={grid={updateDataSource=function() end}}},
   MapList={updateDataSource=function() updated=updated+1 end},
 }
 owned=true
 RefreshZombies(ownedMenu,0)
-assert(added==0 and removed==1 and updated==1 and ownedMenu.BO3TabBar==nil,
-  "owned menu refresh must suppress duplicate BO3-Customs tabs")
+assert(added==0 and removed==0 and updated==1 and ownedMenu.BO3TabBar~=nil,
+  "provider MapList must retain the shared category tabs")
+ownedMenu.mapCategoriesList={}
+RefreshZombies(ownedMenu,0)
+assert(removed==1 and updated==2 and ownedMenu.BO3TabBar==nil,
+  "provider category controls must not receive a second tab bar")
+local providerMenu={MapList={}}
+RefreshZombies(providerMenu,0)
+assert(added==1, "provider with no category controls must get the shared tabs")
 owned=false
 local stockMenu={MapList={}}
 RefreshZombies(stockMenu,0)
-assert(added==1, "stock menu refresh must retain BO3-Customs tabs")
+assert(added==2, "stock menu refresh must retain BO3-Customs tabs")
 print("PASS: failed ZM list recovery retains valid stock/custom map IDs, excludes locked/hidden/MP maps, preserves successful builders and restores map tables")
 '''
 subprocess.run([lua, "-"], input=map_fixture, text=True, cwd=root, check=True)
@@ -273,6 +283,160 @@ assert(custom.zm_backrooms==mapsTable.zm_backrooms and custom["123456789"]==nil 
 print("PASS: catalog aliases stay out of Standard, canonical maps appear once, and ambiguous aliases fail closed")
 '''
 subprocess.run([lua, "-"], input=catalog_fixture, text=True, cwd=root, check=True)
+
+# Execute the actual ListHelper/DataSource wrappers with a provider that appends
+# its own catalog independently of CoD.mapsTable, as replacement menus can do.
+provider_fixture = r'''
+local Tabs={current={},lists={},injectedMaps={}}
+local CustomsCategory=10100
+local owned,choosing=true,false
+local function ExternalZMOwner() return owned end
+local function Choosing() return choosing end
+local function Zombies() return 0 end
+local function Multiplayer() return 1 end
+local function LogOnce() end
+local function EnsureCustomEntries() end
+local function Current(c) return Tabs.current[c or 0] or "standard" end
+local function Try(label,fn,...)
+ local ok,err=pcall(fn,...);assert(ok,err);return ok
+end
+local catalog={
+ {id="zm_backrooms",name="Backrooms",ugc="123456789"},
+ {id="zm_other",name="Other Map"},
+ {id="mp_backrooms",name="Backrooms",mode="mp"},
+}
+local function AllCustom() return catalog end
+CoD={gameModeEnum=0,perController={[0]={mapCategory=0}},mapsTable={
+ zm_nacht={session_mode=0,dlc_pack=0,unique_id=1,mapName="Nacht"},
+ zm_backrooms={session_mode=0,dlc_pack=0,unique_id=2,mapName="^1Backrooms"},
+ zm_other={session_mode=0,dlc_pack=0,unique_id=3,mapName="^2Backrooms"},
+}}
+Engine={IsMapValid=function(id) return CoD.mapsTable[id]~=nil end,
+ Localize=function(s) return s end,DvarString=function() return "zm_backrooms" end}
+'''
+provider_fixture += section(maps, "local function ModeOf(", "local function Template(")
+provider_fixture += section(maps, "local function MapRowTitle(", "local function TitleSet(")
+provider_fixture += section(maps, "local function TabOf(", 'DataSources.BO3CustomsMapTabs =')
+provider_fixture += section(maps, "local function RemoveInjectedEntries(", "local function WrapCombatRecord(")
+provider_fixture += section(maps, "local function AddTabs(", "local function Refresh(")
+provider_fixture += section(maps, "local function RemoveOwnedTabs(", "local function RefreshMultiplayer(")
+provider_fixture += section(maps, "local function WrapMenu(", "local function WrapChangeMap(")
+provider_fixture += section(maps, "local function AddCustomsCategory(", "local function Install(")
+provider_fixture += r'''
+local callback=function(row) return row.properties.mapId end
+local providerRows={
+ {models={displayText="Nacht"},properties={mapId="zm_nacht"}},
+ {models={displayText="^2Backrooms"},properties={mapId="zm_backrooms",selectIndex=true}},
+ {models={displayText=" ^1BACKROOMS ",mapName="Backrooms",compatibilityStatus="COMPATIBLE"},
+  properties={mapId="123456789",internalMapName="123456789",workshopId="123456789",
+    mapStatsId="stats-key",onSelect=callback,purchasable=true}},
+ {models={displayText="^5Backrooms"},properties={mapId="zm_other"}},
+ {models={displayText="another alias title"},properties={mapId="zm_backrooms"}},
+ {models={displayText="not installed"},properties={mapId="999999999"}},
+ {models={displayText="^3Backrooms"},properties={mapId="mp_backrooms"}},
+ owner="provider",
+}
+local calls=0
+local function provider(c,list)
+ calls=calls+1
+ return providerRows
+end
+ListHelper_Prepare=function(list,c,name,build)
+ list.rows=build(c,list)
+ return "native result"
+end
+DataSources={ZMMapsList={prepare=function(c,list)
+ return ListHelper_Prepare(list,c,"ZMMapsList",provider)
+end}}
+assert(WrapListPrepare() and WrapMapsList())
+local full=CoD.mapsTable
+local list={}
+Tabs.current[0]="standard"
+assert(DataSources.ZMMapsList.prepare(0,list)=="native result")
+assert(calls==1 and #list.rows==1 and list.rows[1].properties.mapId=="zm_nacht",
+ "provider-appended custom rows leaked into Standard")
+Tabs.current[0]="custom"
+DataSources.ZMMapsList.prepare(0,list)
+assert(calls==2 and #list.rows==1 and list.rows.owner=="provider",
+ "aliases or differently colored copies remained in Customs")
+local row=list.rows[1]
+assert(row.properties.mapId=="zm_backrooms" and row.properties.internalMapName=="zm_backrooms")
+assert(row.models.compatibilityStatus=="COMPATIBLE" and row.properties.workshopId=="123456789" and
+ row.properties.mapStatsId=="stats-key" and row.properties.onSelect==callback,
+ "provider compatibility, stats or callback metadata was lost")
+assert(callback(row)=="zm_backrooms" and row.properties.selectIndex==true and row.properties.purchasable==false)
+assert(row.models.displayText==" ^1BACKROOMS " and providerRows[3].properties.mapId=="123456789" and
+ providerRows[3].properties.selectIndex==nil and providerRows[3].properties.purchasable==true,
+ "normalization changed the provider's reusable source row")
+for i=1,20 do DataSources.ZMMapsList.prepare(0,list);assert(#list.rows==1) end
+assert(CoD.mapsTable==full)
+-- A title/ID bridge must merge both earlier groups rather than leave a second
+-- winner when identifiers and display names disagree across provider rows.
+local bridge={
+ {models={displayText="Alpha"},properties={mapId="zm_backrooms"}},
+ {models={displayText="Beta"},properties={mapId="zm_other"}},
+ {models={displayText="^1Beta"},properties={mapId="zm_backrooms"}},
+}
+assert(#NormalizeMapRows(bridge,0,true)==1, "transitive aliases left multiple winners")
+for a=1,3 do for b=1,3 do for c=1,3 do
+ if a~=b and a~=c and b~=c then
+  assert(#NormalizeMapRows({bridge[a],bridge[b],bridge[c]},0,true)==1,
+    "alias cleanup depended on provider row order")
+ end
+end end end
+-- Names differing by punctuation are not merely color variants.
+bridge[3]=nil;bridge[1].models.displayText="A: Map";bridge[2].models.displayText="A Map"
+assert(#NormalizeMapRows(bridge,0,true)==2)
+-- Playlist IDs and opaque non-map contracts remain owned by the provider.
+choosing=true;DataSources.ZMMapsList.prepare(0,list);assert(list.rows==providerRows);choosing=false
+local opaque={{models={custom="keep"}}}
+assert(NormalizeMapRows(opaque,0,true)==opaque)
+CoD.perController[0].mapCategory=10100
+local count=calls
+local changed=PrepareMaps(provider,0,list)
+assert(#changed==1 and calls==count+1 and CoD.mapsTable==full and CoD.perController[0].mapCategory==10100)
+assert(not pcall(PrepareMaps,function() error("provider failed") end,0,list))
+assert(CoD.mapsTable==full and CoD.perController[0].mapCategory==10100)
+CoD.perController[0].mapCategory=0
+assert(#PrepareMaps(provider,0,list)==1)
+local categories={{models={text="STANDARD"},properties={category=0}}}
+local function categoryProvider() return categories end
+PrepareCategories(categoryProvider,0,list);PrepareCategories(categoryProvider,0,list)
+assert(#categories==2, "repeated category preparation appended another Customs tab")
+-- Recovery must pass through the same category and color-duplicate filter.
+Tabs.current[0]="custom"
+ListHelper_Prepare(list,0,"ZMMapsList",function() error("provider failed") end)
+assert(#list.rows==1 and list.rows[1].properties.mapId~="zm_nacht")
+-- The provider keeps its menu, list widget and click handler. Shared tabs only
+-- choose which completed rows that same builder supplies.
+local elements,created,updates,watcherClosed={},0,0,0
+local mapList={onSelect=callback,setTopBottom=function() end,
+ updateDataSource=function() updates=updates+1;DataSources.ZMMapsList.prepare(0,list) end}
+local menu={MapList=mapList,addElement=function(self,e) elements[#elements+1]=e end}
+CoD.FE_TabBar={new=function()
+ local grid={setHorizontalCount=function() end,setDataSource=function() end,updateDataSource=function() end}
+ return {Tabs={grid=grid},setLeftRight=function() end,setTopBottom=function() end,close=function() end}
+end}
+LUI={UIElement={new=function()
+ return {linkToElementModel=function(self,grid,name,link,fn) self.onTab=fn end,
+   close=function() watcherClosed=watcherClosed+1 end}
+end},createMenu={ZMMapSelection=function() created=created+1;return menu end}}
+Engine.GetModelValue=function(value) return value end
+assert(WrapMenu())
+assert(LUI.createMenu.ZMMapSelection(0)==menu and menu.MapList==mapList and mapList.onSelect==callback)
+assert(menu.BO3TabBar~=nil and #elements==2 and #list.rows==1)
+elements[2].onTab("standard")
+assert(Tabs.current[0]=="standard" and #list.rows==1 and list.rows[1].properties.mapId=="zm_nacht")
+LUI.createMenu.ZMMapSelection(0)
+assert(created==2 and #elements==2 and Tabs.current[0]=="standard", "reopen duplicated tabs or lost their state")
+menu.mapCategoriesList={}
+LUI.createMenu.ZMMapSelection(0)
+assert(menu.BO3TabBar==nil and menu.BO3TabWatcher==nil and watcherClosed==1 and
+ Tabs.current[0]==nil and menu.MapList==mapList and #list.rows==2,
+ "existing provider category controls must remain authoritative")
+print("PASS: completed provider rows dedupe across IDs/colors, stay in Customs, retain valid callbacks/metadata and recover without persistent mutations")
+'''
+subprocess.run([lua, "-"], input=provider_fixture, text=True, cwd=root, check=True)
 
 # Exercise details scrolling with incomplete console UI event metadata.
 scroll_fixture = r'''

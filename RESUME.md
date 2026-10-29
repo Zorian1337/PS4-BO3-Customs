@@ -1,6 +1,6 @@
 # Resume SPRX / Lua development
 
-**Active branch: `testing/dev35-debug-build`. Dev.49 DEBUG candidate; not a release.**
+**Active branch: `testing/dev35-debug-build`. Dev.49 plugin plus newer, unuploaded companion Lua; not a release.**
 Native build/format checks and focused host regressions pass. Console stability,
 repeated menu switching and native crash resolution are not confirmed.
 
@@ -32,15 +32,23 @@ native frontend rebuilding, automatic recovery and bytecode-lifetime protection.
 Complete arbitrary-mod Lua-state restoration still requires lifecycle evidence;
 do not replace it with broad global/module resets or a restart-only unload lock.
 
-Latest source task: generic map catalog cleanup. Compatibility aliases now match
-catalog `displayName`/`mapTitle` fields and Customs groups aliases by canonical
-installed ID, preferring the real internal row. Regression tests pass under the
-existing Lua 5.1 runner in WSL, and all 34 registered host regression programs
-pass. Dev.49 includes that Lua source and is installed on the console for
-validation; no release was created.
+Latest source task: deduplicate the completed provider map list. Dev.49's older
+table filter missed provider-appended rows because the external-owner wrappers
+returned them unfiltered. The newer Lua keeps the provider builder/callbacks,
+filters its completed rows into categories, and removes duplicates by both load
+target and displayed title after removing color codes. Provider compatibility and
+stats metadata stay attached to the retained row. An existing provider category
+control retains ownership; otherwise shared tabs drive its original MapList.
 
-Next: verify Standard contains only stock rows and Customs only one installed
-row per map on console. Separately, resolve the Reaper nil operand from matching
+All 34 host regressions passed, with focused checks repeated after the final Lua
+cleanup. Restoring the old bypass makes the provider-row regression fail. The
+new correction is source-only and is not yet on the console; dev.49 there still
+has the older Lua. No native SPRX changes or new build were needed for this fix.
+
+Next: with deployment approval, upload the updated `Lua/ui_scripts/mapselect.lua`
+and test the existing dev.49 plugin. Check Standard/Customs, colored aliases,
+selection, repeat opens and refreshes. The MapSelect trace now reports the input
+and final row counts. Separately, resolve the Reaper nil operand from matching
 bytecode/debug evidence and review post-unload globals/module ownership. Do not
 assume invalid GSC opcode is the first cause: its record precedes the first
 printed watchdog warning but lies inside the warning's reported no-progress

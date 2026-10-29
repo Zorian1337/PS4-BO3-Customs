@@ -164,7 +164,7 @@ local function CanonicalCatalogId(id, info)
       return map.id
     end
   end
-  -- Reaper-style catalogs commonly key a compatibility row by the Workshop
+  -- External catalogs commonly key a compatibility row by the Workshop
   -- PublisherID. Resolve that exact identifier before falling back to title
   -- matching; titles are not stable enough to be a load target.
   local rawIds = { id, info.id, info.ugc, info.publisherId, info.publisherID,
@@ -409,6 +409,171 @@ local function EnsureCustomEntries()
     end
   end
   return true
+end
+
+local function MapRowTitle(value)
+  if type(value) ~= "string" then
+    return nil
+  end
+  local text = string.gsub(value, "%^[0-9]", "")
+  text = string.gsub(text, "%s+", " ")
+  text = string.gsub(text, "^%s*(.-)%s*$", "%1")
+  return text ~= "" and string.lower(text) or nil
+end
+
+local function CopyMapFields(source)
+  local copy = {}
+  for key, value in pairs(source) do
+    copy[key] = value
+  end
+  return copy
+end
+
+local function MapRowTarget(row, target, installed, selected)
+  local properties = type(row.properties) == "table" and row.properties or {}
+  local models = type(row.models) == "table" and row.models or {}
+  local changeProperties = properties.mapId ~= target or
+    (properties.internalMapName ~= nil and properties.internalMapName ~= target) or
+    (installed and properties.purchasable == true) or
+    (selected and properties.selectIndex ~= true)
+  local changeModels = (models.mapId ~= nil and models.mapId ~= target) or
+    (models.internalMapName ~= nil and models.internalMapName ~= target)
+  if not changeProperties and not changeModels then
+    return row
+  end
+  local copy = CopyMapFields(row)
+  if changeProperties then
+    copy.properties = CopyMapFields(properties)
+    copy.properties.mapId = target
+    if properties.internalMapName ~= nil then copy.properties.internalMapName = target end
+    if installed then copy.properties.purchasable = false end
+    if selected then copy.properties.selectIndex = true end
+  end
+  if changeModels then
+    copy.models = CopyMapFields(models)
+    if models.mapId ~= nil then copy.models.mapId = target end
+    if models.internalMapName ~= nil then copy.models.internalMapName = target end
+  end
+  return copy
+end
+
+local function NormalizeMapRows(items, mode, customs)
+  if type(items) ~= "table" or #items == 0 then
+    return items
+  end
+  local maps = type(CoD.mapsTable) == "table" and CoD.mapsTable or {}
+  local groups, byTarget, byTitle, validTargets = {}, {}, {}, {}
+  local function root(group)
+    if group ~= nil and group.parent ~= nil then
+      group.parent = root(group.parent)
+      return group.parent
+    end
+    return group
+  end
+  local function prefer(group, candidate)
+    if group.best == nil or candidate.score > group.best.score then
+      group.best = candidate
+    end
+    group.selected = group.selected or candidate.selected
+  end
+  for index, row in ipairs(items) do
+    local properties = type(row) == "table" and type(row.properties) == "table" and row.properties or {}
+    local models = type(row) == "table" and type(row.models) == "table" and row.models or {}
+    local rawId = properties.mapId or models.mapId or properties.internalMapName or models.internalMapName
+    local target, title, score, installed, keep = nil, nil, 0, false, true
+    if type(rawId) == "string" or type(rawId) == "number" then
+      rawId = tostring(rawId)
+      local info = {
+        id = properties.internalMapName or models.internalMapName,
+        mapName = models.mapName, mapNameCaps = models.displayText,
+        name = models.text, title = models.title,
+        workshopId = properties.workshopId or models.workshopId,
+        ugc = properties.ugc or models.ugc,
+        publisherId = properties.publisherId or models.publisherId,
+      }
+      local canonicalId = CanonicalCatalogId(rawId, info)
+      local catalog = canonicalId ~= nil and CustomById(canonicalId) or nil
+      installed = catalog ~= nil
+      target = canonicalId or rawId
+      local metadata = type(maps[target]) == "table" and maps[target] or maps[rawId]
+      local custom = installed or IsCustom(metadata, target) or ExplicitCustom(properties) or ExplicitCustom(models)
+      if customs ~= nil and custom ~= customs then keep = false end
+      if installed and mode ~= nil and (ModeOf(catalog) == "mp" and Multiplayer() or Zombies()) ~= mode then
+        keep = false
+      elseif type(metadata) == "table" and mode ~= nil and metadata.session_mode ~= nil and
+        metadata.session_mode ~= mode then
+        keep = false
+      end
+      -- Numeric catalog IDs are metadata, never native map load targets.
+      if target == "" or tonumber(target) ~= nil then
+        keep = false
+      elseif keep and not installed and type(metadata) ~= "table" and properties.purchasable ~= true then
+        if validTargets[target] == nil then
+          local ok, valid = false, false
+          if type(Engine) == "table" and type(Engine.IsMapValid) == "function" then
+            ok, valid = pcall(Engine.IsMapValid, target)
+          end
+          validTargets[target] = ok and valid == true
+        end
+        keep = validTargets[target]
+      end
+      title = MapRowTitle(models.displayText or models.mapName or models.text or models.title)
+      score = installed and 100 or 0
+      -- Keep the provider's compatibility/stats contract when its plain catalog
+      -- row and enriched row describe the same installed map.
+      if models.compatibilityStatus ~= nil then score = score + 8 end
+      if properties.workshopId ~= nil then score = score + 4 end
+      if properties.mapStatsId ~= nil then score = score + 2 end
+    end
+    if keep then
+      local candidate = { row = row, target = target, installed = installed,
+        score = score, selected = properties.selectIndex == true }
+      local idGroup, titleGroup = root(target ~= nil and byTarget[target] or nil),
+        root(title ~= nil and byTitle[title] or nil)
+      local group = idGroup or titleGroup
+      if group == nil then
+        group = { first = index }
+        groups[#groups + 1] = group
+      elseif idGroup ~= nil and titleGroup ~= nil and idGroup ~= titleGroup then
+        local other = titleGroup
+        group = idGroup
+        if other.first < group.first then group, other = other, group end
+        other.parent = group
+        prefer(group, other.best)
+        group.selected = group.selected or other.selected
+      end
+      prefer(group, candidate)
+      if target ~= nil then byTarget[target] = group end
+      if title ~= nil then byTitle[title] = group end
+    end
+  end
+  local result = {}
+  for _, group in ipairs(groups) do
+    if group.parent == nil then
+      local best = group.best
+      result[#result + 1] = best.target ~= nil and
+        MapRowTarget(best.row, best.target, best.installed, group.selected) or best.row
+    end
+  end
+  local unchanged = #items == #result
+  for index, row in ipairs(result) do
+    if items[index] ~= row then unchanged = false; break end
+  end
+  if unchanged then return items end
+  local category = customs == nil and "provider" or (customs and "custom" or "standard")
+  LogOnce("map rows " .. tostring(mode) .. category .. #items .. ":" .. #result,
+    "map list " .. tostring(mode) .. " " .. category .. ": " .. #items .. " -> " .. #result .. " rows")
+  for key, value in pairs(items) do
+    if type(key) ~= "number" then result[key] = value end
+  end
+  return result
+end
+
+local function NormalizeZMRows(items, controller)
+  local customs = nil
+  local tab = Tabs.current[controller or 0]
+  if tab ~= nil then customs = tab == "custom" end
+  return NormalizeMapRows(items, Zombies(), customs)
 end
 
 local function TitleSet()
@@ -1528,7 +1693,7 @@ local function WrapMapsList()
     if type(CoD.mapsTable) == "table" and ExternalZMOwner() then
       NormalizeCatalogEntries(CoD.mapsTable)
       RemoveInjectedEntries()
-      LogOnce("zm owned", "an external zm menu owns its map rows; preserving its map table")
+      LogOnce("zm owned", "external zm builder retained; completed rows normalized by list prepare")
       return prepare(controller, ...)
     end
     if type(controller) ~= "number" or Choosing(controller) or type(CoD.mapsTable) ~= "table" then
@@ -1562,7 +1727,11 @@ local function WrapCombatRecord()
 end
 
 local function AddTabs(menu, controller)
-  if menu.BO3TabBar ~= nil or menu.MapList == nil or Choosing(controller) then
+  if menu.BO3TabBar ~= nil or menu.MapList == nil or menu.mapCategoriesList ~= nil or Choosing(controller) then
+    return
+  end
+  if type(menu.addElement) ~= "function" or type(menu.MapList.setTopBottom) ~= "function" or
+    type(menu.MapList.updateDataSource) ~= "function" then
     return
   end
   local count = #CustomList("zm")
@@ -1576,7 +1745,7 @@ local function AddTabs(menu, controller)
   if CoD.FE_TabBar == nil then
     return
   end
-  EnsureCustomEntries()
+  if not ExternalZMOwner() then EnsureCustomEntries() end
   Tabs.current[controller] = StartingTab(controller)
 
   local bar = CoD.FE_TabBar.new(menu, controller)
@@ -1591,6 +1760,7 @@ local function AddTabs(menu, controller)
 
   local watcher = LUI.UIElement.new()
   menu:addElement(watcher)
+  menu.BO3TabWatcher = watcher
   watcher:linkToElementModel(bar.Tabs.grid, "bo3Tab", true, function(model)
     local tab = Engine.GetModelValue(model)
     if type(tab) ~= "string" or tab == "" or tab == Current(controller) then
@@ -1694,19 +1864,21 @@ local function HasCustoms(sessionMode)
 end
 
 local function RemoveOwnedTabs(menu)
-  -- A mod-owned ZM menu is already the authoritative selector. If ownership
-  -- changes after creation, remove only the tab bar injected by this script;
-  -- leave the owner's map list and compatibility rows untouched.
+  -- Remove only our tab bar when the provider has its own category control.
   local bar = menu ~= nil and menu.BO3TabBar or nil
-  if bar == nil then
+  local watcher = menu ~= nil and menu.BO3TabWatcher or nil
+  if bar == nil and watcher == nil then
     return
   end
-  if type(menu.removeElement) == "function" then
-    pcall(menu.removeElement, menu, bar)
-  elseif type(bar.close) == "function" then
-    pcall(bar.close, bar)
+  local function remove(element)
+    if element == nil then return end
+    if type(menu.removeElement) == "function" then pcall(menu.removeElement, menu, element) end
+    if type(element.close) == "function" then pcall(element.close, element) end
   end
+  remove(watcher)
+  remove(bar)
   menu.BO3TabBar = nil
+  menu.BO3TabWatcher = nil
   if menu.MapList ~= nil and type(menu.MapList.setTopBottom) == "function" then
     pcall(menu.MapList.setTopBottom, menu.MapList, true, false, 92, 548)
   end
@@ -1715,12 +1887,14 @@ end
 local function RefreshZombies(menu, controller)
   if ExternalZMOwner() then
     RemoveInjectedEntries()
-    RemoveOwnedTabs(menu)
-    if menu ~= nil and menu.MapList ~= nil and type(menu.MapList.updateDataSource) == "function" then
-      pcall(menu.MapList.updateDataSource, menu.MapList)
+    if menu ~= nil and menu.mapCategoriesList ~= nil then
+      RemoveOwnedTabs(menu)
+      Tabs.current[controller] = nil
+      if menu.MapList ~= nil and type(menu.MapList.updateDataSource) == "function" then
+        pcall(menu.MapList.updateDataSource, menu.MapList)
+      end
+      return
     end
-    LogOnce("owned tabs suppressed", "mod-owned zm menu retained as the single map selector")
-    return
   end
   if menu.BO3TabBar == nil then
     AddTabs(menu, controller)
@@ -1832,7 +2006,17 @@ local function WrapMenu()
   LUI.createMenu.ZMMapSelection = function(controller, ...)
     if ExternalZMOwner() then
       RemoveInjectedEntries()
-      return create(controller, ...)
+      local menu = create(controller, ...)
+      if menu ~= nil and menu.mapCategoriesList ~= nil then
+        Tabs.current[controller] = nil
+        RemoveOwnedTabs(menu)
+        if menu.MapList ~= nil and type(menu.MapList.updateDataSource) == "function" then
+          pcall(menu.MapList.updateDataSource, menu.MapList)
+        end
+      elseif menu ~= nil then
+        Try("provider tabs", AddTabs, menu, controller)
+      end
+      return menu
     end
     local choosing = Choosing(controller)
     Try("button hooks", WrapButtons, false)
@@ -1919,6 +2103,13 @@ local function AddCustomsCategory(items)
       end
     end
   end
+  for _, item in ipairs(items) do
+    if type(item) == "table" and type(item.properties) == "table" and
+      item.properties.category == CustomsCategory then
+      item.properties.selectIndex = onCustom
+      return
+    end
+  end
   table.insert(items, {
     models = {
       text = "CUSTOMS",
@@ -1957,17 +2148,18 @@ local function PrepareMaps(prepare, controller, list)
   if not ok then
     error(result)
   end
-  return result
+  return NormalizeMapRows(result, CoD.gameModeEnum, customs)
 end
 
 local function PrepareZMMaps(prepare, controller, list)
-  if type(CoD.mapsTable) ~= "table" or not ExternalZMOwner() then
+  if type(CoD.mapsTable) ~= "table" or Choosing(controller) then
     return prepare(controller, list)
   end
-  NormalizeCatalogEntries(CoD.mapsTable)
-  RemoveInjectedEntries()
-  LogOnce("zm owned", "an external zm menu owns its map rows; preserving its map table")
-  return prepare(controller, list)
+  if ExternalZMOwner() then
+    NormalizeCatalogEntries(CoD.mapsTable)
+    RemoveInjectedEntries()
+  end
+  return NormalizeZMRows(prepare(controller, list), controller)
 end
 
 local function RecoveryZMMaps(controller)
@@ -2049,7 +2241,7 @@ local function WrapListPrepare()
           return items
         end
         LogOnce("zm list recovery", "zm map list failed; using validated stock rows: " .. tostring(items))
-        return RecoveryZMMaps(prepareController)
+        return NormalizeZMRows(RecoveryZMMaps(prepareController), prepareController)
       end
     end
     return prepareList(list, controller, name, prepare, ...)
