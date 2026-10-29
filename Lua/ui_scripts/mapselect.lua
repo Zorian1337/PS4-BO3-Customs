@@ -144,6 +144,30 @@ local function CatalogCustom(id, info)
   return false
 end
 
+local function ExistingCatalogEntry(maps, map)
+  if type(maps) ~= "table" or type(map) ~= "table" then
+    return nil
+  end
+  local wanted = {}
+  for _, value in ipairs({ map.id, map.name, map.title }) do
+    local key = CatalogKey(value)
+    if key ~= nil then
+      wanted[key] = true
+    end
+  end
+  for id, info in pairs(maps) do
+    if type(info) == "table" then
+      for _, value in ipairs({ id, info.id, info.mapName, info.mapname, info.name, info.title }) do
+        local key = CatalogKey(value)
+        if key ~= nil and wanted[key] then
+          return info
+        end
+      end
+    end
+  end
+  return nil
+end
+
 local function IsCustom(info, id)
   if type(info) ~= "table" then
     return false
@@ -201,7 +225,11 @@ local function EnsureCustomEntries()
   NormalizeCatalogEntries(maps)
   local templates = {}
   for index, map in ipairs(AllCustom()) do
-    if type(map) == "table" and type(map.id) == "string" and maps[map.id] == nil then
+    if type(map) == "table" and type(map.id) == "string" then
+      local existing = ExistingCatalogEntry(maps, map)
+      if existing ~= nil then
+        existing.bo3_custom = true
+      elseif maps[map.id] == nil then
       local mode = ModeOf(map)
       if templates[mode] == nil then
         templates[mode] = Template(maps, mode) or false
@@ -226,6 +254,7 @@ local function EnsureCustomEntries()
         info.bo3_custom = true
         maps[map.id] = info
         Tabs.injectedMaps[map.id] = info
+      end
       end
     end
   end
@@ -1351,6 +1380,7 @@ local function WrapMapsList()
   source.bo3Wrapped = true
   source.prepare = function(controller, ...)
     if type(CoD.mapsTable) == "table" and ExternalZMOwner() then
+      NormalizeCatalogEntries(CoD.mapsTable)
       RemoveInjectedEntries()
       LogOnce("zm owned", "an external zm menu owns its map rows; preserving its map table")
       return prepare(controller, ...)
@@ -1767,6 +1797,7 @@ local function PrepareZMMaps(prepare, controller, list)
   if type(CoD.mapsTable) ~= "table" or not ExternalZMOwner() then
     return prepare(controller, list)
   end
+  NormalizeCatalogEntries(CoD.mapsTable)
   RemoveInjectedEntries()
   LogOnce("zm owned", "an external zm menu owns its map rows; preserving its map table")
   return prepare(controller, list)
