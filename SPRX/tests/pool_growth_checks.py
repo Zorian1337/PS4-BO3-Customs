@@ -85,6 +85,14 @@ int main() {
     for(auto& worker:workers) worker.join();
     assert(allocations==2 && GrowthFor(22)->capped.load());
     assert(!nativePools[22].free && nativePools[22].limit==GrowthFor(22)->limit);
+    // Budget exhaustion must cap the pool without repeated allocation work.
+    failAllocation=false;
+    const auto attempts=allocations.load();
+    g_poolGrowthBytes=kPoolGrowthBudget-1;
+    GrowPool(69);
+    assert(GrowthFor(69)->capped.load() && allocations==attempts);
+    for(unsigned i=0;i<1000;++i) GrowPool(69);
+    assert(allocations==attempts);
     for(void* block:blocks) std::free(block);
     std::puts("PASS: production pool initialization/free list, nonblocking normal path and concurrent allocation-failure cap");
 }
