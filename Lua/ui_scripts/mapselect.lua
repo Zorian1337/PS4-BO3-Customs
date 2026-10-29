@@ -1221,36 +1221,26 @@ end
 
 local ZMMenuFile = "ui/uieditor/menus/zm/zmmapselection.lua"
 
-local function ModOwns(file)
+local function ExternalZMOwner()
+  -- Do not identify a particular mod. Any loaded replacement under the ZM
+  -- menu namespace owns its own row/compatibility contract. The stock path is
+  -- included for engines that report the canonical menu file directly.
   local files = rawget(_G, "BO3CustomsModFiles")
-  return type(files) == "table" and files[file] ~= nil
-end
-
-local function StockMaps()
-  local stock = {}
-  for id, info in pairs(CoD.mapsTable) do
-    if not IsCustom(info) then
-      stock[id] = info
+  if type(files) ~= "table" then
+    return false
+  end
+  for file in pairs(files) do
+    if type(file) == "string" then
+      local normalized = string.lower(string.gsub(file, "\\", "/"))
+      if normalized == ZMMenuFile or
+        (string.sub(normalized, 1, 21) == "ui/uieditor/menus/zm/" and
+          (string.find(normalized, "mapselect", 1, true) ~= nil or
+           string.find(normalized, "mapselection", 1, true) ~= nil)) then
+        return true
+      end
     end
   end
-  return stock
-end
-
--- Some mods replace the stock ZM menu but still use the engine map table.
--- Supplying that menu with stock-only data makes custom maps impossible to
--- select. Keep the old stock fallback when no custom entry exists, but expose
--- the complete table when the console has custom maps available.
-local function MapsForOwnedZM()
-  local maps = CoD.mapsTable
-  if type(maps) ~= "table" then
-    return maps
-  end
-  for _, info in pairs(maps) do
-    if IsCustom(info) then
-      return maps
-    end
-  end
-  return StockMaps()
+  return false
 end
 
 local function BuildWith(maps, prepare, ...)
@@ -1272,9 +1262,10 @@ local function WrapMapsList()
   local prepare = source.prepare
   source.bo3Wrapped = true
   source.prepare = function(controller, ...)
-    if type(CoD.mapsTable) == "table" and ModOwns(ZMMenuFile) then
-      LogOnce("zm owned", "a loaded mod has its own zm map menu; exposing the complete map table")
-      return BuildWith(MapsForOwnedZM(), prepare, controller, ...)
+    if type(CoD.mapsTable) == "table" and ExternalZMOwner() then
+      EnsureCustomEntries()
+      LogOnce("zm owned", "an external zm menu owns its map rows; preserving its map table")
+      return prepare(controller, ...)
     end
     if type(controller) ~= "number" or Choosing(controller) or type(CoD.mapsTable) ~= "table" then
       return prepare(controller, ...)
@@ -1463,7 +1454,7 @@ local function RemoveOwnedTabs(menu)
 end
 
 local function RefreshZombies(menu, controller)
-  if ModOwns(ZMMenuFile) then
+  if ExternalZMOwner() then
     RemoveOwnedTabs(menu)
     if menu ~= nil and menu.MapList ~= nil and type(menu.MapList.updateDataSource) == "function" then
       pcall(menu.MapList.updateDataSource, menu.MapList)
@@ -1546,7 +1537,7 @@ local function WrapMenu()
   local create = LUI.createMenu.ZMMapSelection
   Tabs.menuWrapped = true
   LUI.createMenu.ZMMapSelection = function(controller, ...)
-    if ModOwns(ZMMenuFile) then
+    if ExternalZMOwner() then
       return create(controller, ...)
     end
     local choosing = Choosing(controller)
@@ -1683,11 +1674,12 @@ local function PrepareMaps(prepare, controller, list)
 end
 
 local function PrepareZMMaps(prepare, controller, list)
-  if type(CoD.mapsTable) ~= "table" or not ModOwns(ZMMenuFile) then
+  if type(CoD.mapsTable) ~= "table" or not ExternalZMOwner() then
     return prepare(controller, list)
   end
-  LogOnce("zm owned", "a loaded mod has its own zm map menu; exposing the complete map table")
-  return BuildWith(MapsForOwnedZM(), prepare, controller, list)
+  EnsureCustomEntries()
+  LogOnce("zm owned", "an external zm menu owns its map rows; preserving its map table")
+  return prepare(controller, list)
 end
 
 local function RecoveryZMMaps(controller)

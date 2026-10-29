@@ -156,21 +156,9 @@ local Tabs={lists={}}
 local choosing,owned=false,false
 local function Choosing() return choosing end
 local function Zombies() return 0 end
-local function ModOwns() return owned end
+local function ExternalZMOwner() return owned end
 local function LogOnce() end
-local ZMMenuFile="zm menu"
-local function StockMaps()
-  if not owned then return CoD.mapsTable end
-  local stock={}
-  for id,info in pairs(CoD.mapsTable) do
-    if id~="zm_custom" then stock[id]=info end
-  end
-  return stock
-end
-local function MapsForOwnedZM()
-  if owned then return CoD.mapsTable end
-  return StockMaps()
-end
+local function EnsureCustomEntries() end
 local PrepareCategories,PrepareMaps=function(p,c,l) return p(c,l) end,function(p,c,l) return p(c,l) end
 CoD={mapsTable={
   zm_good={session_mode=0,dlc_pack=0,unique_id=1,mapName="Good"},

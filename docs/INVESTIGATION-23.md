@@ -154,17 +154,16 @@ are logged as default fallbacks, and the GPU traces reach completion; adding GPU
 fences or enlarging pools without a matching allocation failure would risk
 deadlocks and was deliberately not done.
 
-The Reaper Collection capture provides one source-owned map-selection finding:
-`mapselect.lua` detected that the loaded mod supplied its own ZM map menu and
-replaced the map table with stock-only entries. That made custom maps
-unselectable while Reaper was active. The compatibility path now keeps the
-mod-owned menu but supplies the complete engine map table whenever custom map
-entries are present; it retains the stock-only fallback when none are present.
-This does not rewrite Reaper's menu or its scripts. The refresh path now also
-recognizes that ownership and suppresses BO3-Customs' injected tab bar/counter.
-If the BO3-Customs bar was created before ownership was detected, only that bar
-is removed; Reaper's map list and compatibility rows remain intact. Stock ZM
-menus retain the BO3-Customs tabs.
+The Reaper Collection capture provided a source-owned map-selection finding:
+`mapselect.lua` detected that an external mod supplied its own ZM map menu and
+the compatibility path was replacing the menu's map table. That could make
+custom maps unselectable or violate the owner's row/compatibility contract.
+The compatibility path is now generic: it recognizes any loaded replacement
+under the ZM map-menu namespace, preserves that menu's native map table, and
+lets the normal catalog-entry merge supply available custom rows. It does not
+name or special-case Reaper. The refresh path suppresses BO3-Customs' injected
+tab bar/counter for any externally owned ZM menu; if our bar was created first,
+only that bar is removed. Stock ZM menus retain the BO3-Customs tabs.
 
 The original log files remain outside the repository. The next validation should
 run the same selected stack with only this menu-apply change, then repeat with
