@@ -18,6 +18,15 @@ assert "kSoundSlots, kSoundSlotCount * kSoundSlotSize" in stream_report
 assert "RangeReadable((uintptr_t)name, kDiagnosticNameMax)" in stream_report
 assert "'%.*s' part" in stream_report
 assert "RangeReadable((uintptr_t)name, 1)" not in stream_report
+lighting_report = source[source.index("static void LogBlobs("):source.index("static void NoteDroppedSpawner(")]
+assert "lighting diagnostic memory unavailable during transition" in lighting_report
+for marker in ("kBlobTick, sizeof(uint64_t)", "kStreamPool, 2 * sizeof(uint64_t)",
+               "kBlobMegabytes, 5 * sizeof(uint64_t)",
+               "kStreamBlobs, kStreamBlobCount * 56",
+               "kBlobGenerations, 5 * sizeof(uint32_t)"):
+    assert marker in lighting_report, marker
+assert lighting_report.index("RangeReadable(g_base + region.offset, region.bytes)") < lighting_report.index("const uint64_t tick =")
+
 preview_reader = source[source.index("bool T7Maps_ModPreviewFile("):source.index("bool T7Maps_PreviewFile(")]
 assert "if (!path || !size)" in preview_reader
 assert "if (length < 0 || (size_t)length >= size)" in preview_reader
