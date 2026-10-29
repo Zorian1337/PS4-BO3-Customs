@@ -111,7 +111,7 @@ where arbitrary mod state must be discarded. No restart-only unload lock was add
 
 ## Validation and next actions
 
-- All 33 registered host regression programs pass; the diagnostic/publication
+- All 34 registered host regression programs pass; the diagnostic/publication
   tools' 13 unit tests pass. Both modified PS4 translation units pass installed-SDK
   Debug/Release syntax checks. No linking, packaging or console changes occurred.
 - Preserve the working-case controls and the current recovery tests. The source
@@ -126,3 +126,35 @@ where arbitrary mod state must be discarded. No restart-only unload lock was add
 
 Issue #23 remains open. The supplied loading hang and Reaper's frontend failure
 are not confirmed resolved by these source corrections.
+
+## Current console-log review
+
+The newer captures contain three separate failure classes and must not be treated
+as one SPRX defect. The large GSC/CSC floods come from the selected private
+zombiebots, DS4C and menu/map scripts. They include invalid entity/array/field
+accesses and eventually force the engine to end the match; the SPRX cannot safely
+turn those undefined values into valid gameplay objects. The same captures also
+contain map-specific missing assets and script failures. Those remain separate
+mod/map compatibility issues and their original files were not changed here.
+
+The scrolling capture has one source-identifiable private Lua failure:
+`lua/shared/zm8p_rewards.lua` raises UI error 3019 while subtracting a nil value.
+That file is not part of BO3-Customs, so it remains a private-mod fix target rather
+than an SPRX change. The frontend captures repeatedly show LobbyVM error 74046
+after the Mods menu is closed and rebuilt. A safe source-side improvement is now
+implemented: closing an unchanged menu no longer requests a native mod-stack
+apply. An explicit pending request or a real chosen-versus-active change still
+uses the existing apply path. This reduces needless frontend rebuilds and the
+associated unload/reload race without hiding errors or changing selected mods.
+
+The captures also show UI errors 24280/21544 in `ui/uied/leveling_io.lua` during
+multi-mod frontend loading. Their missing menu/nil dependency is not proven to be
+owned by BO3-Customs, so no speculative replacement was added. Missing materials
+are logged as default fallbacks, and the GPU traces reach completion; adding GPU
+fences or enlarging pools without a matching allocation failure would risk
+deadlocks and was deliberately not done.
+
+The original log files remain outside the repository. The next validation should
+run the same selected stack with only this menu-apply change, then repeat with
+each third-party mod isolated. A new binary/package is not implied by this source
+commit and still requires an explicit build request.

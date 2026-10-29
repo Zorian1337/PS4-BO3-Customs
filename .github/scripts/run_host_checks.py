@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 EXPLICIT = {'compare_module_metadata.py', 'openorbis_header_checks.py'}
 LUA_ARGUMENTS = {
     'lua_compat_scope_checks.py': ['{lua}'],
+    'lua_menu_apply_checks.py': ['{lua}'],
     'lua_menu_recovery_checks.py': ['{lua}'],
     'lua_menu_reload_checks.py': ['{lua}'],
     'mod_files_revision_checks.py': ['{lua}'],
@@ -19,7 +20,7 @@ LUA_ARGUMENTS = {
 ARGUMENTS = {name: LUA_ARGUMENTS.get(name, []) for name in (
     'bg_cache_snapshot_checks.py config_io_bounds_checks.py diagnostic_hook_checks.py error_capture_checks.py '
     'frontend_reload_checks.py game_log_bridge_checks.py gpu_progress_checks.py '
-    'lobby_target_timing_checks.py lua_compat_scope_checks.py lua_file_roots_checks.py lua_menu_recovery_checks.py '
+    'lobby_target_timing_checks.py lua_compat_scope_checks.py lua_file_roots_checks.py lua_menu_apply_checks.py lua_menu_recovery_checks.py '
     'lua_menu_reload_checks.py lua_ownership_index_checks.py lua_zone_lifetime_checks.py '
     'map_fastfile_route_checks.py map_image_surface_checks.py missing_import_lifetime_checks.py '
     'mod_files_revision_checks.py mod_lua_retention_checks.py mod_stack_transaction_checks.py '

@@ -173,6 +173,17 @@ local function SameNames(a, b)
   return true
 end
 
+-- Closing the menu is not itself a mod change.  Re-applying the current
+-- stack while a player is only scrolling rebuilds the frontend unnecessarily
+-- and can race a native transition.  Keep an outstanding request eligible,
+-- but otherwise apply only when the chosen and active stacks differ.
+local function NeedsApply()
+  if UI.pending ~= nil then
+    return true
+  end
+  return not SameNames(ChosenList(), ActiveList())
+end
+
 local function ModLabel(mod)
   local text = Short(TitleOf(mod), 36)
   local position = Position(mod.name)
@@ -1082,8 +1093,12 @@ if UI.pcMenu then
             UI.status = nil
             UI.rows = {}
           end
-          Log("menu closed: applying the mod changes")
-          pcall(engine.SetDvar, "bo3customs_mods_apply", 1)
+          if NeedsApply() then
+            Log("menu closed: applying the mod changes")
+            pcall(engine.SetDvar, "bo3customs_mods_apply", 1)
+          else
+            Log("menu closed: no pending mod changes")
+          end
         end)
       end
     end
