@@ -17,6 +17,7 @@ assert(loadfile("Lua/ui_scripts/mods.lua"))
 local writes,delegated=0,0
 local UI={}
 local engine={SetDvar=function(name,value) assert(name=="bo3customs_mod" and type(value)=="string"); writes=writes+1 end}
+local function IsElement(value) return type(value)=="table" or type(value)=="userdata" end
 local function Controller(value) return value or 0 end
 local function Log() end
 local function StatusText() return "host owns selection" end
