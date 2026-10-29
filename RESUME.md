@@ -1,8 +1,10 @@
 # Resume SPRX / Lua development
 
-**Active source line: `main`. Current candidate: dev.52 frontend Lua-error
-containment on top of dev.51 pool diagnostics. It is a debug test, not a stable
-release; console validation remains pending.**
+**Active source line: `main`. Current candidate: dev.53 frontend Lua-error
+containment on top of dev.52. It is a debug test, not a stable release; console
+validation remains pending. The debug SPRX compiled and FTP returned a
+successful transfer acknowledgement to `/data/nexHEN/plugins`; the binary was
+not read back from the console.**
 
 The dev.50 PS5 crash capture showed image-pool exhaustion immediately before a
 Database-thread fault. dev.51 grows only that evidenced pool and adds
@@ -12,6 +14,14 @@ and `Lobby` menus; our UI scripts also entered the failed generation. dev.52
 contains our injection after a modded UI error while retaining selected zones.
 It does not fix the third-party Lua nil access. See
 [development status](docs/DEVELOPMENT.md).
+
+The newest dev.52 console captures also show a 256 KiB retained-bytecode mapping
+request returning null, followed by UI errors 66077/64046/18426. Dev.53 clarifies
+the specific validation failure and blocks all three compatibility-injection
+points after a frontend Lua error, until the next frontend generation. The 166
+GSC errors in the multi-mod capture and the separate EBOOT SIGILL do not prove
+this Lua failure caused the gameplay crash. No global GSC or asset-pool change
+is justified by those traces.
 
 ## Read first
 

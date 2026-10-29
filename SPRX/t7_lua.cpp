@@ -2352,12 +2352,16 @@ static uint64_t RetainLuaFailure(const char* name, uint64_t original, const char
 
 static uint64_t RetainModLua(const char* name, uint64_t original)
 {
+    if (!name)
+        return RetainLuaFailure("(null)", original, "null Lua asset name");
     if (!original || !RangeReadable(original, sizeof(RawFileAsset)))
         return RetainLuaFailure(name, original, "unreadable rawfile header");
     const RawFileAsset& raw = *(const RawFileAsset*)original;
     if (raw.length >= 0 && raw.length < 4)
         return original;
-    if (raw.length < 0 || !raw.buffer || !RangeReadable((uintptr_t)raw.buffer, 4))
+    if (raw.length < 0)
+        return RetainLuaFailure(name, original, "negative Lua chunk length");
+    if (!raw.buffer || !RangeReadable((uintptr_t)raw.buffer, 4))
         return RetainLuaFailure(name, original, "unreadable Lua buffer");
     // HKS can retain shared bytecode references after require returns. Source
     // text is compiled into VM-owned objects and does not need this lifetime.
@@ -2367,9 +2371,12 @@ static uint64_t RetainModLua(const char* name, uint64_t original)
     size_t nameLength = 0;
     while (nameLength < 192 && name[nameLength])
         ++nameLength;
-    if (nameLength == 192 || length > kRetainedLuaFileMax ||
-        !RangeReadable((uintptr_t)raw.buffer, length))
-        return RetainLuaFailure(name, original, "invalid name, chunk size or byte range");
+    if (nameLength == 192)
+        return RetainLuaFailure(name, original, "unterminated Lua asset name");
+    if (length > kRetainedLuaFileMax)
+        return RetainLuaFailure(name, original, "Lua chunk exceeds retention limit");
+    if (!RangeReadable((uintptr_t)raw.buffer, length))
+        return RetainLuaFailure(name, original, "unreadable Lua chunk range");
 
     uint64_t hash = 14695981039346656037ull;
     for (size_t i = 0; i < length; ++i)
@@ -3089,7 +3096,8 @@ static uint64_t Require_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, ui
 {
     const uintptr_t L = (uintptr_t)a1;
 
-    if (L && L == *(const uintptr_t*)(g_base + kLuaState) && T7Maps_UsingMods() && UiTryLock())
+    if (!g_frontendInjectionBlocked.load(std::memory_order_acquire) &&
+        L && L == *(const uintptr_t*)(g_base + kLuaState) && T7Maps_UsingMods() && UiTryLock())
     {
         RunLuaOn(L, T7Maps_ModFilesLua(), "=bo3customs_mod_files");
         RunLuaOn(L, k_lobbyTargetLua, "=bo3customs_lobby_target");
@@ -3098,7 +3106,8 @@ static uint64_t Require_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, ui
         UiUnlock();
     }
 
-    if (L && L == *(const uintptr_t*)(g_base + kLuaState) && T7Maps_UsingMods() && UiTryLock())
+    if (!g_frontendInjectionBlocked.load(std::memory_order_acquire) &&
+        L && L == *(const uintptr_t*)(g_base + kLuaState) && T7Maps_UsingMods() && UiTryLock())
     {
         const char* const module = (const char*)a2;
         const bool dll = T7Maps_DllModLoaded();
@@ -3130,7 +3139,8 @@ static uint64_t Require_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, ui
 
     // A caller may retain the native require instead of our Lua wrapper.
     // Refresh after LobbyData is loaded before that caller resumes building menus.
-    if (L && L == *(const uintptr_t*)(g_base + kLuaState) && T7Maps_UsingMods() && UiTryLock())
+    if (!g_frontendInjectionBlocked.load(std::memory_order_acquire) &&
+        L && L == *(const uintptr_t*)(g_base + kLuaState) && T7Maps_UsingMods() && UiTryLock())
     {
         RunLuaOn(L, k_lobbyTargetLua, "=bo3customs_lobby_target_ready");
         UiUnlock();

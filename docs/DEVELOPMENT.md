@@ -2,6 +2,34 @@
 
 Updated 2026-10-29. Reviewed source is consolidated on `main`.
 
+## Current candidate (dev.53)
+
+Dev.53 retains the dev.52 frontend error-containment behavior and clarifies
+which validation failed when borrowed Lua bytecode cannot be retained. If the
+UI error callback marks the current frontend generation broken, compatibility
+scripts are skipped at each of the three `require` hook injection points until
+the next frontend generation. Native `require` still runs normally, the mod
+stack is not cleared, and unload remains available. These changes do not repair
+the third-party module failure that triggers the containment path.
+
+The latest console log shows a 256 KiB retention mapping request returning
+null before UI 66077 and follow-on UI errors. This confirms an allocation
+failure and the later UI cascade, but not the cause of the native SIGILL or
+reported gameplay/map crashes. A multi-mod run logged many GSC runtime errors
+in shared and map/mod scripts; no evidence isolates them to our GSC. The
+separate Waffle capture loaded the map, logged 20 shared-script runtime errors,
+and recovered image-streaming misses from 80/1040 to 0/1040 while GPU
+completion advanced. It does not demonstrate a GPU deadlock or justify global
+asset-pool expansion. Keep those crashes open pending a matching build and
+first-fault native/kernel evidence.
+
+Validation before packaging: 34 host regression programs, 8 console-log tests,
+and 5 project-session tests passed. These are source/host checks, not PS5
+stability validation. The dev.53 debug SPRX built with the pinned OpenOrbis
+toolchain, passed target inspection and payload comparison, and received FTP
+`226 Data transfer complete` at `/data/nexHEN/plugins`. It was not read back
+from the console; gameplay validation remains pending.
+
 Current candidate: dev.52 adds a frontend Lua-error containment guard after the
 dev.51 PS5 capture showed a third-party menu exception followed by our own
 compatibility scripts entering that failed UI state. It retains the selected
