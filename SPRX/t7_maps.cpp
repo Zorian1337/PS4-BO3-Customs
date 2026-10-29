@@ -91,6 +91,9 @@ constexpr uintptr_t kStreamDone     = 0x8FD66BE;
 constexpr uintptr_t kStreamPending  = 0xD32AB84;
 constexpr uintptr_t kStreamOverride = 0xD3EA37C;
 constexpr int32_t   kVarInteger     = 7;
+constexpr int32_t   kImageAsset     = 9;
+constexpr uint32_t  kImageEntrySize = 304;
+constexpr uint32_t  kImagePoolLimit = 45979;
 constexpr uint64_t  kTextureWaitUs  = 180000000;
 constexpr uintptr_t kPartsRequired   = 0x8F17580;
 constexpr uintptr_t kPartsInMemory   = 0x8F0C180;
@@ -101,7 +104,7 @@ constexpr int       kMeshWords       = 1024;
 #ifdef _DEBUG
 constexpr uintptr_t kStreamLevelLoad = 0x8FD66BD;
 constexpr uintptr_t kImagePool       = 0x45863A0;
-constexpr uint64_t  kImagePoolSize   = 45979;
+constexpr uint64_t  kImagePoolSize   = kImagePoolLimit;
 constexpr uintptr_t kPartsWanted     = 0x8F22980;
 constexpr uintptr_t kMeshWanted      = 0x8F50580;
 constexpr uintptr_t kSoundLoaded     = 0xD4B147C;
@@ -648,6 +651,7 @@ static PoolGrowth g_poolGrowth[] =
     { 6, "material", 664, 19712, 0 },
     { 7, "computeshaderset", 24, 256, 0 },
     { 8, "techset", 112, 1024, 0 },
+    { kImageAsset, "image", kImageEntrySize, kImagePoolLimit, 0 },
     { 10, "sound", 139440, 32, 0 },
     { 11, "sound_patch", 24, 16, 0 },
     { 12, "col_map", 720, 2, 0 },
@@ -1966,7 +1970,12 @@ static void GrowPool(int32_t type)
 
     AssetPool* const pool = (AssetPool*)(g_base + kAssetPools + sizeof(AssetPool) * (uintptr_t)type);
     if (pool->free || pool->single || pool->size != growth->size)
+    {
+        if (type == kImageAsset && !pool->free && !growth->capped.exchange(true, std::memory_order_acq_rel))
+            T7Log_Write("[Pools] image growth disabled: runtime layout is size=%u, limit=%u, single=%u; expected size=%u, limit=%u",
+                        pool->size, pool->limit, pool->single, growth->size, growth->limit);
         return;
+    }
 
     // Serialization prevents two asset loaders from creating independent
     // chains and then overwriting each other's pool->free pointer.
@@ -1986,7 +1995,11 @@ static void GrowPool(int32_t type)
     const bool extraRoom = type == kScriptParseTree || type == kRawFileAsset || type == 22 || type == 69;
     const uint32_t multiplier = extraRoom ? 2u : 1u;
     const uint32_t ordinary = growth->limit < kPoolExtraMin ? kPoolExtraMin : growth->limit;
-    const uint32_t most = ordinary > UINT32_MAX / multiplier ? UINT32_MAX : ordinary * multiplier;
+    const uint32_t ordinaryCap = ordinary > UINT32_MAX / multiplier ? UINT32_MAX : ordinary * multiplier;
+    // Images are referenced by BO3's fixed contiguous streaming bit tables.
+    // Their overflow entries are free-list allocations, not part of that
+    // table, so keep growth bounded and leave diagnostics on the stock range.
+    const uint32_t most = type == kImageAsset ? ordinary / 4u : ordinaryCap;
     if (pool->free || pool->single || pool->size != growth->size ||
         (uint64_t)pool->limit != (uint64_t)growth->limit + growth->grown)
         return;
@@ -1996,7 +2009,8 @@ static void GrowPool(int32_t type)
         if (!growth->capped)
         {
             growth->capped = true;
-            T7Log_Write("[Pools] the %s pool is full again at %u and has already been doubled", growth->name, pool->limit);
+            T7Log_Write("[Pools] the %s pool is full again at %u and reached its bounded growth cap (+%u entries)",
+                        growth->name, pool->limit, growth->grown);
         }
 
         return;

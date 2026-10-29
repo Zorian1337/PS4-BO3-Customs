@@ -17,7 +17,8 @@ fixture = r'''
 #include <future>
 #include <thread>
 #include <vector>
-constexpr int kScriptParseTree=54, kRawFileAsset=47;
+constexpr int kScriptParseTree=54, kRawFileAsset=47, kImageAsset=9;
+constexpr uint32_t kImageEntrySize=304, kImagePoolLimit=45979;
 constexpr uintptr_t kAssetPools=0;
 ''' + records + r'''
 static AssetPool nativePools[103]{};
@@ -46,7 +47,9 @@ int main() {
         nativePools[entry.type].limit=entry.limit;
     }
     auto* material=GrowthFor(6);
-    assert(material && material->size==664 && !GrowthFor(4) && !GrowthFor(9));
+    auto* image=GrowthFor(kImageAsset);
+    assert(material && material->size==664 && !GrowthFor(4));
+    assert(image && image->size==304 && image->limit==45979);
     auto& pool=nativePools[6];
 
     // The ordinary nonexhausted asset-link path must not wait for the grow lock.
@@ -72,8 +75,44 @@ int main() {
     assert(!node);
     GrowPool(6); assert(allocations==1); // Existing free entries are reused.
 
+    // Images only grow after exhaustion, use the verified entry layout, and
+    // stay within a bounded reserve because streaming diagnostics use a fixed
+    // contiguous image table. Check the production free-list construction.
+    auto& imagePool=nativePools[kImageAsset];
+    imagePool.size=kImageEntrySize-1;
+    GrowPool(kImageAsset);
+    assert(allocations==1 && image->capped.load()); // Unknown layouts must fail closed.
+    image->capped=false;
+    imagePool.size=kImageEntrySize;
+    const size_t imageBlock=blocks.size();
+    GrowPool(kImageAsset);
+    assert(allocations==2 && image->grown>0 && image->grown<=image->limit/8);
+    assert(imagePool.limit==image->limit+image->grown && imagePool.free);
+    node=imagePool.free;
+    for(unsigned i=0;i<image->grown;++i) {
+        assert(node && node>=reinterpret_cast<uintptr_t>(blocks[imageBlock]));
+        assert(node-reinterpret_cast<uintptr_t>(blocks[imageBlock])==size_t(i)*image->size);
+        node=*reinterpret_cast<uintptr_t*>(node);
+    }
+    assert(!node);
+    GrowPool(kImageAsset); assert(allocations==2); // The added list is reused.
+    // Simulate each block being consumed; each synchronous allocation remains
+    // within the production 1 MiB batch limit until the 25% cap is reached.
+    while(image->grown<image->limit/4) {
+        imagePool.free=0;
+        const auto previous=allocations.load();
+        GrowPool(kImageAsset);
+        assert(allocations==previous+1);
+    }
+    const auto imageAllocations=allocations.load();
+    assert(image->grown==image->limit/4);
+    imagePool.free=0; // The reserve cap must not cause a repeated mmap storm.
+    GrowPool(kImageAsset);
+    assert(allocations==imageAllocations && image->capped.load());
+
     // Many workers race against a failed expansion. One failure must cap the
     // pool and every other worker must see it without another mmap attempt.
+    const auto beforeFailedGrowth=allocations.load();
     failAllocation=true;
     std::atomic<bool> start{false};
     std::vector<std::thread> workers;
@@ -83,7 +122,7 @@ int main() {
     });
     start.store(true,std::memory_order_release);
     for(auto& worker:workers) worker.join();
-    assert(allocations==2 && GrowthFor(22)->capped.load());
+    assert(allocations==beforeFailedGrowth+1 && GrowthFor(22)->capped.load());
     assert(!nativePools[22].free && nativePools[22].limit==GrowthFor(22)->limit);
     // Budget exhaustion must cap the pool without repeated allocation work.
     failAllocation=false;
@@ -94,7 +133,7 @@ int main() {
     for(unsigned i=0;i<1000;++i) GrowPool(69);
     assert(allocations==attempts);
     for(void* block:blocks) std::free(block);
-    std::puts("PASS: production pool initialization/free list, nonblocking normal path and concurrent allocation-failure cap");
+    std::puts("PASS: production pool initialization/free list, bounded image reserve, nonblocking normal path and concurrent allocation-failure cap");
 }
 '''
 with tempfile.TemporaryDirectory(prefix="bo3-pool-growth-") as directory:

@@ -3,11 +3,10 @@
 Updated 2026-10-29. Reviewed source is consolidated on `main`. No new SPRX
 build or release was created in this review.
 
-Current priority: [2026-10-29 frontend/map-start investigation](INVESTIGATION-2026-10-29.md).
-The menu wrapper now contains exceptions thrown by the stock lobby-button
-builder. The camo crash and custom-map startup crash remain unconfirmed and
-unresolved runtime targets; no SPRX change or console build was made for them.
-Issue #23 remains a separate investigation; see [its handoff](INVESTIGATION-23.md).
+Current priority: investigate the dev.50 multi-mod native crash below. The
+frontend callback containment is a separate source correction; the camo and
+custom-map startup crashes remain unconfirmed. Issue #23 remains separate; see
+[its handoff](INVESTIGATION-23.md).
 
 ## Frontend and custom-map review (2026-10-29)
 
@@ -28,6 +27,32 @@ Issue #23 remains a separate investigation; see [its handoff](INVESTIGATION-23.m
   need hardware logs.
 
 See [the sanitized investigation and continuation plan](INVESTIGATION-2026-10-29.md).
+
+## Multi-mod crash and image-pool exhaustion (dev.50, 2026-10-29)
+
+- The persistent PS5 log records a Database-thread SIGSEGV while mods were
+  loading in the frontend. Immediately beforehand, the engine reported the
+  image pool full at 45,979/45,979 as another image linked. The backtrace is in
+  the game executable, so this is strong evidence for pool exhaustion as the
+  trigger, not proof of the exact faulting engine operation.
+- Several mods were active. Their individual contribution is not isolated.
+  Earlier GSC errors are from untracked scripts and do not identify the native
+  crash cause. The `snddriverglobals` 1/1 report is not treated as exhaustion
+  without proving it is not a singleton pool.
+- The working tree adds lazy growth for image assets only when the runtime
+  entry size and initial limit match the observed BO3 1.33 layout. It limits
+  the additional reserve to 25%, allocates in the existing 1 MiB batches, and
+  uses the shared 64 MiB budget. It fails closed on a mismatched pool layout.
+  Debug streaming scans stay within the original contiguous image table because
+  overflow entries are separate free-list blocks.
+- The focused pool-growth regression passes, including the free-list, bounded
+  capacity and mismatch cases. The changed PS4 source passes an OpenOrbis-target
+  Clang syntax check. The full host suite was not run because no Lua 5.1 runtime
+  is installed in the local WSL environment.
+- This source change has not been built or validated on console. A matching
+  PS5 test is required before calling the crash fixed. If the image pool fills
+  again, capture the new growth/cap log and test the same mod stack one item at
+  a time before extending other pools.
 
 ## Evidence and present behavior
 
