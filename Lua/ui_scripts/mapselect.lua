@@ -111,7 +111,8 @@ local function CatalogKey(value)
   if type(value) ~= "string" then
     return nil
   end
-  local text = string.lower(value)
+  local text = string.gsub(value, "%^[0-9]", "")
+  text = string.lower(text)
   text = string.gsub(text, "[%c%s%p]+", "")
   return text ~= "" and text or nil
 end
@@ -120,7 +121,8 @@ local function CatalogCustom(id, info)
   local idKey = CatalogKey(id)
   local infoKeys = {}
   if type(info) == "table" then
-    for _, value in pairs({ info.id, info.mapName, info.mapname, info.name, info.title,
+    for _, value in pairs({ info.id, info.mapName, info.mapNameCaps, info.mapname, info.name, info.title,
+      info.displayName, info.mapTitle,
       info.ugc, info.publisherId, info.publisherID, info.workshopId, info.workshopID,
       info.workshop_id }) do
       local key = CatalogKey(value)
@@ -159,20 +161,32 @@ local function CanonicalCatalogId(id, info)
   for _, raw in pairs(rawIds) do
     if raw ~= nil then
       local value = tostring(raw)
+      local match = nil
       for _, map in ipairs(AllCustom()) do
         if type(map) == "table" and type(map.id) == "string" then
           for _, catalogId in pairs({ map.ugc, map.publisherId, map.publisherID,
             map.workshopId, map.workshopID, map.workshop_id }) do
             if catalogId ~= nil and tostring(catalogId) == value then
-              return map.id
+              if match ~= nil and match ~= map.id then
+                match = false
+                break
+              end
+              match = map.id
             end
           end
+          if match == false then
+            break
+          end
         end
+      end
+      if type(match) == "string" then
+        return match
       end
     end
   end
   local infoKeys = {}
-  for _, value in pairs({ id, info.id, info.mapName, info.mapname, info.name, info.title,
+  for _, value in pairs({ id, info.id, info.mapName, info.mapNameCaps, info.mapname, info.name, info.title,
+    info.displayName, info.mapTitle,
     info.ugc, info.publisherId, info.publisherID, info.workshopId, info.workshopID,
     info.workshop_id }) do
     local key = CatalogKey(value)
@@ -180,18 +194,23 @@ local function CanonicalCatalogId(id, info)
       infoKeys[key] = true
     end
   end
+  local match = nil
   for _, map in ipairs(AllCustom()) do
     if type(map) == "table" and type(map.id) == "string" then
       for _, value in pairs({ map.id, map.name, map.title, map.ugc, map.publisherId,
         map.publisherID, map.workshopId, map.workshopID, map.workshop_id }) do
         local key = CatalogKey(value)
         if key ~= nil and infoKeys[key] then
-          return map.id
+          if match ~= nil and match ~= map.id then
+            return nil
+          end
+          match = map.id
+          break
         end
       end
     end
   end
-  return nil
+  return match
 end
 
 local function ExistingCatalogEntry(maps, map)
@@ -242,7 +261,8 @@ end
 
 local function DisplayKey(id, info)
   if type(info) == "table" then
-    for _, value in ipairs({ info.mapName, info.mapname, info.name, info.title }) do
+    for _, value in pairs({ info.mapName, info.mapNameCaps, info.mapname, info.name, info.title,
+      info.displayName, info.mapTitle }) do
       local key = CatalogKey(value)
       if key ~= nil then
         return key
@@ -297,8 +317,8 @@ local function NormalizeCatalogEntries(maps)
   end
   for id, info in pairs(maps) do
     if type(info) == "table" and CatalogCustom(id, info) then
-      -- External map menus frequently omit their custom flag. Reuse the
-      -- existing row and classify it instead of cloning it into both tabs.
+      -- Reuse the owning menu's row. Never clone it into a second list or
+      -- rewrite its display fields; title normalization is only for matching.
       info.bo3_custom = true
     end
   end
@@ -1056,7 +1076,9 @@ local function FocusedCustom(element, menu, kind, controller)
   end
   LogOnce("focused " .. kind .. tostring(id) .. tostring(from),
     "focused " .. kind .. " map " .. tostring(id) .. " (from " .. tostring(from) .. ")")
-  local map = CustomById(id)
+  local row = type(CoD.mapsTable) == "table" and CoD.mapsTable[id] or nil
+  local canonicalId = CanonicalCatalogId(id, row)
+  local map = CustomById(canonicalId or id)
   if map == nil then
     return nil
   end
@@ -1702,13 +1724,19 @@ end
 function Tabs.Refreshed()
   local pending = Tabs.pending
   Tabs.pending = nil
-  if type(Engine.GetGDTMapsTable) == "function" then
+  local externalOwner = ExternalZMOwner()
+  if not externalOwner and type(Engine.GetGDTMapsTable) == "function" then
     local ok, maps = pcall(Engine.GetGDTMapsTable)
     if ok and type(maps) == "table" then
       CoD.mapsTable = maps
     end
   end
-  EnsureCustomEntries()
+  if externalOwner then
+    NormalizeCatalogEntries(CoD.mapsTable)
+    RemoveInjectedEntries()
+  else
+    EnsureCustomEntries()
+  end
   if type(pending) ~= "table" or pending.menu == nil then
     return
   end
