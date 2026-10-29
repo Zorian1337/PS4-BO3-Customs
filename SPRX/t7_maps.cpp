@@ -92,18 +92,18 @@ constexpr uintptr_t kStreamPending  = 0xD32AB84;
 constexpr uintptr_t kStreamOverride = 0xD3EA37C;
 constexpr int32_t   kVarInteger     = 7;
 constexpr uint64_t  kTextureWaitUs  = 180000000;
+constexpr uintptr_t kPartsRequired   = 0x8F17580;
+constexpr uintptr_t kPartsInMemory   = 0x8F0C180;
+constexpr int       kPartWords       = 5748;
+constexpr uintptr_t kMeshRequired    = 0x8F44580;
+constexpr uintptr_t kMeshInMemory    = 0x8F46580;
+constexpr int       kMeshWords       = 1024;
 #ifdef _DEBUG
 constexpr uintptr_t kStreamLevelLoad = 0x8FD66BD;
 constexpr uintptr_t kImagePool       = 0x45863A0;
 constexpr uint64_t  kImagePoolSize   = 45979;
-constexpr uintptr_t kPartsRequired   = 0x8F17580;
 constexpr uintptr_t kPartsWanted     = 0x8F22980;
-constexpr uintptr_t kPartsInMemory   = 0x8F0C180;
-constexpr int       kPartWords       = 5748;
-constexpr uintptr_t kMeshRequired    = 0x8F44580;
 constexpr uintptr_t kMeshWanted      = 0x8F50580;
-constexpr uintptr_t kMeshInMemory    = 0x8F46580;
-constexpr int       kMeshWords       = 1024;
 constexpr uintptr_t kSoundLoaded     = 0xD4B147C;
 constexpr uintptr_t kSoundSlots      = 0xD48BE60;
 constexpr uintptr_t kSoundSlotSize   = 4720;
@@ -435,6 +435,7 @@ static std::atomic<bool>     g_usermapLevel{false};
 static char                  g_usermapName[kNameMax] = {};
 static std::atomic<uint64_t> g_textureWaitStart{0};
 static std::atomic<bool>     g_texturesForced{false};
+static std::atomic<uint64_t> g_textureProbeAt{0};
 static std::atomic<uint64_t> g_gateLogged{0};
 static std::atomic<uint32_t> g_gateLogs{0};
 #ifdef _DEBUG
@@ -3746,6 +3747,29 @@ static uint64_t GpuFxQueue_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4,
     return ((GpuFxQueue_t)g_gpuFxQueueOriginal)(a1, a2, a3, a4, a5, a6, a7);
 }
 
+// A streamer idle flag is not a residency guarantee for its required parts.
+// This bounded scan is only used by the timeout fallback, never native readiness.
+static bool RequiredTexturePartsResident()
+{
+    const struct { uintptr_t required, resident; int words; } tables[] = {
+        { kPartsRequired, kPartsInMemory, kPartWords },
+        { kMeshRequired, kMeshInMemory, kMeshWords },
+    };
+    for (const auto& table : tables)
+    {
+        const size_t bytes = (size_t)table.words * sizeof(uint32_t);
+        if (!RangeReadable(g_base + table.required, bytes) ||
+            !RangeReadable(g_base + table.resident, bytes))
+            return false;
+        const auto* required = (const volatile uint32_t*)(g_base + table.required);
+        const auto* resident = (const volatile uint32_t*)(g_base + table.resident);
+        for (int i = 0; i < table.words; ++i)
+            if (required[i] & ~resident[i])
+                return false;
+    }
+    return true;
+}
+
 static uint64_t TexturesLoaded_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5, uint64_t a6,
                                  double x0, double x1, double x2, double x3, double x4, double x5, double x6,
                                  double x7)
@@ -3754,6 +3778,9 @@ static uint64_t TexturesLoaded_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t
         ((Hook_t)g_texturesOriginal)(a1, a2, a3, a4, a5, a6, x0, x1, x2, x3, x4, x5, x6, x7);
 
     if (!g_usermapLevel.load(std::memory_order_relaxed))
+        return result;
+
+    if (!RangeReadable(g_base + kScrVmTop, sizeof(uintptr_t)))
         return result;
 
     const uintptr_t top = *(const uintptr_t*)(g_base + kScrVmTop);
@@ -3772,12 +3799,14 @@ static uint64_t TexturesLoaded_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t
                         (unsigned long long)((now - start) / 1000));
 
         g_textureWaitStart.store(0, std::memory_order_relaxed);
+        g_textureProbeAt.store(0, std::memory_order_relaxed);
         return result;
     }
 
-    if (!start)
+    if (!start || now < start)
     {
         g_textureWaitStart.store(now, std::memory_order_relaxed);
+        g_textureProbeAt.store(0, std::memory_order_relaxed);
         g_gateLogged.store(now, std::memory_order_relaxed);
         g_gateLogs.store(0, std::memory_order_relaxed);
         return result;
@@ -3808,10 +3837,29 @@ static uint64_t TexturesLoaded_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t
     // Never declare a custom level ready while the stream subsystem still
     // reports pending work. It can strand the renderer on incomplete lighting
     // and texture resources and turn a loading delay into a GPU-frame stall.
+    if (!RangeReadable(g_base + kStreamPending, sizeof(int32_t)) ||
+        !RangeReadable(g_base + kStreamStarted, 1) || !RangeReadable(g_base + kStreamDone, 1))
+        return result;
     const int32_t pending = *(const volatile int32_t*)(g_base + kStreamPending);
     const uint8_t streamStarted = *(const volatile uint8_t*)(g_base + kStreamStarted);
     const uint8_t streamDone = *(const volatile uint8_t*)(g_base + kStreamDone);
     if (pending != 0 || !streamStarted || !streamDone)
+        return result;
+
+    const uint64_t probedAt = g_textureProbeAt.load(std::memory_order_relaxed);
+    if (probedAt && now >= probedAt && now - probedAt < 250000)
+        return result;
+    g_textureProbeAt.store(now, std::memory_order_relaxed);
+    if (!RequiredTexturePartsResident())
+        return result;
+    g_textureProbeAt.store(0, std::memory_order_relaxed);
+
+    // A level transition or newly queued stream work invalidates this observation.
+    if (g_textureWaitStart.load(std::memory_order_relaxed) != start ||
+        !g_usermapLevel.load(std::memory_order_relaxed) ||
+        *(const volatile int32_t*)(g_base + kStreamPending) != 0 ||
+        !*(const volatile uint8_t*)(g_base + kStreamStarted) ||
+        !*(const volatile uint8_t*)(g_base + kStreamDone))
         return result;
 
     *value = 1;
@@ -3819,7 +3867,7 @@ static uint64_t TexturesLoaded_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t
     if (!g_texturesForced.exchange(true, std::memory_order_relaxed))
     {
         T7Log_Write("[Stream] textures still loading after %llu s (streamer flags %u %u, pending %d, override %u) - "
-                    "the level starts and they keep streaming in",
+                    "required image/mesh parts are resident; applying the script-only fallback",
                     (unsigned long long)(kTextureWaitUs / 1000000), *(const uint8_t*)(g_base + kStreamStarted),
                     *(const uint8_t*)(g_base + kStreamDone), *(const int32_t*)(g_base + kStreamPending),
                     *(const uint8_t*)(g_base + kStreamOverride));
@@ -4293,6 +4341,7 @@ static uint64_t LoadXAssets_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4
             g_usermapLevel.store(custom, std::memory_order_release);
             g_textureWaitStart.store(0, std::memory_order_relaxed);
             g_texturesForced.store(false, std::memory_order_relaxed);
+            g_textureProbeAt.store(0, std::memory_order_relaxed);
 #ifdef _DEBUG
             g_watchLogs.store(0, std::memory_order_relaxed);
             g_heartbeatAt.store(0, std::memory_order_relaxed);

@@ -34,7 +34,54 @@ and whether a specific required resource category remains loading. Include the
 first engine error and thread stack. Without that evidence, changing GPU waits
 or marking a deadlock fixed would be speculative.
 
-## First next task: repeated menu operation
+## Work-mode GPU investigation handoff (2026-10-29)
+
+Source is based on dev.34 plus subsequent source-only changes; the installed
+candidate does not contain these changes. No new artifact was produced.
+
+| Finding | Evidence / limit | Next step |
+| --- | --- | --- |
+| Timeout could report ready with required parts absent | Production-hook fixture reproduces idle flags plus missing image/mesh bits; previous source incorrectly changes the script result to ready | New residency guard passes; verify compatible loading on hardware before claiming a runtime fix |
+| PS5 startup stall | Saved persistent log identifies dev.34; five native frames, zero linked assets, completed 5743 vs requested 5741 across repeated samples | Resolve main-thread wait with matching native identity; this is not evidence of an uncompleted requested frame |
+| PS4 gameplay compute stall | Historical capture repeats completion 243894 vs latest recorded compute job 243911 | Identify caller/shader/resource with matching native evidence and an isolated run; the cause is unconfirmed |
+| Timeout guard cannot explain that gameplay capture | Native texture readiness was recorded after approximately 36 seconds, before the 180-second fallback | Keep the native compute investigation separate; do not label the guard a cure for this incident |
+
+Implemented guard: check required image/mesh residency only after the timeout and
+idle-stream checks; reject unreadable tables, newly queued stream work and observed
+level changes. Throttle failed probes to 250 ms. Preserve native readiness, native
+call arguments/results, stock-map behavior and repeated successful fallback calls.
+No new lighting requirement or GPU completion write was introduced.
+
+Validation: thirty production-source host regression programs pass. The new test
+fails against the preceding source at the missing-required-texture assertion.
+The changed PS4 translation unit passes installed-SDK Debug and Release syntax
+checks without linking or packaging. These results do not validate BO3 scheduling
+or show that a map with permanently missing required parts can finish loading;
+the guard deliberately does not declare absent required data ready.
+
+Remaining paths, in order:
+
+1. Match the native main-thread wait and compute dispatch caller to the correct
+   executable/source. Do not reuse an offset from a binary whose hook signatures
+   do not match. Existing private analysis identified such a mismatch.
+2. Compare isolated startup and gameplay reproductions with unchanged content,
+   matching candidate/artifact identity and complete initial error/stack context.
+   Separate CPU submission stoppage, outstanding compute work and IO backlog.
+3. If the wait points to dynamic-image lifetime or frontend reentry, test that
+   exact path against repeated working cases before changing ownership/scheduling.
+4. If required resources remain absent, compare native requirement/residency bits
+   and routed input files. Repair verified resource/conversion defects rather than
+   declaring them loaded. Streamer idle flags alone do not identify the defect.
+5. Grow a pool only after observed exhaustion and verified allocator/index bounds.
+   Current startup samples do not show exhaustion of the observed major pools.
+
+Rejected actions: force completion labels, bypass GPU waits, arbitrary pool growth,
+remove content/features, or attribute a freeze to the final file in a log.
+Raw captures, kernel details, private content names and machine paths stay local.
+Chat can review this source/report; new console reproduction and native tools need
+Work access. Ask for build approval only after the next source correction is reviewed.
+
+## Menu validation still pending
 
 1. Use the matching candidate SPRX and companion `Lua/ui_scripts/mods.lua`.
 2. With one test content item, load, unload and reload three times.
@@ -78,8 +125,8 @@ use Git history for source changes and GitHub Releases for approved distribution
 
 ## Current source checks
 
-The maintained host suite contains 29 regression programs, including two C++
+The maintained host suite contains 30 regression programs, including two C++
 executables. The separate diagnostic reader and publication guard have 13 unit
 tests. The SDK header and native artifact comparisons require explicit matching
 inputs and are not silently replaced by host stubs. These checks do not establish
-console stability; the next hardware validation remains repeated menu re-entry.
+console stability; GPU/native stall and repeated menu re-entry validation remain open.
