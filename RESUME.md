@@ -1,6 +1,6 @@
 # Resume SPRX / Lua development
 
-**Active branch: `testing/dev35-debug-build`. Dev.48 base plus unbuilt source corrections; not a new release.**
+**Active branch: `testing/dev35-debug-build`. Dev.49 DEBUG candidate; not a release.**
 Native build/format checks and focused host regressions pass. Console stability,
 repeated menu switching and native crash resolution are not confirmed.
 
@@ -23,8 +23,9 @@ package inspection, demonstrated defects, alternatives and remaining validation.
 Verified source corrections isolate zone/XPAK/asset ownership per loader worker
 and restore exact temporary Lua platform flags, including frontend table replacement.
 Both regressions fail against the original source and pass after the corrections.
-All 33 host programs and 13 supporting tests pass; both changed PS4 units pass
-Debug/Release syntax validation. No new plugin was built, uploaded or released.
+All 34 host programs pass; both earlier changed PS4 units pass Debug/Release
+syntax validation. Dev.49 was built and uploaded for testing; console behavior is
+not yet confirmed.
 
 The console hang and Reaper's nil operand are **not confirmed resolved**. Preserve
 native frontend rebuilding, automatic recovery and bytecode-lifetime protection.
@@ -35,7 +36,8 @@ Latest source task: generic map catalog cleanup. Compatibility aliases now match
 catalog `displayName`/`mapTitle` fields and Customs groups aliases by canonical
 installed ID, preferring the real internal row. Regression tests pass under the
 existing Lua 5.1 runner in WSL, and all 34 registered host regression programs
-pass. No SPRX build/upload was done; console behavior still needs validation.
+pass. Dev.49 includes that Lua source and is installed on the console for
+validation; no release was created.
 
 Next: verify Standard contains only stock rows and Customs only one installed
 row per map on console. Separately, resolve the Reaper nil operand from matching
