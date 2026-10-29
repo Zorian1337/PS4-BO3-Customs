@@ -196,6 +196,14 @@ to the catalog's canonical internal map ID (for example `zm_complex`) and uses
 the canonical row for loading. The Workshop ID remains available as metadata
 for compatibility/status reporting; it is not used as the map launch target.
 
+The resolver now checks the catalog's exact `ugc`/PublisherID fields before
+comparing display text. This matters because Reaper can expose a compatibility
+row whose key is the numeric Workshop ID while its title differs from the
+installed package title. The numeric row is classified as custom, suppressed
+as a duplicate, and the canonical package ID is retained as the selectable
+entry. Title/name comparison remains only a fallback for catalogs that do not
+expose a Workshop ID.
+
 ### Numeric compatibility IDs
 
 The numeric rows are not the map's internal fastfile name. They are generated

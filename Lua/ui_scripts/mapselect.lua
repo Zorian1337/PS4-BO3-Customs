@@ -120,7 +120,9 @@ local function CatalogCustom(id, info)
   local idKey = CatalogKey(id)
   local infoKeys = {}
   if type(info) == "table" then
-    for _, value in ipairs({ info.id, info.mapName, info.mapname, info.name, info.title }) do
+    for _, value in pairs({ info.id, info.mapName, info.mapname, info.name, info.title,
+      info.ugc, info.publisherId, info.publisherID, info.workshopId, info.workshopID,
+      info.workshop_id }) do
       local key = CatalogKey(value)
       if key ~= nil then
         infoKeys[key] = true
@@ -133,9 +135,10 @@ local function CatalogCustom(id, info)
       if idKey ~= nil and mapKey ~= nil and idKey == mapKey then
         return true
       end
-      for _, value in ipairs({ map.id, map.name, map.title }) do
+      for _, value in pairs({ map.id, map.name, map.title, map.ugc, map.publisherId,
+        map.publisherID, map.workshopId, map.workshopID, map.workshop_id }) do
         local key = CatalogKey(value)
-        if key ~= nil and infoKeys[key] then
+        if key ~= nil and (infoKeys[key] or key == idKey) then
           return true
         end
       end
@@ -148,8 +151,30 @@ local function CanonicalCatalogId(id, info)
   if type(info) ~= "table" then
     return nil
   end
+  -- Reaper-style catalogs commonly key a compatibility row by the Workshop
+  -- PublisherID. Resolve that exact identifier before falling back to title
+  -- matching; titles are not stable enough to be a load target.
+  local rawIds = { id, info.id, info.ugc, info.publisherId, info.publisherID,
+    info.workshopId, info.workshopID, info.workshop_id }
+  for _, raw in pairs(rawIds) do
+    if raw ~= nil then
+      local value = tostring(raw)
+      for _, map in ipairs(AllCustom()) do
+        if type(map) == "table" and type(map.id) == "string" then
+          for _, catalogId in pairs({ map.ugc, map.publisherId, map.publisherID,
+            map.workshopId, map.workshopID, map.workshop_id }) do
+            if catalogId ~= nil and tostring(catalogId) == value then
+              return map.id
+            end
+          end
+        end
+      end
+    end
+  end
   local infoKeys = {}
-  for _, value in ipairs({ id, info.id, info.mapName, info.mapname, info.name, info.title }) do
+  for _, value in pairs({ id, info.id, info.mapName, info.mapname, info.name, info.title,
+    info.ugc, info.publisherId, info.publisherID, info.workshopId, info.workshopID,
+    info.workshop_id }) do
     local key = CatalogKey(value)
     if key ~= nil then
       infoKeys[key] = true
@@ -157,7 +182,8 @@ local function CanonicalCatalogId(id, info)
   end
   for _, map in ipairs(AllCustom()) do
     if type(map) == "table" and type(map.id) == "string" then
-      for _, value in ipairs({ map.id, map.name, map.title }) do
+      for _, value in pairs({ map.id, map.name, map.title, map.ugc, map.publisherId,
+        map.publisherID, map.workshopId, map.workshopID, map.workshop_id }) do
         local key = CatalogKey(value)
         if key ~= nil and infoKeys[key] then
           return map.id
@@ -173,7 +199,7 @@ local function ExistingCatalogEntry(maps, map)
     return nil
   end
   local wanted = {}
-  for _, value in ipairs({ map.id, map.name, map.title }) do
+  for _, value in pairs({ map.id, map.name, map.title }) do
     local key = CatalogKey(value)
     if key ~= nil then
       wanted[key] = true
@@ -181,7 +207,7 @@ local function ExistingCatalogEntry(maps, map)
   end
   for id, info in pairs(maps) do
     if type(info) == "table" then
-      for _, value in ipairs({ id, info.id, info.mapName, info.mapname, info.name, info.title }) do
+      for _, value in pairs({ id, info.id, info.mapName, info.mapname, info.name, info.title }) do
         local key = CatalogKey(value)
         if key ~= nil and wanted[key] then
           return info
