@@ -7,6 +7,12 @@ import tempfile
 
 root = Path(__file__).resolve().parents[1]
 source = (root / "t7_maps.cpp").read_text(encoding="utf-8")
+blob_counter = source[source.index("static void CountBlobs("):source.index("static void LogBlobs(")]
+assert "if (state >= 3)" in blob_counter
+stream_gate = source[source.index("static void LogStreamGate("):source.index("static const char* ScriptStringArgument(")]
+assert "if (state >= 3)" in stream_gate
+assert "lighting still loading (resident/total)" in source
+
 # A stale blob handle must never be dereferenced just because it looks like a
 # user-space address; keep the stream diagnostics crash-safe.
 stream_report = source[source.index("static void LogStreamGate("):source.index("static const char* ScriptStringArgument(")]
@@ -132,7 +138,9 @@ int main() {
     auto sample=ReadGpuProgress();
     assert(sample.frameValid && sample.completed==7 && sample.wanted==8 && sample.building==9);
     assert(sample.resourcesValid && sample.images==4 && sample.missingImages==3 && sample.meshes==3 && sample.missingMeshes==1);
-    assert(sample.blobs==2 && sample.missingBlobs==1 && sample.pending==3 && sample.sound==0.75f);
+    assert(sample.blobs==2 && sample.missingBlobs==2 && sample.pending==3 && sample.sound==0.75f);
+    assert(sample.blobTotalByKind[0]==1 && sample.blobResidentByKind[0]==0);
+    assert(sample.blobTotalByKind[4]==1 && sample.blobResidentByKind[4]==0);
     GpuLevelContext level{}; level.started=1000000; strcpy(level.map,"zm_test"); level.mods=1; strcpy(level.names[0],"test_mod");
     assert(g_gpuLevelContext.TryPush(level));
     unsigned char before[sizeof(memory)]; memcpy(before,memory,sizeof(memory));
