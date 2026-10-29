@@ -1,6 +1,6 @@
 # Resume SPRX / Lua development
 
-**Active branch: `testing/dev35-debug-build`. Dev.49 plugin plus newer, unuploaded companion Lua; not a release.**
+**Active branch: `testing/dev35-debug-build`. Dev.49 plugin plus updated companion Lua uploaded for testing; not a release.**
 Native build/format checks and focused host regressions pass. Console stability,
 repeated menu switching and native crash resolution are not confirmed.
 
@@ -42,11 +42,11 @@ control retains ownership; otherwise shared tabs drive its original MapList.
 
 All 34 host regressions passed, with focused checks repeated after the final Lua
 cleanup. Restoring the old bypass makes the provider-row regression fail. The
-new correction is source-only and is not yet on the console; dev.49 there still
-has the older Lua. No native SPRX changes or new build were needed for this fix.
+new companion Lua was subsequently uploaded and verified byte-for-byte against
+source commit `8f9e31d`. No native SPRX changes or new build were needed.
 
-Next: with deployment approval, upload the updated `Lua/ui_scripts/mapselect.lua`
-and test the existing dev.49 plugin. Check Standard/Customs, colored aliases,
+Next: test the updated `Lua/ui_scripts/mapselect.lua` with the existing dev.49
+plugin. Check Standard/Customs, colored aliases,
 selection, repeat opens and refreshes. The MapSelect trace now reports the input
 and final row counts. Separately, resolve the Reaper nil operand from matching
 bytecode/debug evidence and review post-unload globals/module ownership. Do not

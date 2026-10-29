@@ -305,5 +305,6 @@ a provider that appends rows independently of the map table, checks colors and
 different IDs, every ordering of a three-row bridge, callbacks/metadata, repeated
 preparation/reopening, category ownership, playlist bypass, and error restoration.
 An in-memory negative control restoring the unfiltered provider return fails at
-the Standard-category assertion. No SPRX was built or console Lua uploaded for
-this source correction; real frontend validation is still required.
+the Standard-category assertion. Following approval, the companion Lua was
+uploaded and verified byte-for-byte against source commit `8f9e31d`, using the
+existing dev.49 plugin. No SPRX rebuild was needed; frontend validation remains.
