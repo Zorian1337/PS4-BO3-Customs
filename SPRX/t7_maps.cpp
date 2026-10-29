@@ -2718,6 +2718,10 @@ static void LogBlobs(uint64_t seconds)
                 (uint32_t)(*(const uint64_t*)(g_base + kBlobMegabytes + 16) >> 20),
                 (uint32_t)(*(const uint64_t*)(g_base + kBlobMegabytes + 32) >> 20));
 
+    // Limit synchronous diagnostic output; some maps contain hundreds of
+    // lighting blob records. Preserve totals without dumping each record.
+    constexpr int kMaxLoggedBlobs = 24;
+    int logged = 0, omitted = 0;
     for (int i = 0; i < kStreamBlobCount; ++i)
     {
         const uintptr_t entry = g_base + kStreamBlobs + 56 * (uintptr_t)i;
@@ -2725,6 +2729,12 @@ static void LogBlobs(uint64_t seconds)
 
         if (!state)
             continue;
+        if (logged >= kMaxLoggedBlobs)
+        {
+            ++omitted;
+            continue;
+        }
+        ++logged;
 
         const uint32_t category = *(const uint8_t*)(entry + 37) < 5 ? *(const uint8_t*)(entry + 37) : 3;
         const uintptr_t item = *(const uintptr_t*)(entry + 48);
@@ -2751,6 +2761,8 @@ static void LogBlobs(uint64_t seconds)
                     *(const uint32_t*)entry, *(const uint32_t*)(entry + 4), (unsigned long long)*(const uint64_t*)(entry + 40),
                     known ? raw : "?");
     }
+    if (omitted)
+        T7Log_Write("[Blobs] %d additional active blob records omitted from bounded diagnostic dump", omitted);
 }
 
 static void NoteDroppedSpawner(uint64_t element, uint32_t time, int32_t asked)
