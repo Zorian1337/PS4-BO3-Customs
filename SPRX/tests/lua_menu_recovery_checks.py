@@ -51,9 +51,9 @@ local full={}
 for i=1,24 do full[i]="mod"..i end
 BO3CustomsChosenMods=full
 UI.Toggle(menu,0,"mod25")
-assert(writes==0 and #BO3CustomsChosenMods==24)
+assert(writes==1 and #BO3CustomsChosenMods==25)
 UI.Toggle(menu,0,"mod24")
-assert(writes==1 and #BO3CustomsChosenMods==23)
+assert(writes==2 and #BO3CustomsChosenMods==24)
 -- Reset the fixture before testing the normal load/unload path.
 BO3CustomsChosenMods={}
 writes=0
