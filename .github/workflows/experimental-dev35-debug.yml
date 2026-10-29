@@ -64,21 +64,28 @@ jobs:
               assert len(names) == len(set(n.casefold() for n in names)), "Duplicate console files"
               assert all(n.startswith("BO3-Customs/") and ".." not in pathlib.PurePosixPath(n).parts for n in names), "Unexpected console layout"
               assert set(updates).issubset(names), "Missing editable Lua in baseline"
-              native = [n for n in names if n.endswith(".sprx")]
-              assert len(native) == 1 and native[0].startswith("BO3-Customs/") and pathlib.PurePosixPath(native[0]).name.lower().startswith("bo3-customs"), "Unexpected native layout: " + repr(native)
-              print("Replacing baseline SPRX at:", native[0])
+              native = [n for n in names if n.lower().endswith(".sprx")]
+              assert len(native) == 1 and native[0].startswith("BO3-Customs/") and pathlib.PurePosixPath(native[0]).name.lower().startswith("bo3-customs"), "Unexpected baseline native layout: " + repr(native)
+              new_native = "BO3-Customs/BO3-Customs-v4.00.1-dev.35-DEBUG.sprx"
+              assert new_native not in names or new_native == native[0], "New SPRX filename already exists in baseline"
+              print("Replacing obsolete baseline SPRX:", native[0], "with", new_native)
               compiled = [n for n in names if n.startswith("BO3-Customs/lui/") and n.endswith(".lua")]
               assert len(compiled) == 39, "Compiled LUI inventory mismatch"
               editable = [n for n in names if n.startswith("BO3-Customs/ui_scripts/") and n.endswith(".lua")]
               assert len(editable) == 7, "Editable Lua inventory mismatch"
-              updates[native[0]] = sprx
               with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as output:
                   for entry in entries:
                       name = entry.filename.replace("\\", "/")
+                      if name == native[0]:
+                          continue  # Never ship the old dev.26 filename or binary.
                       output.writestr(name, updates.get(name, original.read(entry)))
+                  output.writestr(new_native, sprx)
           with zipfile.ZipFile(target) as check:
               assert check.testzip() is None, "Console.zip CRC failure"
-              assert check.read(native[0]) == sprx, "ZIP SPRX differs from standalone"
+              packaged_native = [n for n in check.namelist() if n.lower().endswith(".sprx")]
+              assert packaged_native == [new_native], "Console.zip must contain exactly the current dev.35 SPRX: " + repr(packaged_native)
+              assert check.read(new_native) == sprx, "ZIP SPRX differs from standalone"
+              assert hashlib.sha256(check.read(new_native)).hexdigest() == report["sprx_sha256"], "Packaged SPRX hash differs from validated build"
               for name, data in updates.items():
                   assert check.read(name) == data, "Console.zip missing updated " + name
               assert len([n for n in check.namelist() if n.startswith("BO3-Customs/lui/") and n.endswith(".lua")]) == 39
@@ -102,7 +109,7 @@ jobs:
 
           Close BO3. Download [Console.zip]($RELEASE_BASE/Console.zip) and merge its \`BO3-Customs/lui/\` and \`BO3-Customs/ui_scripts/\` folders into \`/data/BO3-Customs/\`. Install \`BO3-Customs-v4.00.1-dev.35-DEBUG.sprx\` in your loader's configured plugin directory, enable only one Customs plugin, then fully restart BO3.
 
-          The ZIP contains the existing \`BO3-Customs\` companion layout with both Lua folders and an SPRX matching the [standalone download]($RELEASE_BASE/BO3-Customs-v4.00.1-dev.35-DEBUG.sprx). All 39 precompiled LUI files and seven editable UI scripts are retained, including updated \`mods.lua\` and \`mapselect.lua\`. Back up your previously working console files and SPRX before testing.
+          The ZIP contains the existing \`BO3-Customs\` companion layout with both Lua folders and the newly named \`BO3-Customs-v4.00.1-dev.35-DEBUG.sprx\` matching the [standalone download]($RELEASE_BASE/BO3-Customs-v4.00.1-dev.35-DEBUG.sprx). All 39 precompiled LUI files and seven editable UI scripts are retained, including updated \`mods.lua\` and \`mapselect.lua\`. Back up your previously working console files and SPRX before testing.
 
           ## What's new
 
