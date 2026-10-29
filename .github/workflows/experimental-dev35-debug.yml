@@ -5,6 +5,7 @@ on:
     branches: [testing/dev35-debug-build]
     paths:
       - '.github/workflows/experimental-dev35-debug.yml'
+      - '.github/scripts/run_host_checks.py'
   workflow_dispatch:
 
 permissions:
