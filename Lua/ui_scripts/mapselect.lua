@@ -1721,14 +1721,41 @@ local function RefreshMultiplayer(menu, controller)
   end
 end
 
+local function RefreshOwnedMapTable(current, refreshed)
+  if type(current) ~= "table" or type(refreshed) ~= "table" then
+    return false
+  end
+  local external = {}
+  for id, info in pairs(current) do
+    if Tabs.injectedMaps[id] ~= info and type(info) == "table" and CatalogCustom(id, info) then
+      external[id] = info
+    end
+  end
+  for id in pairs(current) do
+    current[id] = nil
+  end
+  for id, info in pairs(refreshed) do
+    current[id] = info
+  end
+  for id, info in pairs(external) do
+    current[id] = info
+  end
+  return true
+end
+
 function Tabs.Refreshed()
   local pending = Tabs.pending
   Tabs.pending = nil
   local externalOwner = ExternalZMOwner()
-  if not externalOwner and type(Engine.GetGDTMapsTable) == "function" then
+  if type(Engine.GetGDTMapsTable) == "function" then
     local ok, maps = pcall(Engine.GetGDTMapsTable)
     if ok and type(maps) == "table" then
-      CoD.mapsTable = maps
+      if externalOwner and RefreshOwnedMapTable(CoD.mapsTable, maps) then
+        -- Keep the table object used by the owning menu; other mods may hold
+        -- references to it while native map metadata is refreshed.
+      else
+        CoD.mapsTable = maps
+      end
     end
   end
   if externalOwner then

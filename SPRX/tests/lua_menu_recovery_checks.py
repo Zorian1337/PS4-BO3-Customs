@@ -159,6 +159,9 @@ local function Zombies() return 0 end
 local function ExternalZMOwner() return owned end
 local function LogOnce() end
 local function EnsureCustomEntries() end
+-- PrepareZMMaps calls the catalog normalizer in production; this fixture is
+-- testing ownership/table preservation and intentionally supplies no catalog.
+local function NormalizeCatalogEntries() end
 local PrepareCategories,PrepareMaps=function(p,c,l) return p(c,l) end,function(p,c,l) return p(c,l) end
 CoD={mapsTable={
   zm_good={session_mode=0,dlc_pack=0,unique_id=1,mapName="Good"},
