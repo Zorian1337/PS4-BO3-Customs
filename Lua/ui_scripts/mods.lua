@@ -480,7 +480,14 @@ function UI.Choose(menu, controller, name)
   UI.controller = Controller(controller)
   UI.pending = { menu = menu, controller = Controller(controller) }
   Log("chose " .. tostring(name) .. " (controller " .. type(controller) .. ")")
-  engine.SetDvar("bo3customs_mod", name)
+  local ok, err = pcall(engine.SetDvar, "bo3customs_mod", name)
+  if not ok then
+    UI.pending = nil
+    Log("selection request failed: " .. tostring(err))
+    UI.SetStatus("Unable to update mod selection. Your previous selection is unchanged.")
+    return false
+  end
+  return true
 end
 
 function UI.SetChosen(list)
@@ -507,8 +514,9 @@ function UI.Toggle(menu, controller, folder)
   if not removed then
     table.insert(list, folder)
   end
-  UI.Choose(menu, controller, #list > 0 and table.concat(list, ",") or "!off")
-  UI.SetChosen(list)
+  if UI.Choose(menu, controller, #list > 0 and table.concat(list, ",") or "!off") then
+    UI.SetChosen(list)
+  end
 end
 
 function UI.Unload(menu, controller)
@@ -517,8 +525,9 @@ function UI.Unload(menu, controller)
     return
   end
   -- Queue recovery before refreshing widgets supplied by the active mod.
-  UI.Choose(menu, controller, "!off")
-  UI.SetChosen({})
+  if UI.Choose(menu, controller, "!off") then
+    UI.SetChosen({})
+  end
 end
 
 function UI.Open(menu, controller, page)
