@@ -108,7 +108,15 @@ local function TitleOf(map)
 end
 
 local function IsCustom(info)
-  return type(info) == "table" and info.bo3_custom == true
+  if type(info) ~= "table" then
+    return false
+  end
+  -- Catalog producers use different names for the same user-map flag. Keep
+  -- the category split data-driven and independent of any particular mod.
+  return info.bo3_custom == true or info.isCustom == true or info.is_custom == true or
+    info.isModMap == true or info.is_mod_map == true or info.isUserMap == true or
+    info.is_user_map == true or info.userMap == true or info.user_map == true or
+    info.mapType == "custom" or info.map_type == "custom"
 end
 
 local function Template(maps, mode)

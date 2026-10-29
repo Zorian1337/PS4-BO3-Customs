@@ -7238,35 +7238,20 @@ bool T7Maps_MenusBroken()
         return false;
     }
 
-    char names[kMaxStack][kNameMax];
-    int count = 0;
-
-    for (int i = 0; i < g_chosenCount; ++i)
-    {
-        if (!EqualsNoCase(g_chosen[i], name))
-            snprintf(names[count++], kNameMax, "%s", g_chosen[i]);
-    }
-
-    if (!WriteChosenMods(names, count))
-        T7Log_Write("[Mods] the choice could not be saved to %s", k_chosenModFile);
-
-    g_chosenCount = count;
-
-    for (int i = 0; i < count; ++i)
-        snprintf(g_chosen[i], kNameMax, "%s", names[i]);
-
     const int found = FindMod(name);
-    snprintf(g_modNotice, sizeof(g_modNotice), "%s is off: its menus did not load on this console.",
+    snprintf(g_modNotice, sizeof(g_modNotice), "%s menus did not finish loading; selection was preserved.",
              found >= 0 ? g_mods[found].title : name);
 
-    T7Log_Write("[Mods] the menus did not build with %s loaded%s; it is unticked and unloads now", name,
+    // A missing main menu is not proof that the selected mod is the cause.
+    // Third-party frontends can throw while rebuilding and recover on a later
+    // state; deleting the user's complete stack here made recovery impossible
+    // and could strand a mod after a transient UI error. Keep the selection
+    // intact and leave an explicit manual-disable path instead.
+    T7Log_Write("[Mods] the menus did not build with %s loaded%s; preserving the selected stack", name,
                 IsDllMod(name) ? " (it loads T7Overcharged, a Windows DLL)" : "");
     Notify("BO3 Customs\n%s", g_modNotice);
-
     g_reloadHeld = false;
-    g_modsLuaDirty.store(true);
-    g_applyWanted.store(true);
-    return true;
+    return false;
 }
 
 void T7Maps_FrameWork()

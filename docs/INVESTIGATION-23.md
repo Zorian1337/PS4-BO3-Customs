@@ -169,3 +169,12 @@ The original log files remain outside the repository. The next validation should
 run the same selected stack with only this menu-apply change, then repeat with
 each third-party mod isolated. A new binary/package is not implied by this source
 commit and still requires an explicit build request.
+
+The later Reaper capture showed UI errors 24280/21544 followed by the generic
+menu probe treating the missing `main` constructor as proof that the selected
+mod was bad. The recovery path now preserves the selected stack instead of
+silently deleting it; the user can manually disable a failed frontend. This is
+deliberately generic and does not claim that a third-party Lua error is fixed.
+Catalog classification also recognizes common user-map flags (`isCustom`,
+`isModMap`, `isUserMap` and snake-case variants), keeping those rows in the
+custom category rather than the standard category.
