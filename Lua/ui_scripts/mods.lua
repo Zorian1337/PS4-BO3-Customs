@@ -500,7 +500,8 @@ end
 function UI.Toggle(menu, controller, folder)
   -- Native selection uses comma-separated folder names. Reject malformed
   -- catalog entries before they can alter the user's selected mod stack.
-  if type(folder) ~= "string" or folder == "" or string.find(folder, ",", 1, true) then
+  if type(folder) ~= "string" or folder == "" or #folder >= 56 or
+      string.find(folder, ",", 1, true) then
     return
   end
   if type(rawget(_G, "BO3CustomsSessionMods")) == "table" then
@@ -517,6 +518,12 @@ function UI.Toggle(menu, controller, folder)
     end
   end
   if not removed then
+    -- Match the native loader's 24-mod stack limit instead of sending a
+    -- request that it will silently truncate to a different selection.
+    if #list >= 24 then
+      UI.SetStatus("The mod stack is full (24 mods). Untick one before adding another.")
+      return
+    end
     table.insert(list, folder)
   end
   if UI.Choose(menu, controller, #list > 0 and table.concat(list, ",") or "!off") then
