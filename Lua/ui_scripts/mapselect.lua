@@ -1236,6 +1236,23 @@ local function StockMaps()
   return stock
 end
 
+-- Some mods replace the stock ZM menu but still use the engine map table.
+-- Supplying that menu with stock-only data makes custom maps impossible to
+-- select. Keep the old stock fallback when no custom entry exists, but expose
+-- the complete table when the console has custom maps available.
+local function MapsForOwnedZM()
+  local maps = CoD.mapsTable
+  if type(maps) ~= "table" then
+    return maps
+  end
+  for _, info in pairs(maps) do
+    if IsCustom(info) then
+      return maps
+    end
+  end
+  return StockMaps()
+end
+
 local function BuildWith(maps, prepare, ...)
   local full = CoD.mapsTable
   CoD.mapsTable = maps
@@ -1256,8 +1273,8 @@ local function WrapMapsList()
   source.bo3Wrapped = true
   source.prepare = function(controller, ...)
     if type(CoD.mapsTable) == "table" and ModOwns(ZMMenuFile) then
-      LogOnce("zm owned", "a loaded mod has its own zm map menu; custom maps are left to it")
-      return BuildWith(StockMaps(), prepare, controller, ...)
+      LogOnce("zm owned", "a loaded mod has its own zm map menu; exposing the complete map table")
+      return BuildWith(MapsForOwnedZM(), prepare, controller, ...)
     end
     if type(controller) ~= "number" or Choosing(controller) or type(CoD.mapsTable) ~= "table" then
       return prepare(controller, ...)
@@ -1642,8 +1659,8 @@ local function PrepareZMMaps(prepare, controller, list)
   if type(CoD.mapsTable) ~= "table" or not ModOwns(ZMMenuFile) then
     return prepare(controller, list)
   end
-  LogOnce("zm owned", "a loaded mod has its own zm map menu; custom maps are left to it")
-  return BuildWith(StockMaps(), prepare, controller, list)
+  LogOnce("zm owned", "a loaded mod has its own zm map menu; exposing the complete map table")
+  return BuildWith(MapsForOwnedZM(), prepare, controller, list)
 end
 
 local function RecoveryZMMaps(controller)

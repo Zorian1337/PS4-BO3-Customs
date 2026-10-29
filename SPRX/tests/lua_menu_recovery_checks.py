@@ -159,7 +159,18 @@ local function Zombies() return 0 end
 local function ModOwns() return owned end
 local function LogOnce() end
 local ZMMenuFile="zm menu"
-local function StockMaps() return CoD.mapsTable end
+local function StockMaps()
+  if not owned then return CoD.mapsTable end
+  local stock={}
+  for id,info in pairs(CoD.mapsTable) do
+    if id~="zm_custom" then stock[id]=info end
+  end
+  return stock
+end
+local function MapsForOwnedZM()
+  if owned then return CoD.mapsTable end
+  return StockMaps()
+end
 local PrepareCategories,PrepareMaps=function(p,c,l) return p(c,l) end,function(p,c,l) return p(c,l) end
 CoD={mapsTable={
   zm_good={session_mode=0,dlc_pack=0,unique_id=1,mapName="Good"},
@@ -183,9 +194,17 @@ local full=CoD.mapsTable
 local ok=pcall(BuildWith,{},function() error("missing dependency") end)
 assert(not ok and CoD.mapsTable==full)
 local result=ListHelper_Prepare(list,0,"ZMMapsList",function() error("function expected instead of nil") end)
-assert(result=="native helper" and #list.rows==2 and CoD.mapsTable==full)
+assert(result=="native helper" and #list.rows==2 and CoD.mapsTable==full, "recovery rows mismatch")
 assert(list.rows[1].properties.mapId=="zm_good" and list.rows[2].properties.mapId=="zm_custom")
 assert(list.rows[2].models.Image=="playlist_standard" and not list.rows[2].properties.purchasable)
+owned=true
+ListHelper_Prepare(list,0,"ZMMapsList",function()
+  local count=0
+  for id in pairs(CoD.mapsTable) do if id=="zm_custom" then count=count+1 end end
+  return {customCount=count}
+end)
+assert(list.rows.customCount==1 and CoD.mapsTable==full, "owned map table did not retain custom entry")
+owned=false
 local healthy={{models={custom="keep"}}}
 ListHelper_Prepare(list,0,"ZMMapsList",function() return healthy end)
 assert(list.rows==healthy)

@@ -154,6 +154,14 @@ are logged as default fallbacks, and the GPU traces reach completion; adding GPU
 fences or enlarging pools without a matching allocation failure would risk
 deadlocks and was deliberately not done.
 
+The Reaper Collection capture provides one source-owned map-selection finding:
+`mapselect.lua` detected that the loaded mod supplied its own ZM map menu and
+replaced the map table with stock-only entries. That made custom maps
+unselectable while Reaper was active. The compatibility path now keeps the
+mod-owned menu but supplies the complete engine map table whenever custom map
+entries are present; it retains the stock-only fallback when none are present.
+This does not rewrite Reaper's menu or its scripts.
+
 The original log files remain outside the repository. The next validation should
 run the same selected stack with only this menu-apply change, then repeat with
 each third-party mod isolated. A new binary/package is not implied by this source
