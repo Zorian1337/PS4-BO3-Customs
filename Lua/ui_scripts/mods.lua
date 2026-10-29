@@ -1098,7 +1098,13 @@ local function IsMainMenuTarget(id)
   local data = rawget(_G, "LobbyData")
   local targets = type(data) == "table" and rawget(data, "UITargets") or nil
   local main = type(targets) == "table" and rawget(targets, "UI_MODESELECT") or nil
-  return type(main) == "table" and id == main.id
+  if type(main) == "table" and main.id ~= nil then
+    return id == main.id
+  end
+  -- Console frontend builds can omit UI_MODESELECT. PS5 logs show the
+  -- top-level mode-select target is 1; secondary lobbies use other IDs.
+  -- Only use this narrow fallback when the stock target is unavailable.
+  return id == 1
 end
 
 local function AddModsButton(controller, id, buttons)
