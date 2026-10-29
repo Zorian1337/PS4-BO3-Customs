@@ -37,6 +37,12 @@ public dependencies when not cached; obtain approval for needed downloads first.
 Local installed tool/cache settings stay private. Keep the Windows ORBIS project
 available; do not publish personal SDK/toolchain archives.
 
+On the fork, pushing reviewed source to `main` starts **BO3 Auto Build**. GitHub
+Actions compiles the PS4 SPRX with the pinned OpenOrbis/GoldHEN toolchain and
+builds the Windows FF Porter, then retains both as run-specific artifacts for
+14 days. A manual workflow run on `main` does the same. This does not create a
+release or upload to a console. See [build and notice setup](../.github/BO3_AUTOBUILD.md).
+
 Compile all native translation units, verify the original FSELF against the OELF,
 run malformed-container controls, compare loader metadata and bind the artifact
 to source hashes. Changes to companion Lua need a matching text/hash verification.
@@ -71,6 +77,9 @@ Keep upstream submissions to reviewed, evidenced corrections. The upstream's
 release automation is not authorization to publish a candidate from this fork.
 Approved releases use GitHub tags/assets with accurate notes and provenance;
 no stale `Releases/` directory or loose per-build patch notes should accumulate.
+The release notice workflow uses the `DISCORD_WEBHOOK_URL` repository secret
+and includes the release body and attached download links. Rotate the previously
+shared webhook before configuring that secret; never commit its URL.
 
 ## End each session
 

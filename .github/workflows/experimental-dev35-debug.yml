@@ -157,85 +157,19 @@ jobs:
               --notes-file build/candidate/RELEASE_NOTES.md --prerelease --latest=false
           fi
 
-      - name: Announce experimental candidate to Discord if webhook configured
-        # Notification delivery is external; never invalidate a verified SPRX release.
+      - name: Announce the published release in Discord
+        # This workflow creates releases with GITHUB_TOKEN, which does not
+        # trigger a second release workflow. Reuse the shared release notifier.
+        if: success()
         continue-on-error: true
         env:
+          GH_TOKEN: ${{ github.token }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          RELEASE_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/dev35-debug-experimental-${{ github.sha }}
         run: |
           if [ -z "$DISCORD_WEBHOOK_URL" ]; then
-            echo "No DISCORD_WEBHOOK_URL secret configured; release published but Discord announcement skipped."
+            echo "No DISCORD_WEBHOOK_URL secret configured; release announcement skipped."
             exit 0
           fi
-          python3 - <<'PY'
-          import json, os, time, urllib.request, urllib.error
-          from urllib.parse import urlsplit
-          from datetime import datetime, timezone
-
-          webhook = os.environ["DISCORD_WEBHOOK_URL"].strip()
-          parts = urlsplit(webhook)
-          if parts.scheme != "https" or parts.hostname not in ("discord.com", "discordapp.com") or not parts.path.startswith("/api/webhooks/"):
-              print("::warning::DISCORD_WEBHOOK_URL must be a Discord HTTPS webhook URL; announcement skipped.")
-              raise SystemExit(0)
-          release_url = os.environ["RELEASE_URL"].rsplit("-", 1)[0] + "-" + os.environ["GITHUB_SHA"][:12]
-          release_tag = "dev35-debug-experimental-" + os.environ["GITHUB_SHA"][:12]
-          download_base = "https://github.com/" + os.environ["GITHUB_REPOSITORY"] + "/releases/download/" + release_tag
-          description = (
-              "**dev.35 DEBUG** is an unofficial community experimental stabilization build based on "
-              "[Joker's v4.00 release](https://github.com/ItsJokerZz/PS4-BO3-Customs/releases/tag/v4.00). "
-              "It is not the original Joker distribution or an official replacement. "
-              "Its purpose is to improve reliability while compatibility work continues.\n\n"
-              "**Changes since v4-26:**\n\n"
-              "• **Mod selection recovery:** safer stale callbacks and mod-off UI recovery; console validation pending.\n"
-              "• **MODS entry:** main-menu-only placement and empty-catalog access.\n"
-              "• **Native validation:** malformed mod-folder names are rejected.\n"
-              "• **Lua lifetime:** retention, unload/recovery and diagnostic improvements.\n"
-              "• **GPU/streaming diagnostics:** texture-readiness timeout guard; not a confirmed stall fix.\n"
-              "• **Release packaging:** full matching Console.zip with seven editable Lua scripts, "
-              "39 compiled LUI files and identical SPRX.\n\n"
-              "**Compared with Joker v4.00:** earlier dev.21–dev.26 stabilization, external-drive Lua support, "
-              "safe file reads, map-menu recovery and GPU diagnostics remain included.\n\n"
-              "**Status:** native build and host checks passed for this candidate. "
-              "**PS4/PS5 console testing is still required.** Crashes, freezes and regressions remain possible.\n\n"
-              "**Downloads:** [Console.zip](" + download_base + "/Console.zip) "
-              "| [SPRX](" + download_base + "/BO3-Customs-v4.00.1-dev.35-DEBUG.sprx)"
-          )
-          data = json.dumps({
-              "username": "BO3 Customs Releases",
-              "embeds": [{
-                  "title": "dev.35 DEBUG - change notes",
-                  "url": release_url,
-                  "description": description,
-                  "color": 16744448,
-                  "footer": {"text": "BO3 Customs | DEBUG prerelease | Console testing required"}
-              }],
-              "allowed_mentions": {"parse": []}
-          }).encode("utf-8")
-          for attempt in range(3):
-              req = urllib.request.Request(webhook, data=data, method="POST", headers={
-                  "Content-Type": "application/json; charset=utf-8",
-                  "Accept": "application/json",
-                  "User-Agent": "BO3-Customs-ReleaseBot/1.0 (GitHub Actions)"
-              })
-              try:
-                  with urllib.request.urlopen(req, timeout=20) as response:
-                      print("Discord announcement delivered (HTTP", response.status, ")")
-                  break
-              except urllib.error.HTTPError as error:
-                  retryable = error.code in (429, 500, 502, 503, 504)
-                  if retryable and attempt < 2:
-                      retry_after = error.headers.get("Retry-After", "2")
-                      try:
-                          delay = min(15, max(1, float(retry_after)))
-                      except ValueError:
-                          delay = 2
-                      print(f"::warning::Discord returned HTTP {error.code}; retrying in {delay:g}s")
-                      time.sleep(delay)
-                      continue
-                  print(f"::warning::Discord rejected announcement (HTTP {error.code}). Check webhook URL, channel permissions or Discord network filtering. Release remains published.")
-                  break
-              except urllib.error.URLError:
-                  print("::warning::Discord webhook network failure; release remains published.")
-                  break
-          PY
+          TAG="dev35-debug-experimental-${GITHUB_SHA:0:12}"
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" > "$RUNNER_TEMP/release.json"
+          python3 .github/scripts/discord_release_webhook.py "$RUNNER_TEMP/release.json"

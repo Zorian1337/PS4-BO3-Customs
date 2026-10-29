@@ -1,8 +1,17 @@
-# BO3 Customs automatic builds and prereleases
+# BO3 Customs builds, prereleases and Discord notices
 
-Every push to `nexus/standalone-converter` starts **BO3 Auto Build**. A newer
-push cancels an older in-progress build. No game-source fixes are merged to
-`main` by this system.
+## Build from the fork's main branch
+
+Every push to `main` in `Zorian1337/PS4-BO3-Customs`, or a manual run of
+**BO3 Auto Build** on `main`, runs the host checks, Windows FF Porter build,
+and Linux OpenOrbis/GoldHEN SPRX build. The SPRX job compiles and inspects all
+native translation units with the pinned toolchain. The build creates
+commit/run-specific Actions artifacts retained for 14 days. It does not create
+a GitHub Release or upload to a console.
+
+The same workflow still supports pushes to the upstream repository's
+`nexus/standalone-converter` branch. A newer push cancels an older in-progress
+build. No game-source fixes are merged to `main` automatically.
 
 The workflow runs the committed SPRX host regression programs, release-policy
 and package-verification tests, the converter's existing offline Windows test
@@ -36,10 +45,28 @@ segments, then compares every packaged FSELF payload with the inspected
 OELF. Its report is bound to the binary SHA-256 in the release manifest.
 Missing or mismatched target inspection evidence blocks publication.
 
-The original Windows ORBIS project is retained for manual builds. These
-workflows execute the maintained fix branch only and have no pull-request
-execution trigger. Any component failure blocks the `complete` job and
-automatic publication.
+The original Windows ORBIS project is retained for manual builds. The build
+workflow has no pull-request execution trigger. Any component failure blocks
+the `complete` job and automatic publication.
+
+## Discord release notification
+
+`.github/workflows/discord-release.yml` posts a single orange embed when a
+GitHub Release is published. It uses the release's actual notes and attached
+asset URLs, with the `BO3 Customs Releases` identity, a project avatar, and
+mentions disabled. It includes direct asset links and a link to the full release
+page. Notification failures do not invalidate or roll back the release.
+
+Create or rotate a Discord webhook, then add it in repository **Settings →
+Secrets and variables → Actions → New repository secret** as
+`DISCORD_WEBHOOK_URL`. The webhook URL was previously shared in a chat; revoke
+that URL and use a newly generated one. Never put the URL in source, workflow
+arguments, release notes or logs.
+
+GitHub does not start a second workflow for a release created with
+`GITHUB_TOKEN`. The existing manual debug publisher therefore calls the same
+notifier directly after publishing. Releases published through GitHub's UI
+are handled by the `release: published` workflow.
 
 ## Release timing
 

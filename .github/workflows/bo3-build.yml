@@ -2,7 +2,7 @@ name: BO3 Auto Build
 
 on:
   push:
-    branches: [nexus/standalone-converter]
+    branches: [main, nexus/standalone-converter]
   workflow_dispatch:
 
 permissions:
@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   host:
-    if: github.repository == 'Hi6795/PS4-BO3-Customs' && github.ref == 'refs/heads/nexus/standalone-converter'
+    if: (github.repository == 'Zorian1337/PS4-BO3-Customs' && github.ref == 'refs/heads/main') || (github.repository == 'Hi6795/PS4-BO3-Customs' && github.ref == 'refs/heads/nexus/standalone-converter')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -103,7 +103,7 @@ jobs:
 
   complete:
     needs: [host, porter, sprx]
-    if: always() && github.repository == 'Hi6795/PS4-BO3-Customs' && github.ref == 'refs/heads/nexus/standalone-converter'
+    if: always() && ((github.repository == 'Zorian1337/PS4-BO3-Customs' && github.ref == 'refs/heads/main') || (github.repository == 'Hi6795/PS4-BO3-Customs' && github.ref == 'refs/heads/nexus/standalone-converter'))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:

@@ -1,0 +1,27 @@
+name: Discord release notice
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discord-release-${{ github.event.release.id }}
+  cancel-in-progress: false
+
+jobs:
+  announce:
+    if: github.repository == 'Zorian1337/PS4-BO3-Customs'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Post release notes and asset links
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python3 .github/scripts/discord_release_webhook.py "$GITHUB_EVENT_PATH"

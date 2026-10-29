@@ -64,6 +64,12 @@ Start with [RESUME.md](RESUME.md), [AGENTS.md](AGENTS.md) and [docs/WORKFLOW.md]
 
 On Windows, `RESUME_WORK.cmd` prints a compact status summary and `CHECK_SOURCE.cmd` runs source checks using the configured environment. These commands do **not** create an SPRX release. Native builds require a compatible toolchain and explicit approval for this project's development workflow; see the [build workflow](docs/WORKFLOW.md).
 
+Pushing to this repository's `main` also runs **BO3 Auto Build** in GitHub
+Actions. It compiles the PS4 SPRX and Windows converter and stores run-specific
+artifacts; it does not publish a release. Published GitHub releases can be
+announced to Discord using the `DISCORD_WEBHOOK_URL` Actions secret. Setup and
+behavior are documented in [the build guide](.github/BO3_AUTOBUILD.md).
+
 The converter can be published separately using the project's documented .NET toolchain:
 
 ```powershell
