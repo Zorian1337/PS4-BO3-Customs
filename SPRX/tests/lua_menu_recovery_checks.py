@@ -45,7 +45,18 @@ UI.Toggle(menu,0,nil)
 UI.Toggle(menu,0,{name="bad"})
 UI.Toggle(menu,0,"")
 UI.Toggle(menu,0,"mod,other")
+UI.Toggle(menu,0,string.rep("x",56))
 assert(writes==0 and #BO3CustomsChosenMods==0)
+local full={}
+for i=1,24 do full[i]="mod"..i end
+BO3CustomsChosenMods=full
+UI.Toggle(menu,0,"mod25")
+assert(writes==0 and #BO3CustomsChosenMods==24)
+UI.Toggle(menu,0,"mod24")
+assert(writes==1 and #BO3CustomsChosenMods==23)
+-- Reset the fixture before testing the normal load/unload path.
+BO3CustomsChosenMods={}
+writes=0
 Mods_LoadMod(menu,{folder="ds4c"},0)
 assert(writes==1 and BO3CustomsChosenMods[1]=="ds4c" and delegated==0)
 Mods_Unload(menu,nil,0)
