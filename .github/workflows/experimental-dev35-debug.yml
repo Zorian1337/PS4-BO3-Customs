@@ -73,6 +73,7 @@ jobs:
               assert len(compiled) == 39, "Compiled LUI inventory mismatch"
               editable = [n for n in names if n.startswith("BO3-Customs/ui_scripts/") and n.endswith(".lua")]
               assert len(editable) == 7, "Editable Lua inventory mismatch"
+              original_compiled = {name: original.read(name) for name in compiled}
               with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as output:
                   for entry in entries:
                       name = entry.filename.replace("\\", "/")
@@ -88,8 +89,14 @@ jobs:
               assert hashlib.sha256(check.read(new_native)).hexdigest() == report["sprx_sha256"], "Packaged SPRX hash differs from validated build"
               for name, data in updates.items():
                   assert check.read(name) == data, "Console.zip missing updated " + name
-              assert len([n for n in check.namelist() if n.startswith("BO3-Customs/lui/") and n.endswith(".lua")]) == 39
-          print("PASS: complete Console.zip, 39 compiled LUI, seven editable scripts, current mods/mapselect and identical DEBUG SPRX")
+              compiled_in_zip = sorted(n for n in check.namelist() if n.startswith("BO3-Customs/lui/") and n.endswith(".lua"))
+              assert compiled_in_zip == sorted(compiled), "Compiled LUI file inventory changed"
+              for name in compiled:
+                  assert check.read(name) == original_compiled[name], "Compiled LUI bytecode changed unexpectedly: " + name
+              editable_in_zip = sorted(n for n in check.namelist() if n.startswith("BO3-Customs/ui_scripts/") and n.endswith(".lua"))
+              assert editable_in_zip == sorted(editable), "Editable Lua file inventory changed"
+              print("Verified all 39 unchanged compiled LUI chunks and all seven editable Lua scripts")
+          print("PASS: complete Console.zip, 39 byte-identical baseline LUI chunks, seven editable scripts, current mods/mapselect and identical DEBUG SPRX")
           PY
           (cd build/candidate && sha256sum BO3-Customs-v4.00.1-dev.35-DEBUG.sprx Console.zip target-validation.json SOURCE_COMMIT.txt > SHA256SUMS.txt)
       - name: Preserve verified candidate artifact
