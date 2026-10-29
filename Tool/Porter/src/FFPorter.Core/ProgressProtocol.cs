@@ -16,7 +16,7 @@ public static class ProgressProtocol
         // Progress is a single line of nonnegative, bounded counters followed
         // by an optional stage. Reject malformed counters without publishing
         // partial output or accepting negative/overshooting progress.
-        ReadOnlySpan<char> payload = line.AsSpan(Prefix.Length).TrimEnd('\r', '\n');
+        ReadOnlySpan<char> payload = line.AsSpan(Prefix.Length).TrimEnd();
         int separator = payload.IndexOf(' ');
         ReadOnlySpan<char> counts = separator < 0 ? payload : payload[..separator];
         int slash = counts.IndexOf('/');
