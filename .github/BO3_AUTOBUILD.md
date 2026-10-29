@@ -15,18 +15,20 @@ The same workflow still supports pushes to the upstream repository's
 `nexus/standalone-converter` branch. A newer push cancels an older in-progress
 build. No game-source fixes are merged to `main` automatically.
 
-The workflow runs the committed SPRX host regression programs, release-policy
-and package-verification tests, the converter's existing offline Windows test
-suite, the Windows converter publish profile, and the Linux OpenOrbis/GoldHEN
-SPRX cross-build of every native translation unit. Every artifact records its exact source SHA, workflow run, run
-attempt, file sizes and SHA-256 checksums. Expired, mismatched, incomplete or
-failed builds cannot be published.
+On this fork's `main`, the workflow runs the committed SPRX host regression
+programs, release-policy and package-verification tests, and the Linux
+OpenOrbis/GoldHEN SPRX cross-build of every native translation unit. On the
+upstream converter branch only, it also runs the Windows converter checks and
+publish profile. Every artifact records its exact source SHA, workflow run,
+run attempt, file sizes and SHA-256 checksums. Expired, mismatched, incomplete
+or failed builds cannot be published.
 
 ## Hosted SPRX builder
 
-Both components build on GitHub-hosted runners: Windows for the converter,
-Ubuntu 24.04 with LLVM 18 for the SPRX. No personal computer or private ORBIS
-runner needs to remain online.
+The SPRX builds on a GitHub-hosted Ubuntu 24.04 runner with LLVM 18. The
+converter builds on a GitHub-hosted Windows runner only on the upstream
+converter branch. No personal computer or private ORBIS runner needs to
+remain online.
 
 The native job downloads public OpenOrbis 0.5.4 and the pinned GoldHEN CRT
 from upstream, verifies their hashes, compiles all 14 native translation
