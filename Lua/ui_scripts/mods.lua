@@ -1065,12 +1065,21 @@ else
   Log("pc mods menu unavailable: " .. tostring(problem))
 end
 
-local function AddModsButton(controller, buttons)
-  if type(buttons) ~= "table" then
+local function IsMainMenuTarget(id)
+  local data = rawget(_G, "LobbyData")
+  local targets = type(data) == "table" and rawget(data, "UITargets") or nil
+  local main = type(targets) == "table" and rawget(targets, "UI_MODESELECT") or nil
+  return type(main) == "table" and id == main.id
+end
+
+local function AddModsButton(controller, id, buttons)
+  -- Only the top-level mode-select screen owns MODS. Never inject into
+  -- campaign/multiplayer/zombies lobbies or other secondary screens.
+  if not IsMainMenuTarget(id) or type(buttons) ~= "table" then
     return
   end
   -- The MODS entry is a recovery path, not a game-mode-dependent feature.
-  -- Lobby targets can have no mode buttons and the catalog can be empty.
+  -- The main menu can have no mode buttons and the catalog can be empty.
   for _, entry in ipairs(buttons) do
     if type(entry) == "table" and entry.customId == ButtonId then
       return
@@ -1093,7 +1102,7 @@ local function AddModsButton(controller, buttons)
     warning = false,
   })
   UI.buttonAdded = true
-  LogOnce("added", "MODS button added (menu script v6)")
+  LogOnce("added", "MODS button added (menu script v7)")
 end
 
 local function HideOnline(buttons)
@@ -1116,7 +1125,7 @@ end
 lobbyMenus.AddButtonsForTarget = function(controller, id, ...)
   local buttons = stockAdd(controller, id, ...)
   pcall(HideOnline, buttons)
-  local ok, err = pcall(AddModsButton, controller, buttons)
+  local ok, err = pcall(AddModsButton, controller, id, buttons)
   if not ok then
     LogOnce("add " .. tostring(err), "button failed: " .. tostring(err))
   end
