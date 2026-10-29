@@ -26,6 +26,9 @@ for marker in ("kBlobTick, sizeof(uint64_t)", "kStreamPool, 2 * sizeof(uint64_t)
                "kBlobGenerations, 5 * sizeof(uint32_t)"):
     assert marker in lighting_report, marker
 assert lighting_report.index("RangeReadable(g_base + region.offset, region.bytes)") < lighting_report.index("const uint64_t tick =")
+assert "constexpr int kMaxLoggedBlobs = 24;" in lighting_report
+assert "if (logged >= kMaxLoggedBlobs)" in lighting_report
+assert "additional active blob records omitted" in lighting_report
 
 preview_reader = source[source.index("bool T7Maps_ModPreviewFile("):source.index("bool T7Maps_PreviewFile(")]
 assert "if (!path || !size)" in preview_reader
