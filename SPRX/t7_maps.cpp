@@ -2691,6 +2691,21 @@ static void CountBlobs(uint32_t count[5], uint32_t loaded[5])
 
 static void LogBlobs(uint64_t seconds)
 {
+    // The stall watcher can run while the renderer tears down a level.
+    // Do not let its memory inspection become another console crash.
+    const struct { uintptr_t offset; size_t bytes; } regions[] = {
+        { kBlobTick, sizeof(uint64_t) }, { kStreamPool, 2 * sizeof(uint64_t) },
+        { kBlobMegabytes, 5 * sizeof(uint64_t) },
+        { kStreamBlobs, kStreamBlobCount * 56 },
+        { kBlobGenerations, 5 * sizeof(uint32_t) },
+    };
+    for (const auto& region : regions)
+        if (!RangeReadable(g_base + region.offset, region.bytes))
+        {
+            T7Log_Write("[Blobs] %llu s: lighting diagnostic memory unavailable during transition",
+                        (unsigned long long)seconds);
+            return;
+        }
     static const char* const k_names[5] = { "probe", "volume", "sun shadow tree", "other", "sky" };
     const uint64_t tick = *(const uint64_t*)(g_base + kBlobTick);
 
