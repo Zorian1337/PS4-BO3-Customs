@@ -6,6 +6,14 @@ import subprocess
 import tempfile
 
 source = (Path(__file__).resolve().parents[1] / "t7_maps.cpp").read_text(encoding="utf-8")
+# Applying a stack during gameplay must not consume the request before a safe
+# frontend frame can process it. Keep the guard ahead of the atomic exchange.
+frame = source[source.index("void T7Maps_FrameWork()"):source.index("int T7Maps_MapCount()") if source.index("int T7Maps_MapCount()") > source.index("void T7Maps_FrameWork()") else len(source)]
+apply_guard = frame[frame.index("if (g_applyWanted.load("):frame.index("ApplyModsNow();")]
+assert "!g_inLevel" in apply_guard and "g_loadOriginal" in apply_guard
+assert "ModHooksReady()" in apply_guard and "g_applyWanted.exchange(false" in apply_guard
+assert apply_guard.index("!g_inLevel") < apply_guard.index("g_applyWanted.exchange(false")
+
 start = source.index("void T7Maps_SetSessionMods(")
 setter = source[start:source.index("bool T7Maps_SessionModsReady(", start)]
 fixture = r'''
