@@ -191,6 +191,11 @@ The selector now drops numeric rows when they match the custom catalog, keeps
 the canonical nonnumeric row, and deduplicates the remaining categories by
 normalized display name.
 
+When a Workshop-ID row matches a catalog entry, the selector resolves that row
+to the catalog's canonical internal map ID (for example `zm_complex`) and uses
+the canonical row for loading. The Workshop ID remains available as metadata
+for compatibility/status reporting; it is not used as the map launch target.
+
 ### Numeric compatibility IDs
 
 The numeric rows are not the map's internal fastfile name. They are generated

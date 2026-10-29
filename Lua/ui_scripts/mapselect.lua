@@ -144,6 +144,30 @@ local function CatalogCustom(id, info)
   return false
 end
 
+local function CanonicalCatalogId(id, info)
+  if type(info) ~= "table" then
+    return nil
+  end
+  local infoKeys = {}
+  for _, value in ipairs({ id, info.id, info.mapName, info.mapname, info.name, info.title }) do
+    local key = CatalogKey(value)
+    if key ~= nil then
+      infoKeys[key] = true
+    end
+  end
+  for _, map in ipairs(AllCustom()) do
+    if type(map) == "table" and type(map.id) == "string" then
+      for _, value in ipairs({ map.id, map.name, map.title }) do
+        local key = CatalogKey(value)
+        if key ~= nil and infoKeys[key] then
+          return map.id
+        end
+      end
+    end
+  end
+  return nil
+end
+
 local function ExistingCatalogEntry(maps, map)
   if type(maps) ~= "table" or type(map) ~= "table" then
     return nil
@@ -223,7 +247,9 @@ local function VisibleMaps(maps, mode, customs)
     return visible
   end
   for id, info in pairs(maps) do
-    local generatedDuplicate = customs and type(id) == "string" and tonumber(id) ~= nil and CatalogCustom(id, info)
+    local canonicalId = customs and CanonicalCatalogId(id, info) or nil
+    local generatedDuplicate = canonicalId ~= nil and type(id) == "string" and tonumber(id) ~= nil and
+      canonicalId ~= id
     if not generatedDuplicate and ValidMap(id, info, mode) and IsCustom(info, id) == customs then
       local key = DisplayKey(id, info) or id
       local previous = winners[key]
