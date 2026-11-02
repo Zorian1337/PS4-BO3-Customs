@@ -2,6 +2,23 @@
 
 Updated 2026-10-29. Reviewed source is consolidated on `main`.
 
+## Localized UI error capture (2026-11-02)
+
+The reported diagnostic spelling `ERRUR IU 25848` is not present in the
+short Oct. 15 excerpt supplied in this chat, which ends during
+`core_frontend` loading. It remains a user-reported error code pending review
+of the surrounding full-log lines. Source review found that the host diagnostic
+reader previously classified only English `UI Error <number>` and
+`LobbyVM Error <number>` text. It now also classifies case-insensitive
+`ERRUR IU <number>` lines as `ui-error`, preserving the original trigger and
+surrounding stack in the report. A regression covers code 25848 and stack
+retention alongside the existing English behavior.
+
+This is a logging improvement only. It does not identify the failing Lua
+callback or fix the underlying frontend error, and it does not establish a map
+loader fault. No native SPRX behavior changed. Run the console diagnostics test
+suite before merge; this source-only change does not warrant an SPRX build.
+
 ## Current candidate (dev.53)
 
 Dev.53 retains the dev.52 frontend error-containment behavior and clarifies
