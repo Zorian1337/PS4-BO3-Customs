@@ -47,9 +47,39 @@ class ConsoleLogsTests(unittest.TestCase):
   resumed=Collector(self.folder);resumed.session(b'[Build] latest\nnormal\n');resumed.errors(c.device_errors);resumed.reporter.flush(force=True)
   self.assertEqual((self.folder/'crash-errors.log').stat().st_size,before)
 
+ def test_localized_errur_iu_error_is_retained(self):
+  line='[00:12.345] ERRUR IU 25848: localized frontend error'
+  r=Reporter(self.folder);self.assertEqual(r.category(line),'ui-error')
+  r.feed('game',line+'\nstack traceback:\nlocalized.lua:42\n');r.flush(force=True)
+  report=(self.folder/'crash-errors.log').read_text()
+  self.assertIn(line,report);self.assertIn('localized.lua:42',report)
+  self.assertEqual(r.counts['ui-error'],1)
+
  def test_lobby_vm_error_is_not_lost(self):
   r=Reporter(self.folder);r.feed('game','[Lua] LobbyVM Error 74046: Attempt to call a nil value\nstack traceback:\n');r.flush(force=True)
   self.assertEqual(r.counts['lobby-vm-error'],1)
   self.assertIn('74046',(self.folder/'crash-errors.log').read_text())
+
+ def test_localized_ui_error_codes_are_recognized_and_preserved(self):
+  examples=(
+   '[Lua] UI Error 25848: attempt to index a nil value',
+   'ERRUR IU 25848',
+   'ERREUR UI : 25848',
+   'FEHLER UI 25848',
+   'UI 오류 25848',
+   '错误 IU 25848',
+   'エラー UI 25848',
+   'BŁĄD IU 25848',
+   'ข้อผิดพลาด IU 25848',
+  )
+  for line in examples:
+   with self.subTest(line=line):self.assertEqual(Reporter.category(line),'ui-error')
+  for line in ('HATA 19001','ошибка 19002','Fehler: 19003','ข้อผิดพลาด 19004'):
+   with self.subTest(line=line):self.assertEqual(Reporter.category(line),'localized-error')
+  r=Reporter(self.folder);r.feed('game','ERRUR IU 25848\nstack traceback: reaper callback\n',101);r.flush(force=True)
+  saved=(self.folder/'crash-errors.log').read_text()
+  self.assertIn('ERRUR IU 25848',saved)
+  self.assertIn('stack traceback: reaper callback',saved)
+  self.assertIsNone(Reporter.category('Player UI settings: 25848'))
 
 if __name__=='__main__':unittest.main()

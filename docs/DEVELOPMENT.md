@@ -2,6 +2,30 @@
 
 Updated 2026-10-29. Reviewed source is consolidated on `main`.
 
+## Localized UI error capture (2026-11-02)
+
+The tester reports that with Reaper Collection loaded, `ERRUR IU 25848`
+appears when opening weapon customization, GobbleGums, or Reaper's menu, and
+also in the regular player menu. These are reproduction points, not a trace
+identifying the failing callback. The attached Oct. 15 startup text available
+to this review ends during `core_frontend` loading and does not include the
+reported code or its stack.
+
+Source review found the host diagnostic reader recognized English
+`UI Error <number>` and `LobbyVM Error <number>` forms only. It now also
+classifies case-insensitive `ERRUR IU <number>` lines as `ui-error`, retaining
+the original trigger and surrounding context. A regression covers code 25848
+and stack retention. All 9 console diagnostic reader tests passed locally,
+including the new regression.
+
+This is a logging improvement only. The current native source already pauses
+BO3-Customs compatibility injection after a modded frontend UI error until the
+next frontend generation, while retaining selected mod zones. That containment
+does not repair a Reaper callback and does not establish that the loader caused
+the error. No native SPRX behavior changed, and no SPRX build or console
+validation was performed. The first error's complete stack is still needed to
+identify the failing menu callback.
+
 ## Current candidate (dev.53)
 
 Dev.53 retains the dev.52 frontend error-containment behavior and clarifies

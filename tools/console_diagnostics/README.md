@@ -14,6 +14,15 @@ maximum. It never rotates or renames the normal session log. Error batches are
 written and synced by the existing logging worker; the game thread does not
 perform new disk IO for each runtime error. Queue overflow is reported explicitly.
 
+The local report reader classifies UI error codes across common localized label
+forms, including both `UI Error 25848` and `ERRUR IU 25848`. It recognizes the
+error word on either side of `UI`/`IU`, and recognizes other localized error words
+when they appear with a numeric code. The labels include common European,
+Cyrillic, Arabic, CJK and other forms. The original line and following stack are
+retained unchanged in the report; classification does not translate the message
+or infer the failing callback. The SPRX's own debug Lua hook continues to log its
+English `UI Error` line alongside the numeric code.
+
 ## Start collecting
 
 Double-click `WATCH_CONSOLE.cmd` in the repository root. It runs until Ctrl+C.

@@ -1,3 +1,22 @@
+# Current handoff: dev.58 UI compatibility source
+
+The current Debug candidate is dev.58. The bytecode-confirmed footer failure
+uses an absent PC StarterPackWatermark class before the old post-construction
+repair can run. The missing-only class fallback fixes that ordering for both
+footer variants and preserves provider implementations, including inherited
+ones. Additional source corrections handle incomplete description widgets,
+replacement LuaUtils/LUI tables, probe retry/cleanup, and callback ownership.
+
+Read [the investigation](docs/INVESTIGATION-2026-11-02-LOBBY-UI.md) for evidence,
+rejected hypotheses, validation limits, and future diagnostic guidance. The
+Debug native build and artifact validation passed. Focused native checks and
+source checks passed. Lua 5.1 compatibility and menu-recovery scenarios passed in GitHub CI;
+console validation of dev.58 remains pending. No universal mod stability or
+kernel-panic prevention claim is made. Keep private captures and binaries out
+of source commits.
+
+## Earlier development history
+
 # Resume SPRX / Lua development
 
 **Active source line: `main`. Current candidate: dev.53 frontend Lua-error

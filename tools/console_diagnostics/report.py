@@ -5,6 +5,24 @@ from pathlib import Path
 import hashlib,json,re,time,os
 
 
+# BO3's UI error dialog is localized. Some languages put the error word before
+# UI/IU (for example, "ERRUR IU 25848"), while others put it after. Keep the
+# original line as evidence; this expression only classifies the event.
+_ERROR_WORD = (
+    r"err\w*|error\w*|erreur\w*|errore\w*|erro\w*|eroare\w*|"
+    r"fehler\w*|fout\w*|fel\w*|fejl\w*|feil\w*|virhe\w*|"
+    r"hata\w*|kesalahan\w*|ralat\w*|b[lł][aą]d\w*|chyba\w*|hiba\w*|"
+    r"ошиб\w*|خطأ|أخطاء|エラー|오류|错误|錯誤|σφάλμα\w*|"
+    r"त्रुटि\w*|ข้อผิดพลาด|lỗi"
+)
+_UI_ERROR_RE = re.compile(
+    rf"(?<!\w)(?:(?:LUI|UI|IU)[\s._:-]+(?:{_ERROR_WORD})|"
+    rf"(?:{_ERROR_WORD})[\s._:-]+(?:LUI|UI|IU))[\s:#-]*\d+(?!\d)",
+    re.IGNORECASE,
+)
+_LOCALIZED_ERROR_RE = re.compile(rf"(?<!\w)(?:{_ERROR_WORD})[\s:#-]+\d+(?!\d)", re.IGNORECASE)
+
+
 def utc(value=None):
     return datetime.fromtimestamp(time.time() if value is None else value,timezone.utc).isoformat()
 
@@ -64,7 +82,8 @@ class Reporter:
         if '# a user thread receives a fatal signal' in lower:return 'native-crash'
         if 'could not persist crash/error context' in lower:return 'storage-error'
         if re.search(r'LobbyVM Error \d+',line):return 'lobby-vm-error'
-        if re.search(r'UI Error \d+',line):return 'ui-error'
+        if _UI_ERROR_RE.search(line):return 'ui-error'
+        if _LOCALIZED_ERROR_RE.search(line):return 'localized-error'
         if '[Lua]' in line and ' failed ' in line:return 'lua-error'
         if 'out of memory' in lower or 'not enough memory' in lower or 'cannot retain' in lower or 'before loading borrowed bytecode' in lower:return 'memory-error'
         if re.search(r'(?:runtime error \d+|server script error|throwing script exception)',line,re.I):return 'script-error'
