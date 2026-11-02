@@ -133,11 +133,25 @@ static uintptr_t ReadableEnd(uintptr_t addr, size_t need) {
 }
 
 bool RangeReadable(uintptr_t addr, size_t span) {
-    if (!addr || addr + span < addr)
+    if (addr < 0x10000 || addr >= 0x0000800000000000ULL || span > 0x0000800000000000ULL - addr)
         return false;
-
-    const uintptr_t end = ReadableEnd(addr, span);
-    return end != 0 && (addr + span) <= end;
+    const uintptr_t target = addr + span;
+    uintptr_t probe = addr;
+    // Exact ranges may cross many adjacent mappings. ReadableEnd's eight-hop
+    // scan bound is appropriate for string searches, not complete Lua chunks.
+    do {
+        SceKernelVirtualQueryInfo info{};
+        if (sceKernelVirtualQuery((void*)probe, 0, &info, sizeof(info)) < 0 || !(info.protection & 1))
+            return false;
+        const uintptr_t start = (uintptr_t)info.start;
+        const uintptr_t stop = (uintptr_t)info.end;
+        if (start > probe || stop <= probe || stop <= start)
+            return false;
+        if (stop >= target)
+            return true;
+        probe = stop;
+    } while (probe < target);
+    return false;
 }
 
 bool SafeStrStr(uintptr_t addr, const char* target, size_t maxScan) {

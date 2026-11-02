@@ -2380,7 +2380,7 @@ static uint64_t RetainLuaFailure(const char* name, uint64_t original, const char
     if (count <= 4 || (count & (count - 1)) == 0)
         T7Log_Write("[Lua] rejected %s before loading borrowed bytecode: %s (%u failures, %llu mapped bytes); mod removal remains available",
                     name, reason, count, (unsigned long long)g_retainedLuaMapped.load(std::memory_order_relaxed));
-    if (count <= 4)
+    if (count <= 4 && strcmp(reason, "dedicated bytecode arena allocation failed") == 0)
         T7Log_Write("[Lua] retention mapping request=%llu result=0x%X",
                     (unsigned long long)g_retainedLuaMapRequest.load(std::memory_order_relaxed),
                     (unsigned)g_retainedLuaMapError.load(std::memory_order_relaxed));

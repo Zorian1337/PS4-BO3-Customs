@@ -22,6 +22,43 @@ A PC converter for custom *Call of Duty: Black Ops III* maps and mods, with an e
 
 External or USB storage can use `BO3-Customs/usermaps/` and `BO3-Customs/mods/` at the drive root. Console settings, logs and saves stay under `/data/BO3-Customs/`.
 
+## SPRX features
+
+The experimental SPRX provides the following console features. Availability
+also depends on the game build, loader, installed companion Lua and converted
+content; this table describes implemented support, not a promise that every
+third-party map or mod works.
+
+| Feature | Implemented behavior | Validation and limits |
+| --- | --- | --- |
+| Maps and storage | Discovers converted usermaps on internal, USB and extended storage; routes fastfiles, XPAKs, sounds and preview images | Content must be converted for the target; discovery does not prove playability |
+| Map selection | Standard/Customs categories, canonical installed-map routing, alias/duplicate filtering, refresh, preview details and uninstall prompts | Ambiguous map identities are not guessed; provider menus may differ |
+| Mods | Selects mod stacks, applies zone changes through frontend reloads and tracks mod asset ownership | Mods can conflict with each other or require unsupported PC functions |
+| Lua compatibility | Loads companion scripts with internal-first lookup; provides selected missing PC helpers and footer components; preserves provider callbacks | Partial compatibility layer, not a PC runtime; external DLL features may remain unavailable |
+| UI lifetime and recovery | Retains borrowed mod bytecode within bounded arenas, validates source ranges and pauses additional injection after a frontend error | Invalid data is rejected; some failures require fully restarting BO3 |
+| Input | Keyboard/mouse bindings, mouse settings and menu pointer/touchpad integration | Hardware, menu-provider and gameplay behavior require console testing |
+| Local preferences | Persists configuration and separates map/mod saves under `/data/BO3-Customs/` | A third-party script can still use its own incompatible save format |
+| LAN sharing | Missing-content checks, transfer prompts/progress, lobby map status and supported player-menu actions | Depends on compatible peers, host state and network reachability; not public matchmaking support |
+| Engine compatibility | Targeted asset, script, zone, image/streaming, frontend, frame-limit and split-screen adaptations | Signature/version dependent; no guarantee against kernel panics or GPU hangs |
+| Debug diagnostics | UI/LobbyVM and GSC/CSC errors, asset fallbacks, transition/ownership details, stall/GPU progress and persistent error capture | Debug candidates only for some features; reporting an error does not repair its cause |
+| Diagnostic tools | Read-only log collection and localized UI-error recognition, including `ERRUR IU` | Original error text and stacks are preserved for investigation |
+
+### Compatibility and known limits
+
+Host regression checks exercise argument forwarding, ownership, storage bounds,
+menu recovery and Lua compatibility with mocks. The native build checks the
+SPRX container and loader metadata. Neither verifies gameplay on a console.
+See [the current handoff](RESUME.md) and [investigation notes](docs/INVESTIGATION-2026-11-02-LOBBY-UI.md)
+for evidence and remaining checks.
+
+The dev.58 capture requesting **`zm_waffle_tower`** fails during UI module
+validation before it demonstrates a successful map load. It also contains
+separate DS4C frontend-camera script errors. The exact-range validator is now
+corrected to accept readable chunks spanning more than eight adjacent memory
+regions, while continuing to reject holes and unreadable memory. This is a
+generic loader correction; Waffle Tower gameplay and the DS4C camera behavior
+still require a new console run. Do not treat this map as console-verified yet.
+
 ### Converter tabs
 
 | Tab | Purpose |

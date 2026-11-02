@@ -1,3 +1,12 @@
+# Current candidate: dev.59
+
+See [Waffle Tower launch investigation](docs/INVESTIGATION-2026-11-02-WAFFLE.md).
+The new correction handles exact readable bytecode ranges across more than
+eight adjacent mappings and separates validation failures from allocation
+failures. Waffle Tower gameplay and DS4C frontend-camera errors remain
+console-validation tasks. README now inventories implemented SPRX features
+and their limits. Earlier UI fixes and validation history follow below.
+
 # Current handoff: dev.58 UI compatibility source
 
 The current Debug candidate is dev.58. The bytecode-confirmed footer failure
