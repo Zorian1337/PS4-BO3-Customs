@@ -95,3 +95,13 @@ Additional defects corrected in source:
 - CreateWithRefresh unconditionally restored AddButtonCallbackFunction after constructing a menu, overwriting a provider replacement made during construction. Restore only if our temporary wrapper still owns the slot.
 
 Added executable regression scenarios to the existing compatibility fixture covering table replacement, inherited provider functions/classes, failed-probe retry, successful-probe cleanup and LUI class replacement. These Lua execution scenarios have not run locally: no compatible Lua interpreter is installed. The focused source-order check and git diff whitespace check pass. No SPRX build, version bump, ZIP or console upload was performed for these changes.
+
+## PR verification
+
+The GitHub diagnostics workflow ran the actual compatibility fixture with Lua
+5.1, including replacement tables/classes, inherited implementations, probe
+retry/cleanup and platform-scope restoration. These scenarios and companion
+menu recovery checks passed, together with the native diagnostics checks and
+script-log workflow. [Verified CI run](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/41482881872).
+This resolves the earlier local-interpreter validation gap; console behavior
+remains a separate pending check.

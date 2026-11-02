@@ -10,7 +10,7 @@ replacement LuaUtils/LUI tables, probe retry/cleanup, and callback ownership.
 Read [the investigation](docs/INVESTIGATION-2026-11-02-LOBBY-UI.md) for evidence,
 rejected hypotheses, validation limits, and future diagnostic guidance. The
 Debug native build and artifact validation passed. Focused native checks and
-source checks passed. Lua runtime scenarios still require a compatible runner;
+source checks passed. Lua 5.1 compatibility and menu-recovery scenarios passed in GitHub CI;
 console validation of dev.58 remains pending. No universal mod stability or
 kernel-panic prevention claim is made. Keep private captures and binaries out
 of source commits.
