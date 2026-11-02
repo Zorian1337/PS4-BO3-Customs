@@ -42,6 +42,36 @@ scenario(nil,nil,true)
 local env=scenario(false,nil,false)
 env.BO3CustomsModFiles={}
 env.require('test.unowned');assert(rawget(env.CoD,'isPC')==false)
+local provided=function()return 'provider'end
+env.LuaUtils=setmetatable({}, {__index={Mods_Enabled=provided}})
+env.require('test.unowned')
+assert(env.LuaUtils.Mods_Enabled==provided and rawget(env.LuaUtils,'Mods_Enabled')==nil)
+assert(type(env.LuaUtils.Mods_IsUGC)=='function')
+env.LuaUtils={}
+env.require('test.unowned')
+assert(type(env.LuaUtils.Mods_IsUGC)=='function','replacement LuaUtils table was skipped')
+local failed=true
+local closed=0
+local alpha=function()end
+local function probe()
+  if failed then error('probe not ready') end
+  return {setAlpha=alpha,close=function()closed=closed+1 end}
+end
+env.LUI={UIElement={new=probe}}
+env.require('test.unowned')
+assert(env.LUI.UIElement.setAlpha==nil)
+failed=false
+env.require('test.unowned')
+assert(env.LUI.UIElement.setAlpha==alpha and closed==1,'probe retry or cleanup failed')
+env.LUI.UIElement={new=probe}
+env.require('test.unowned')
+assert(env.LUI.UIElement.setAlpha==alpha and closed==2,'replacement LUI class was skipped')
+local watermark={new=function()return {}end}
+env.CoD=setmetatable({isPC=false,fe_FooterContainer_NOTLobby={new=function()return {}end}},
+  {__index={StarterPackWatermark=watermark}})
+env.require('test.unowned')
+assert(env.CoD.StarterPackWatermark==watermark and rawget(env.CoD,'StarterPackWatermark')==nil,
+  'inherited provider watermark was overwritten')
 local env=setmetatable({}, {__index=_G});env._G=env
 env.Engine={GetCurrentMap=function()return 'test_map'end}
 env.CoD={isPC=false};env.BO3CustomsPreGame=1

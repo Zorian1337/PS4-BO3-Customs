@@ -1867,7 +1867,7 @@ local function CreateWithRefresh(create, controller, kind, ...)
   local square = false
   local count = 0
   local used = {}
-  class.AddButtonCallbackFunction = function(menu, element, buttonController, button, keyShortcut, action, condition, ...)
+  local hookedAdd = function(menu, element, buttonController, button, keyShortcut, action, condition, ...)
     count = count + 1
     if button ~= nil then
       used[button] = true
@@ -1886,8 +1886,11 @@ local function CreateWithRefresh(create, controller, kind, ...)
     end
     return a, b, c
   end
+  class.AddButtonCallbackFunction = hookedAdd
   local ok, menu = pcall(create, controller, ...)
-  class.AddButtonCallbackFunction = add
+  if class.AddButtonCallbackFunction == hookedAdd then
+    class.AddButtonCallbackFunction = add
+  end
   if not ok then
     local text = tostring(menu)
     Log(kind .. " map menu failed to build with the plugin's button hook; building it again without the hook")
