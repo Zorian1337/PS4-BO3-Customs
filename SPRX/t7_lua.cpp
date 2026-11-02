@@ -3207,6 +3207,16 @@ static uint64_t AddMenu_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, ui
         ((Passthrough_t)g_addMenuOriginal)(a1, a2, a3, a4, a5, a6, x0, x1, x2, x3, x4, x5, x6, x7);
     if (main)
     {
+        const bool recovering = g_frontendInjectionBlocked.exchange(false, std::memory_order_acq_rel);
+        if (recovering)
+        {
+            // A successfully added main menu is a positive recovery signal for
+            // this UI state. Drop caches tied to the failed graph before the
+            // normal pending-injection path runs again.
+            g_pcUtilState = 0;
+            g_mouseState = 0;
+            T7Log_Write("[Lua] main menu registered after a UI error; retrying compatibility injection");
+        }
         T7Maps_MenusBuilt();
         g_completedMainState.store(*(const uintptr_t*)(g_base + kLuaState), std::memory_order_release);
         g_menuInitPending = true;

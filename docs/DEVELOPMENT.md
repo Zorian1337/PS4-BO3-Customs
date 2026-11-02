@@ -1,6 +1,26 @@
 # Current development status
 
-Updated 2026-10-29. Reviewed source is consolidated on `main`.
+Updated 2026-11-02. Reviewed source is consolidated on `main`.
+
+## DS4C UI failure and recovery (dev.60 candidate)
+
+The console's latest attached session is dev.58, with `^6ds4c` selected. It
+reports a stripped Lua nil-index in `DS4C_ProgressionStore.lua`, followed by
+`main` and `Lobby` missing-menu errors. The current dev.59 console binary was
+uploaded after that session. A local copy of the mod fastfile contains the
+named Lua rawfile, but the payload is protected and does not match the standard
+Havok chunk format expected by the current parser. The failing nil operand
+cannot be identified from the supplied evidence. No native crash or map-load
+failure is present in this session.
+
+Review found that the UI-error latch was cleared on a new frontend generation,
+but not if BO3 successfully rebuilt the `main` menu in the same Lua state. The
+dev.60 source candidate now treats a successful native `main` registration as
+a recovery signal, clears UI-state caches, and schedules the existing
+injection path. Other menu registrations do not clear the latch. A focused
+ASan/UBSan host test passes for both the recovery and non-main cases. This does
+not repair the original DS4C nil access; runtime verification must establish
+whether the mod's menu graph can rebuild successfully.
 
 ## Localized UI error capture (2026-11-02)
 

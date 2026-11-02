@@ -35,7 +35,7 @@ third-party map or mod works.
 | Map selection | Standard/Customs categories, canonical installed-map routing, alias/duplicate filtering, refresh, preview details and uninstall prompts | Ambiguous map identities are not guessed; provider menus may differ |
 | Mods | Selects mod stacks, applies zone changes through frontend reloads and tracks mod asset ownership | Mods can conflict with each other or require unsupported PC functions |
 | Lua compatibility | Loads companion scripts with internal-first lookup; provides selected missing PC helpers and footer components; preserves provider callbacks | Partial compatibility layer, not a PC runtime; external DLL features may remain unavailable |
-| UI lifetime and recovery | Retains borrowed mod bytecode within bounded arenas, validates source ranges and pauses additional injection after a frontend error | Invalid data is rejected; some failures require fully restarting BO3 |
+| UI lifetime and recovery | Retains borrowed mod bytecode within bounded arenas, validates source ranges, and retries compatibility injection after a frontend error only when a new frontend generation or successful `main` menu registration is observed | It does not repair arbitrary third-party Lua exceptions; some failures require fully restarting BO3 |
 | Input | Keyboard/mouse bindings, mouse settings and menu pointer/touchpad integration | Hardware, menu-provider and gameplay behavior require console testing |
 | Local preferences | Persists configuration and separates map/mod saves under `/data/BO3-Customs/` | A third-party script can still use its own incompatible save format |
 | LAN sharing | Missing-content checks, transfer prompts/progress, lobby map status and supported player-menu actions | Depends on compatible peers, host state and network reachability; not public matchmaking support |
@@ -58,6 +58,14 @@ corrected to accept readable chunks spanning more than eight adjacent memory
 regions, while continuing to reject holes and unreadable memory. This is a
 generic loader correction; Waffle Tower gameplay and the DS4C camera behavior
 still require a new console run. Do not treat this map as console-verified yet.
+
+The separate DS4C frontend capture reports a stripped-code nil-index while
+loading its progression UI, followed by missing `main` and `Lobby` menus. The
+current source can now retry compatibility injection after the engine
+successfully rebuilds `main`; this recovery guard does not prevent the original
+third-party nil access. The error's exact nil operand remains unknown, and the
+mod fastfile payload could not be decoded by the current host bytecode reader.
+See the [DS4C UI investigation](docs/INVESTIGATION-2026-11-02-DS4C-UI.md).
 
 ### Converter tabs
 
