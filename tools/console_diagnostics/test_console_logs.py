@@ -47,6 +47,14 @@ class ConsoleLogsTests(unittest.TestCase):
   resumed=Collector(self.folder);resumed.session(b'[Build] latest\nnormal\n');resumed.errors(c.device_errors);resumed.reporter.flush(force=True)
   self.assertEqual((self.folder/'crash-errors.log').stat().st_size,before)
 
+ def test_localized_errur_iu_error_is_retained(self):
+  line='[00:12.345] ERRUR IU 25848: localized frontend error'
+  r=Reporter(self.folder);self.assertEqual(r.category(line),'ui-error')
+  r.feed('game',line+'\nstack traceback:\nlocalized.lua:42\n');r.flush(force=True)
+  report=(self.folder/'crash-errors.log').read_text()
+  self.assertIn(line,report);self.assertIn('localized.lua:42',report)
+  self.assertEqual(r.counts['ui-error'],1)
+
  def test_lobby_vm_error_is_not_lost(self):
   r=Reporter(self.folder);r.feed('game','[Lua] LobbyVM Error 74046: Attempt to call a nil value\nstack traceback:\n');r.flush(force=True)
   self.assertEqual(r.counts['lobby-vm-error'],1)
