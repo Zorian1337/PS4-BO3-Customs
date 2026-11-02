@@ -64,7 +64,7 @@ class Reporter:
         if '# a user thread receives a fatal signal' in lower:return 'native-crash'
         if 'could not persist crash/error context' in lower:return 'storage-error'
         if re.search(r'LobbyVM Error \d+',line):return 'lobby-vm-error'
-        if re.search(r'UI Error \d+',line):return 'ui-error'
+        if re.search(r'(?:UI Error|ERRUR\s+IU)\s+\d+',line,re.I):return 'ui-error'
         if '[Lua]' in line and ' failed ' in line:return 'lua-error'
         if 'out of memory' in lower or 'not enough memory' in lower or 'cannot retain' in lower or 'before loading borrowed bytecode' in lower:return 'memory-error'
         if re.search(r'(?:runtime error \d+|server script error|throwing script exception)',line,re.I):return 'script-error'
