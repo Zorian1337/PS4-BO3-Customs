@@ -11,8 +11,8 @@ of the surrounding full-log lines. Source review found that the host diagnostic
 reader previously classified only English `UI Error <number>` and
 `LobbyVM Error <number>` text. It now also classifies case-insensitive
 `ERRUR IU <number>` lines as `ui-error`, preserving the original trigger and
-surrounding stack in the report. A regression covers code 25848 and stack
-retention alongside the existing English behavior.
+surrounding stack in the report. The exact captured line should be added to the test fixture when available,
+covering code recognition and stack retention alongside existing English cases.
 
 This is a logging improvement only. It does not identify the failing Lua
 callback or fix the underlying frontend error, and it does not establish a map
