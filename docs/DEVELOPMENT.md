@@ -4,20 +4,27 @@ Updated 2026-10-29. Reviewed source is consolidated on `main`.
 
 ## Localized UI error capture (2026-11-02)
 
-The reported diagnostic spelling `ERRUR IU 25848` is not present in the
-short Oct. 15 excerpt supplied in this chat, which ends during
-`core_frontend` loading. It remains a user-reported error code pending review
-of the surrounding full-log lines. Source review found that the host diagnostic
-reader previously classified only English `UI Error <number>` and
-`LobbyVM Error <number>` text. It now also classifies case-insensitive
-`ERRUR IU <number>` lines as `ui-error`, preserving the original trigger and
-surrounding stack in the report. The exact captured line should be added to the test fixture when available,
-covering code recognition and stack retention alongside existing English cases.
+The tester reports that with Reaper Collection loaded, `ERRUR IU 25848`
+appears when opening weapon customization, GobbleGums, or Reaper's menu, and
+also in the regular player menu. These are reproduction points, not a trace
+identifying the failing callback. The attached Oct. 15 startup text available
+to this review ends during `core_frontend` loading and does not include the
+reported code or its stack.
 
-This is a logging improvement only. It does not identify the failing Lua
-callback or fix the underlying frontend error, and it does not establish a map
-loader fault. No native SPRX behavior changed. Run the console diagnostics test
-suite before merge; this source-only change does not warrant an SPRX build.
+Source review found the host diagnostic reader recognized English
+`UI Error <number>` and `LobbyVM Error <number>` forms only. It now also
+classifies case-insensitive `ERRUR IU <number>` lines as `ui-error`, retaining
+the original trigger and surrounding context. A regression covers code 25848
+and stack retention. All 9 console diagnostic reader tests passed locally,
+including the new regression.
+
+This is a logging improvement only. The current native source already pauses
+BO3-Customs compatibility injection after a modded frontend UI error until the
+next frontend generation, while retaining selected mod zones. That containment
+does not repair a Reaper callback and does not establish that the loader caused
+the error. No native SPRX behavior changed, and no SPRX build or console
+validation was performed. The first error's complete stack is still needed to
+identify the failing menu callback.
 
 ## Current candidate (dev.53)
 
