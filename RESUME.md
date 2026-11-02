@@ -1,4 +1,19 @@
-# Current candidate: dev.59
+# Current candidate: dev.60
+
+The DS4C dev.58 console session reports a stripped-code nil-index in the
+modded progression UI, followed by failed `main`/`Lobby` registrations. The
+exact nil operand is not recoverable from the protected fastfile payload, so
+dev.60 does not claim to fix that third-party callback. It fixes a separate
+source recovery defect: a successful native `AddMenu("main")` rebuild now
+clears the UI-error latch and retries compatibility injection with fresh
+state-local caches. Focused ASan/UBSan coverage passes. See
+[the DS4C investigation](docs/INVESTIGATION-2026-11-02-DS4C-UI.md).
+
+Dev.60 is a Debug test candidate. The target build still needs to pass. Console
+validation of the DS4C UI remains required; no gameplay crash or map stability
+claim follows from these logs.
+
+## Previous candidate: dev.59
 
 See [Waffle Tower launch investigation](docs/INVESTIGATION-2026-11-02-WAFFLE.md).
 The new correction handles exact readable bytecode ranges across more than

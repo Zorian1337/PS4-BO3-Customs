@@ -11,6 +11,7 @@ reset=section(lua,'void T7Lua_FrontendWillLoad()','void T7Lua_OnUiLuaError(')
 ui_error=section(lua,'void T7Lua_OnUiLuaError(','void T7Lua_Tick()')
 owner=section(maps,'bool T7Maps_NeedsLuaRetention(','bool T7Maps_UiTransitionBusy()')
 frame=section(main,'uint64_t Frame_h(','bool IsBlackOps3(')
+add_menu=section(lua,'static uint64_t AddMenu_h(','static bool FrontendReadyForInjection()')
 fixture=r'''
 #include <atomic>
 #include <cassert>
@@ -23,12 +24,19 @@ fixture=r'''
 static bool inLevel=false,uiReady=true,locked=false,menuExists=false;
 static unsigned probes=0,recoveries=0;
 static bool usingMods=false;
+static unsigned builtMenus=0;
 static bool T7Maps_UsingMods(){return usingMods;}
 static bool T7Maps_MenusBroken(){++recoveries;return true;}
+static void T7Maps_MenusBuilt(){++builtMenus;}
 static bool T7Maps_InLevel(){return inLevel;}
 namespace T7Lua {
 static uintptr_t state=0x10000,g_base=(uintptr_t)&state;
 constexpr uintptr_t kLuaState=0;
+using Passthrough_t=uint64_t(*)(uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,double,double,double,double,double,double,double,double);
+static bool InMenus(){return true;}
+static bool RangeReadable(uintptr_t p,size_t){return p!=0;}
+static uint64_t NativeAddMenu(uint64_t a1,uint64_t a2,uint64_t,uint64_t,uint64_t,uint64_t,double x,double,double,double,double,double,double,double){assert(a1==17 && a2!=0 && x==1.25);return 0xC0FFEE;}
+static void* g_addMenuOriginal=(void*)&NativeAddMenu;
 static std::atomic<uintptr_t> g_completedMainState{0};
 static std::atomic<uint32_t> g_frontendGeneration{0};
 static std::atomic<bool> g_frontendInjectionBlocked{false};
@@ -47,6 +55,9 @@ GATE
 }
 RESET
 UI_ERROR
+namespace T7Lua {
+ADD_MENU
+}
 #include "t7_lua_ownership.hpp"
 namespace T7Maps {
 static T7LuaOwnership::Index g_modLuaOwnership;
@@ -102,13 +113,22 @@ int main(){
  for(int i=0;i<29;++i)assert(!FrontendReadyForInjection());
  assert(!FrontendReadyForInjection());
  assert(recoveries==1); // A failed required module cannot strand the Mods menu.
+ // Do not resume after an error until the engine successfully re-adds main.
+ g_frontendInjectionBlocked=true;g_completedMainState=0;g_menuInitPending=false;
+ g_pcUtilState=0x1234;g_mouseState=0x5678;const char mainName[]="main";
+ assert(AddMenu_h(17,(uint64_t)mainName,0,0,0,0,1.25,2,3,4,5,6,7,8)==0xC0FFEE);
+ assert(!g_frontendInjectionBlocked && g_completedMainState==state && g_menuInitPending);
+ assert(g_pcUtilState==0 && g_mouseState==0 && builtMenus==1);
+ const char otherName[]="Lobby";g_frontendInjectionBlocked=true;
+ assert(AddMenu_h(17,(uint64_t)otherName,0,0,0,0,1.25,2,3,4,5,6,7,8)==0xC0FFEE);
+ assert(g_frontendInjectionBlocked && builtMenus==1);
  g_frontendInjectionBlocked=false;inLevel=true;T7Lua_OnUiLuaError(state);assert(!g_frontendInjectionBlocked);inLevel=false;
  assert(Frame_h(17,2,3,4,5,6,1.25,2,3,4,5,6,7,8)==0xDEADBEEF);
  assert(order=="MSBNL");
  puts("PASS: delayed menu readiness, same-address frontend reset, late injection, conservative ownership, native-first Lua work and native result preservation");
 }
 '''
-for key,value in [('GATE',gate),('RESET',reset),('UI_ERROR',ui_error),('OWNER',owner),('FRAME',frame)]:fixture=fixture.replace(key,value)
+for key,value in [('GATE',gate),('RESET',reset),('UI_ERROR',ui_error),('ADD_MENU',add_menu),('OWNER',owner),('FRAME',frame)]:fixture=fixture.replace(key,value)
 with tempfile.TemporaryDirectory(prefix='bo3-startup-') as d:
  cpp=Path(d)/'test.cpp';exe=Path(d)/'test';cpp.write_text(fixture)
  subprocess.run([os.environ.get('CXX','g++'),'-std=c++20','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I',str(root),str(cpp),'-o',str(exe)],check=True)
