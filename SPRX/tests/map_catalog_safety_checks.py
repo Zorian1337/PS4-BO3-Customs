@@ -268,8 +268,8 @@ int main()
     assert "ScanAllInitial()" in install
     assert "ReleaseCandidateMods();" in initial and "g_packageCount = 0" in initial
     assert "ReleaseCandidateMods();" in rollback
-    assert "memcpy(g_mods,p->mods" in rollback
-    assert "free(p->mods[i].description)" in commit
+    assert "memcpy(g_mods, snapshot->mods" in rollback
+    assert "free(snapshot->mods[i].description)" in commit
     assert "memset(g_mods, 0, sizeof(g_mods))" in scan_all
     assert "if(!ScanUsermaps(" in scan_all
     assert "if (!BuildMapsTableLua())" in scan_all
