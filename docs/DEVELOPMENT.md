@@ -17,14 +17,17 @@ Review found stale four-argument `ListFolder` calls in the mod-stack scanner
 after the scanner interface changed. Those call sites now use structured
 results, log failures, and discard additions from a failed folder scan. A
 regression checks the argument count of every production `ListFolder`
-invocation. CI must be rerun against the updated PR head before approval.
+invocation.
 
-The prior PR head had successful frontend-reload, mod-stack transaction,
-script-priority, project-session guard, and SPRX diagnostics workflows. Those
-runs predate the final scanner-call-site correction and are not evidence for
-the current head. No native SPRX build, upload, release, or PS4/PS5 runtime
-test has been performed for PR #36. Do not merge until the updated CI and
-full-diff review are complete; do not claim the reported map crash is fixed.
+Final reviewed head before this documentation sync,
+`c48c5b54e8a6e8bce9fa64d8662cf94f3973067f`, passed all five required
+workflows: SPRX diagnostics, project-session guard, frontend reload,
+mod-stack transaction and script-priority. The project-session guard audited
+the complete `main`-to-PR diff, passed its publication-guard unit tests and
+the complete registered host regression inventory. No native SPRX build,
+upload, release or PS4/PS5 runtime test has been performed for PR #36. Do not
+merge without the user's explicit approval; do not claim the reported map
+crash is fixed.
 
 ## dev.69 candidate provenance
 
