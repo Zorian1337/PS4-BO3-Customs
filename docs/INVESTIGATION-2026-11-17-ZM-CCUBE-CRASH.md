@@ -209,8 +209,13 @@ hypothesis:
 - Directory entries with DT_UNKNOWN are classified with a bounded path and
   sceKernelStat. A failed classification aborts the scan rather than silently
   dropping a directory.
-- Scanner failures and fixed-capacity/path truncation propagate to the top-level
-  scan. The candidate is rejected instead of publishing a partial catalog.
+- Scanner failures, fixed-capacity/path truncation, and generated custom-map
+  Lua output truncation propagate to the top-level scan. The candidate is
+  rejected instead of publishing a partial catalog.
+- Storage roots are checked before scanning and checked again before commit. If
+  a root that previously contributed packages or mods is missing, inaccessible,
+  or disappears during the scan, the previous catalog is retained rather than
+  silently dropping content from an unmounted drive.
 - Refresh snapshots the previous catalog, generated map Lua, mod-description
   pointers and dirty state under the existing reader/writer exclusion. A
   complete candidate commits and releases old descriptions; a failed candidate
