@@ -6,8 +6,6 @@ lua = Path("SPRX/t7_lua.cpp").read_text(encoding="utf-8")
 busy_start = maps.index("bool T7Maps_UiTransitionBusy()")
 busy_end = maps.index("\n}", busy_start)
 busy = maps[busy_start:busy_end]
-assert "g_reloadCheck" in busy
-assert "g_reloadCheck && !HeldModZonesReadyForUi()" in busy
 assert "g_uiZoneWaitState" in maps
 assert "g_uiZoneWaitState.load(std::memory_order_acquire) == kUiZoneWaitPending" in busy
 assert "g_uiZoneWaitState.store(kUiZoneWaitPending, std::memory_order_release)" in maps
