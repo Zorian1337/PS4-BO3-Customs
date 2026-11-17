@@ -2116,20 +2116,64 @@ static void GrowPool(int32_t type)
 
 static void NoteLevelLua(uint64_t asset)
 {
-    if (!g_usermapLevel.load(std::memory_order_acquire) || !asset || *(const int32_t*)asset != kRawFileAsset) return;
+    if (!g_usermapLevel.load(std::memory_order_acquire) || !asset ||
+        asset > UINTPTR_MAX - 16 || !RangeReadable((uintptr_t)asset, 16) ||
+        *(const int32_t*)asset != kRawFileAsset)
+        return;
+
+    // Zone and rawfile names are engine-owned pointers. A short initial probe
+    // followed by strlen() can cross into an unmapped page during asset linking.
+    // Copy each byte only after its exact address has passed the readable check.
+    const auto copyReadableText = [](const char* source, char* destination, size_t capacity, size_t* length) {
+        if (!source || !destination || capacity < 2)
+            return false;
+
+        const uintptr_t start = (uintptr_t)source;
+        for (size_t i = 0; i < capacity; ++i)
+        {
+            if (start > UINTPTR_MAX - i || !RangeReadable(start + i, 1))
+                return false;
+
+            destination[i] = source[i];
+            if (!destination[i])
+            {
+                if (length)
+                    *length = i;
+                return i != 0;
+            }
+        }
+
+        destination[capacity - 1] = 0;
+        return false;
+    };
+
     const char* const zone = (const char*)g_zoneLoadContexts.Current((uint64_t)scePthreadSelf());
-    if (!zone || !RangeReadable((uintptr_t)zone, 4)) return;
+    char zoneName[kNameMax];
+    size_t zoneLength = 0;
+    if (!copyReadableText(zone, zoneName, sizeof(zoneName), &zoneLength))
+        return;
+
     char relative[kNameMax];
-    const int length = snprintf(relative, sizeof(relative), "%s.ff", zone);
-    if (length <= 0 || (size_t)length >= sizeof(relative)) return;
+    const int length = snprintf(relative, sizeof(relative), "%s.ff", zoneName);
+    if (length <= 0 || (size_t)length >= sizeof(relative))
+        return;
+
     ListReader reading;
-    if (MapPackageFile(relative) < 0 && !EqualsNoCase(zone, "zm_levelcommon")) return;
+    if (MapPackageFile(relative) < 0 && !EqualsNoCase(zoneName, "zm_levelcommon"))
+        return;
+
     const uintptr_t header = *(const uintptr_t*)(asset + 8);
-    if (!header || !RangeReadable(header, 24)) return;
+    if (!header || !RangeReadable(header, 24))
+        return;
+
     const char* const name = *(const char* const*)header;
-    if (!name || !RangeReadable((uintptr_t)name, 4)) return;
-    const size_t n = strlen(name);
-    if (n >= 4 && EqualsNoCase(name + n - 4, ".lua")) g_modLuaOwnership.Mark(name);
+    char nameCopy[kInternedMax];
+    size_t nameLength = 0;
+    if (!copyReadableText(name, nameCopy, sizeof(nameCopy), &nameLength))
+        return;
+
+    if (nameLength >= 4 && EqualsNoCase(nameCopy + nameLength - 4, ".lua"))
+        g_modLuaOwnership.Mark(nameCopy);
 }
 
 static uint64_t LinkXAsset_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5, uint64_t a6,
