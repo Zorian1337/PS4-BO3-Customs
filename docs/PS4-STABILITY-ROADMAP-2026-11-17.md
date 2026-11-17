@@ -23,7 +23,7 @@ PR: https://github.com/Zorian1337/PS4-BO3-Customs/pull/36
   dirent types, storage-root loss, Lua output bounds, and rollback ownership.
 - [x] Add FF/FD preflight, package-open timing, and native LoadLevelZones timing
   to DEBUG diagnostics.
-- [ ] Re-run PR CI after the follow-up correction to legacy mod-stack scanner
+- [x] Re-run PR CI after the follow-up correction to legacy mod-stack scanner
   call sites and the new scanner-arity regression.
 - [ ] Complete final full-diff review before merging. PR #36 remains open and
   unmerged; no merge is authorized by this roadmap update.
@@ -35,7 +35,7 @@ The review caught three mod-stack call sites still using the old four-argument
 ListFolder interface after the scanner changed to a five-argument structured
 result. Those call sites now consume FolderScanResult, report failures, and
 roll back additions from a failed folder scan. The regression now checks every
-ListFolder invocation for the correct argument count. Re-run CI is pending.
+ListFolder invocation for the correct argument count. The follow-up CI passed on final reviewed head `c48c5b54e8a6e8bce9fa64d8662cf94f3973067f`: all five required workflows, the full-range source publication audit, publication-guard tests, and the complete registered host regression inventory passed.
 
 The `zm_ccube` crash remains unconfirmed. Both FF and FD opened in the supplied
 excerpt; the first fatal record was not present. Do not treat catalog integrity
