@@ -194,3 +194,10 @@ Local device/tool paths belong in ignored `.local/` settings, not this file.
 Update this file and the status record when evidence changes, including what was
 actually tested, remaining uncertainty and the single next useful task. Keep
 version change notes with an approved GitHub release, not loose per-build files.
+
+## CI coverage correction
+
+The pool-growth fixture was not included in the focused SPRX diagnostics
+workflow used for pull requests. It is now explicitly run by that workflow,
+so the binary-search lookup contract and existing allocation regressions are
+checked before merge. The new workflow run is pending.
