@@ -66,7 +66,8 @@ its scheduling. If it identifies the engine frame, the SPRX stack and engine
 return addresses need matching symbols or a fresh stack capture.
 
 The current log predates dev.60 and cannot validate these source changes.
-No PS4/PS5 build, console test, or GitHub Actions run was performed. The source
-changes still require the repository's supported host checks, target syntax/
-link validation and a console capture. Do not call the stall or a crash
-resolved until the relevant scenario has been reproduced and retested.
+GitHub Actions on commit `7e241f8` passed all 38 host regression programs,
+the dedicated SPRX diagnostics workflow, and the automatic pinned OpenOrbis
+Debug PS4 cross-build plus target artifact validation. No PS4/PS5 console test
+has been performed. Do not call the historical stall or a crash resolved
+until the relevant scenario has been reproduced and retested on hardware.
