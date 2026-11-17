@@ -46,9 +46,9 @@ static constexpr int kZoneNameSlots=65;
 static constexpr size_t kZoneNameStride=80, kZoneStateAt=72;
 static constexpr size_t kNameMax=56;
 static uint8_t memory[0x10000];
-static uintptr_t T7Maps::g_base=(uintptr_t)memory;
-static bool T7Maps::g_frontendApplyPending=false, T7Maps::g_frontendApplying=false, T7Maps::g_frontendApplyLoading=false;
-static bool T7Maps::g_reloadCheck=false;
+static uintptr_t g_base=(uintptr_t)memory;
+static bool g_frontendApplyPending=false, g_frontendApplying=false, g_frontendApplyLoading=false;
+static bool g_reloadCheck=false;
 static char g_waitZones[64][kNameMax] = {};
 static int g_waitZoneCount=0;
 static bool EqualsNoCase(const char* a,const char* b) { return std::strcmp(a,b)==0; }
@@ -61,36 +61,36 @@ int main()
     T7Maps::g_waitZoneCount=1;
     auto* entry=(char*)(T7Maps::g_base+T7Maps::kZoneNames+T7Maps::kZoneNameStride);
     std::strcpy(entry,"zm_mod");
-    *(int32_t*)(entry+kZoneStateAt)=1;
+    *(int32_t*)(entry+T7Maps::kZoneStateAt)=1;
 
     // Queued before the engine publishes loading state is already busy.
-    g_reloadCheck=true;
+    T7Maps::g_reloadCheck=true;
     assert(T7Maps_UiTransitionBusy());
 
     // The held Mods overlay may resume once all its recorded zones are ready.
-    *(int32_t*)(entry+kZoneStateAt)=2;
+    *(int32_t*)(entry+T7Maps::kZoneStateAt)=2;
     assert(!T7Maps_UiTransitionBusy());
 
     // A live native loading slot remains busy even after the queued list clears.
-    g_reloadCheck=false;
-    *(int32_t*)(entry+kZoneStateAt)=1;
+    T7Maps::g_reloadCheck=false;
+    *(int32_t*)(entry+T7Maps::kZoneStateAt)=1;
     assert(T7Maps_UiTransitionBusy());
 
     // Frontend handoff phases continue to block periodic Lua work.
-    *(int32_t*)(entry+kZoneStateAt)=2;
-    g_frontendApplyPending=true;
+    *(int32_t*)(entry+T7Maps::kZoneStateAt)=2;
+    T7Maps::g_frontendApplyPending=true;
     assert(T7Maps_UiTransitionBusy());
 
-    g_frontendApplyPending=false;
-    g_frontendApplying=true;
+    T7Maps::g_frontendApplyPending=false;
+    T7Maps::g_frontendApplying=true;
     assert(T7Maps_UiTransitionBusy());
 
-    g_frontendApplying=false;
-    g_frontendApplyLoading=true;
+    T7Maps::g_frontendApplying=false;
+    T7Maps::g_frontendApplyLoading=true;
     assert(T7Maps_UiTransitionBusy());
 
-    g_frontendApplyLoading=false;
-    g_base=0;
+    T7Maps::g_frontendApplyLoading=false;
+    T7Maps::g_base=0;
     assert(!T7Maps_UiTransitionBusy());
     puts("PASS: queued zones, ready held-overlay path, native loading and frontend handoff gates");
 }
