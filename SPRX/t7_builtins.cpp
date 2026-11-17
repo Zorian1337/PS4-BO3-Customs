@@ -559,6 +559,18 @@ void T7Builtins_Tick()
         }
     }
 
-    if (!T7Config_Save("mod variables", OwnsLine, lines))
-        T7Log_Write("[Scripts] mod variables could not be saved to config.cfg");
+    if (!T7Config_SaveAsync("mod variables", OwnsLine, lines))
+    {
+        // Keep the dirty bit set if the bounded snapshot queue is busy or the
+        // worker could not start. The next save interval retries the latest state.
+        g_varsDirty.store(true, std::memory_order_release);
+
+        static uint64_t lastQueueWarning = 0;
+        const uint64_t now = sceKernelGetProcessTime();
+        if (!lastQueueWarning || now - lastQueueWarning >= 5000000ULL)
+        {
+            lastQueueWarning = now;
+            T7Log_Write("[Scripts] mod variable save deferred; config worker is busy or unavailable");
+        }
+    }
 }
