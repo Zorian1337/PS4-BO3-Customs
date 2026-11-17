@@ -75,6 +75,25 @@ without mods and correlate the trace with the first kernel fault. The SIGSEGV
 at RIP `0xFA2A98` remains unexplained. Do not rebuild, upload, release, or
 claim a fix without explicit approval and matching evidence.
 
+## Review follow-up validation (2026-11-17)
+
+The full source review caught three stale mod-stack calls to the previous
+four-argument `ListFolder` API. They now consume structured scan results,
+log incomplete scans and roll back file additions from a failed folder scan.
+The host regression now checks the arity of every production scanner call.
+
+Final reviewed head before this documentation sync,
+`c48c5b54e8a6e8bce9fa64d8662cf94f3973067f`, passed all five required GitHub
+workflows: SPRX diagnostics, project-session guard, frontend reload,
+mod-stack transaction and script-priority. The project-session guard audited
+the complete `main`-to-PR diff, passed its own unit tests and the full
+registered host regression inventory. The directory scanner, storage-root,
+Lua-output, catalog rollback and map-load timing fixtures passed.
+
+No native SPRX build, upload, release or PS4/PS5 console test was performed.
+PR #36 remains open and must not be merged without the user's explicit
+approval. The `zm_ccube` crash remains unresolved.
+
 ## Review boundary
 
 Keep PR #36 open for full-diff and final-check review. Do not merge without the
