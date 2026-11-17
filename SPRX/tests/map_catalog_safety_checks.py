@@ -303,7 +303,7 @@ int main()
     rollback = extract_function(SOURCE, "static void RestoreCatalog(")
     commit = extract_function(SOURCE, "static void CommitCatalog(")
     scan_all = extract_function(SOURCE, "static bool ScanAll()")
-    custom_maps = extract_function(SOURCE, "static bool BuildCustomMapsLua()")
+    custom_maps = SOURCE[SOURCE.index("static bool BuildCustomMapsLua()"):SOURCE.index("static char g_mapsTableLua")]
     initial = extract_function(SOURCE, "static bool ScanAllInitial()")
     scan_mods = extract_function(SOURCE, "static bool ScanMods(")
     add_file = extract_function(SOURCE, "static void AddFile(")
