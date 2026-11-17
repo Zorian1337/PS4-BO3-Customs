@@ -894,7 +894,8 @@ static FolderScanResult ListFolder(const char* folder, bool folders, char names[
 
         for (int at = 0; at < bytesRead;)
         {
-            if (bytesRead - at < 8)
+            const size_t minimumHeader = offsetof(SceKernelDirent, d_reclen) + sizeof(((SceKernelDirent*)0)->d_reclen);
+            if ((size_t)(bytesRead - at) < minimumHeader)
             {
                 status = FolderScanStatus::MalformedRecord;
                 break;
