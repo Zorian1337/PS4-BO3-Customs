@@ -5623,7 +5623,7 @@ static void TraceStreamBlockRejections()
     if (count > 16)
         count = 16;
 
-    for (uint64_t i = count; i > logged; --i)
+    for (uint64_t i = count - logged; i > 0; --i)
     {
         const StreamBlockRejected& event = records[i - 1];
         const char* reason = event.reason == 3 ? "outside+odd" :
