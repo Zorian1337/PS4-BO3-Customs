@@ -171,3 +171,28 @@ preceding 30 seconds.
 - PS4 cross-build: must be confirmed by the repository workflow result.
 - Console reproduction: pending.
 - Root cause of the reported crash: not confirmed.
+
+
+## Follow-up instrumentation (2026-11-17; PR #36)
+
+The next diagnostic-only change extends the preflight to both `.ff` and
+`.fd`. For each extension it records whether a package-local file is
+registered, the resolved package path and size, and whether the corresponding
+`/app0/zone` fallback exists (including the native stat result). This is
+important because the supplied capture opened the FF from the custom-map
+folder but opened the FD through the game's zone path; neither open alone
+establishes a mismatch or failure.
+
+The Debug file-open hook now records elapsed time and the returned descriptor
+for every custom-map package file, including failed opens. The native
+`LoadLevelZones` call records its own elapsed time separately from the
+pre-call mod preparation and transition snapshots. These measurements will
+help identify which boundary stalls in a complete capture; they do not alter
+routing or loading behavior.
+
+The focused map-load diagnostic check passes. The SPRX diagnostics workflow
+and the full host workflow passed on PR head
+`ca9fd4d5f8f901b5b35daeaa5807fc8a31317532`; the complete registered host
+inventory reports 41 regression programs with zero failures. The publication
+audit covers the complete PR base-to-head diff. No SPRX build or console test
+was performed. PR #36 remains subject to final review before merge.
