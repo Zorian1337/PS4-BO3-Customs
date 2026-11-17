@@ -19,7 +19,8 @@ int main()
     assert(Evaluate(0x100000, 0x100000 + 0xA00000, 0, 1, 1) == RejectReason::OutsideRing);
     assert(Evaluate(0, 0x100000, 0, 1, 1) == RejectReason::OutsideRing);
     assert(Evaluate(0x100000, 0x0FFFFF, 0, 1, 1) == RejectReason::OutsideRing);
-    assert(Evaluate(0xFFFFFFFFFFFFFFF0ull, 0xFFFFFFFFFFFFFFF8ull, 0, 0x40, 0x40) == RejectReason::OutsideRing);
+    assert(Evaluate(0xFFFFFFFFFFFFFFF0ull, 0xFFFFFFFFFFFFFFF8ull, 0, 0x40, 0x40) == RejectReason::None);
+    assert(Evaluate(0xFFFFFFFFFFFFFFF0ull, 0xFFFFFFFFFFFFFFF8ull, 0, 0xA00000, 0xA00000) == RejectReason::OutsideRing);
 
     // Both established malformed-length branches remain distinguishable.
     assert(Evaluate(0x100000, 0x100100, 0, 104, 100) == RejectReason::InvalidLengths);
