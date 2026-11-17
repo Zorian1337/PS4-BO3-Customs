@@ -3,9 +3,11 @@
 ## Queued zone transitions
 
 The UI busy predicate now includes the plugin's queued mod-zone wait state
-(g_reloadCheck and the pending wait-zone count), not just native loading slots
-and frontend handoff flags. This closes the interval where a mod-zone request
-has been queued but the engine has not yet published its loading state.
+(g_reloadCheck) before native loading slots publish state. When the Mods overlay
+is deliberately held, the predicate checks every recorded wait zone and allows
+close/apply only after those zones are ready and no native zone is loading. This
+closes the interval where a mod-zone request has been queued but the engine has
+not yet published its loading state.
 
 Tick-driven Lua work rechecks the predicate after acquiring the nonblocking UI
 lock. If a transition began between the frame-entry check and lock acquisition,
