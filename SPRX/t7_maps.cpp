@@ -8320,7 +8320,29 @@ bool T7Maps_NeedsLuaRetention(const char* name)
 bool T7Maps_UiTransitionBusy()
 {
     using namespace T7Maps;
-    return g_base && (g_frontendApplyPending || g_frontendApplying || g_frontendApplyLoading || AnyZoneLoading());
+
+    if (!g_base)
+        return false;
+
+    // A queued zone request is already a transition even before the native
+    // loading table publishes state=loading. Keep periodic UI work paused until
+    // every recorded mod zone is ready; a held Mods overlay can resume once
+    // those zones reach state=ready.
+    bool queuedZonesPending = false;
+    if (g_reloadCheck && g_waitZoneCount > 0)
+    {
+        for (int i = 0; i < g_waitZoneCount; ++i)
+        {
+            if (ZoneStateOf(g_waitZones[i]) < 2)
+            {
+                queuedZonesPending = true;
+                break;
+            }
+        }
+    }
+
+    return g_frontendApplyPending || g_frontendApplying || g_frontendApplyLoading ||
+           queuedZonesPending || AnyZoneLoading();
 }
 
 static_assert(T7Maps::kNameMax == kT7ShareName, "shared names use the map name size");
