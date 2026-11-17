@@ -1988,14 +1988,23 @@ static void RenameStackAsset(uint64_t asset)
 
 static PoolGrowth* GrowthFor(int32_t type)
 {
-    // Linking can run concurrently on database workers. Avoid publishing a
-    // mutable lookup table before it is completely initialized.
-    for (PoolGrowth& growth : g_poolGrowth)
+    // The immutable allowlist is sorted by asset type. Asset linking calls
+    // this for every linked asset, so use a bounded binary search instead of
+    // scanning the complete table on the database-worker hot path.
+    size_t first = 0;
+    size_t last = sizeof(g_poolGrowth) / sizeof(g_poolGrowth[0]);
+
+    while (first < last)
     {
-        if (growth.type == type)
-            return &growth;
+        const size_t middle = first + (last - first) / 2;
+        if (g_poolGrowth[middle].type < type)
+            first = middle + 1;
+        else
+            last = middle;
     }
-    return nullptr;
+
+    return first < sizeof(g_poolGrowth) / sizeof(g_poolGrowth[0]) &&
+           g_poolGrowth[first].type == type ? &g_poolGrowth[first] : nullptr;
 }
 
 static void GrowPool(int32_t type)
