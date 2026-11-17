@@ -201,3 +201,13 @@ The pool-growth fixture was not included in the focused SPRX diagnostics
 workflow used for pull requests. It is now explicitly run by that workflow,
 so the binary-search lookup contract and existing allocation regressions are
 checked before merge. The new workflow run is pending.
+## Pool-out diagnostic concurrency fix (2026-11-17)
+
+Source review confirmed that T7Log_PoolOut() is called from LinkXAsset_h(),
+which can run concurrently on database workers, but its static per-type
+once-only told[] latch was a plain bool array. Concurrent check/set was a
+data race. It now uses std::atomic<bool> and exchange() so only one worker
+claims each diagnostic. Added a production-function concurrency stress
+fixture and registered it in both PR diagnostics and the full host runner.
+CI for the updated test is pending; this is a diagnostic race fix, not proof
+of a pool allocator failure or of the reported map crash.
