@@ -4,8 +4,9 @@
 
 The UI busy predicate now includes the plugin's queued mod-zone wait state
 (g_reloadCheck) before native loading slots publish state. When the Mods overlay
-is deliberately held, the predicate checks every recorded wait zone and allows
-close/apply only after those zones are ready and no native zone is loading. This
+is deliberately held, FrameWork checks every recorded wait zone and publishes
+readiness atomically. The UI predicate allows close/apply only after that
+published readiness is true and no native zone is loading. This
 closes the interval where a mod-zone request has been queued but the engine has
 not yet published its loading state.
 
