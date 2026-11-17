@@ -1827,12 +1827,25 @@ static void NoteUiFile(uintptr_t header, int index)
 {
     const char* const name = *(const char* const*)header;
 
-    if (!name || !RangeReadable((uintptr_t)name, 4))
+    if (!name)
         return;
 
-    const size_t n = strlen(name);
+    // Rawfile names are game-owned pointers. A four-byte readability check
+    // does not make strlen safe: a malformed or unterminated name can run
+    // beyond its mapping while the asset-link hook is on the game thread.
+    const uintptr_t nameAddress = (uintptr_t)name;
+    size_t n = 0;
+    for (; n < sizeof(g_modUiFiles[0]); ++n)
+    {
+        if (nameAddress > UINTPTR_MAX - n || !RangeReadable(nameAddress + n, 1))
+            return;
+        if (name[n] == 0)
+            break;
+    }
 
-    if (n < 4 || !EqualsNoCase(name + n - 4, ".lua"))
+    // Require a terminator inside the exact storage bound before passing the
+    // name to ownership, suffix and logging helpers.
+    if (n == sizeof(g_modUiFiles[0]) || n < 4 || !EqualsNoCase(name + n - 4, ".lua"))
         return;
 
     g_modLuaOwnership.Mark(name);
@@ -1844,7 +1857,7 @@ static void NoteUiFile(uintptr_t header, int index)
 
     {
         ClaimLock locked;
-        bool filed = n >= sizeof(g_modUiFiles[0]);
+        bool filed = false;
 
         for (int i = 0; i < g_modUiFileCount && !filed; ++i)
             filed = EqualsNoCase(g_modUiFiles[i], name) && EqualsNoCase(g_modUiOwners[i], mod);
