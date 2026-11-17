@@ -8327,6 +8327,8 @@ bool T7Maps_NeedsLuaRetention(const char* name)
 
 static bool HeldModZonesReadyForUi()
 {
+    using namespace T7Maps;
+
     if (!g_reloadCheck || !g_reloadHeld || AnyZoneLoading())
         return false;
 
