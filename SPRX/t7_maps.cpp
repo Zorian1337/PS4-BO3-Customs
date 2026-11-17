@@ -1539,13 +1539,15 @@ static uint64_t FileOpen_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
     const char* const routed = (const char*)a1;
     const bool externalRedirect = path && routed != path &&
                                   (strncmp(routed, "/ext", 4) == 0 || strncmp(routed, "/usb", 4) == 0);
-    const uint64_t openedAt = externalRedirect ? sceKernelGetProcessTime() : 0;
+    const bool timedMapOpen = diagnosticPackage[0] != 0;
+    const uint64_t openedAt = (externalRedirect || timedMapOpen) ? sceKernelGetProcessTime() : 0;
 #endif
     const uint64_t result = ((Hook_t)g_openOriginal)(a1, a2, a3, a4, a5, a6, x0, x1, x2, x3, x4, x5, x6, x7);
 #ifdef _DEBUG
     if (diagnosticPackage[0])
-        T7Log_Write("[MapLoad] open %s -> %s (package %s, fd %d)", diagnosticRel, (const char*)a1,
-                    diagnosticPackage, (int32_t)result);
+        T7Log_Write("[MapLoad] open %s -> %s (package %s, fd %d, call %llu us)", diagnosticRel, (const char*)a1,
+                    diagnosticPackage, (int32_t)result,
+                    (unsigned long long)(sceKernelGetProcessTime() - openedAt));
     else if (externalRedirect)
         T7Log_Write("[Routing] external open %s -> %s: fd %d, call %llu us", path, routed, (int32_t)result,
                     (unsigned long long)(sceKernelGetProcessTime() - openedAt));
@@ -5171,19 +5173,33 @@ static void TraceMapFastfilePreflight(const char* level)
 {
     ListReader reading;
     const int package = MapPackage(level);
-    if (package >= 0)
-    {
+    if (package < 0)
+        return;
+
+    const auto traceFile = [&](const char* extension) {
         char filename[kNameMax + 4];
         char resolved[256] = {};
-        SceKernelStat st{};
-        snprintf(filename, sizeof(filename), "%s.ff", level);
+        SceKernelStat packageStat{};
+        snprintf(filename, sizeof(filename), "%s.%s", level, extension);
         const bool registered = FindPackageFile(g_packages[package], filename, resolved, sizeof(resolved));
-        const int statResult = registered ? sceKernelStat(resolved, &st) : -1;
-        T7Log_Write("[MapLoad] preflight %s: ff=%s, path=%s, size=%lld, files=%d/%d",
-                    level, registered && statResult == 0 ? "present" : "MISSING",
+
+        char nativePath[256] = {};
+        SceKernelStat nativeStat{};
+        const int nativePathLength = snprintf(nativePath, sizeof(nativePath), "/app0/zone/%s", filename);
+        const int nativeResult = nativePathLength > 0 && (size_t)nativePathLength < sizeof(nativePath)
+                                     ? sceKernelStat(nativePath, &nativeStat)
+                                     : -1;
+        T7Log_Write("[MapLoad] preflight %s.%s: package=%s path=%s size=%lld; app0=%s stat=%d path=%s size=%lld; files=%d/%d",
+                    level, extension, registered ? "present" : "MISSING",
                     resolved[0] ? resolved : "(unresolved)",
-                    statResult == 0 ? (long long)st.st_size : -1LL, g_fileCount, kMaxFiles);
-    }
+                    registered && sceKernelStat(resolved, &packageStat) == 0 ? (long long)packageStat.st_size : -1LL,
+                    nativeResult == 0 ? "present" : "MISSING", nativeResult,
+                    nativePath[0] ? nativePath : "(unresolved)",
+                    nativeResult == 0 ? (long long)nativeStat.st_size : -1LL, g_fileCount, kMaxFiles);
+    };
+
+    traceFile("ff");
+    traceFile("fd");
 }
 #endif
 
@@ -5265,12 +5281,16 @@ static uint64_t LoadLevelZones_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t
         TraceModTransition("prepared level zones", diagnosticLevel);
 #endif
     }
+#ifdef _DEBUG
+    const uint64_t nativeStarted = sceKernelGetProcessTime();
+#endif
     const uint64_t result = ((Hook_t)g_levelZonesOriginal)(a1, a2, a3, a4, a5, a6, x0, x1, x2, x3, x4, x5, x6, x7);
 #ifdef _DEBUG
     if (named)
     {
-        T7Log_Write("[Transition] native level-zone result for %s: 0x%llX", diagnosticLevel,
-                    (unsigned long long)result);
+        T7Log_Write("[Transition] native level-zone result for %s: 0x%llX, call %llu us", diagnosticLevel,
+                    (unsigned long long)result,
+                    (unsigned long long)(sceKernelGetProcessTime() - nativeStarted));
         TraceModTransition("after level zones", diagnosticLevel);
     }
 #endif
