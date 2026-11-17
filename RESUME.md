@@ -1,13 +1,18 @@
 # Current candidate: dev.60
 
-## Frame-stall investigation (2026-11-17)
+## Frame-stall hardening (2026-11-17)
 
-See [the frame-stall investigation](docs/INVESTIGATION-2026-11-17-FRAME-STALL.md).
-The supplied October 15 log proves a 20-second no-progress interval with the
-main thread sampled inside SPRX code, but contains no explicit fatal crash
-record. Source now checks startup-thread lifecycle and adds Debug frame-phase
-reporting so a fresh capture can identify which callback is blocked. No build
-or console validation has been performed; do not claim the incident resolved.
+See [the frame-work hardening report](docs/FRAME-WORK-STABILITY-2026-11-17.md)
+and [the original incident analysis](docs/INVESTIGATION-2026-11-17-FRAME-STALL.md).
+The mod-variable autosave now queues an owned config snapshot for background
+persistence, retries if the queue or disk write fails, and no longer performs
+its periodic read/fsync/rename on the game frame. Debug watchdog phases now
+distinguish lobby evaluation, hosted-state snapshots, share completion and the
+full catalog refresh. The catalog refresh remains synchronous intentionally:
+its writer lock currently makes readers wait, so a naive worker move would
+still block the main thread. A double-buffered catalog is the safe next design.
+No build, host test suite, Actions run or console validation has been performed;
+do not claim the historical stall/crash resolved.
 
 The DS4C dev.58 console session reports a stripped-code nil-index in the
 modded progression UI, followed by failed `main`/`Lobby` registrations. The
