@@ -365,10 +365,11 @@ bounded stream rejection diagnostics (#33) from public source plus issue
 records, not from local-device patches. The branch contains focused host/source
 regression tests and workflow wiring. The current head SHA is available on the PR page.
 
-CI has not reported a status for that head yet. Do not mark the tests passed
-until the workflow results are visible. No native SPRX build, console test,
-upload, release, merge or issue closure was performed. Issues #29 and #33
-remain open. The dev.67 shared XAssetEntry reserve-page allocator (#30) was not
+All six GitHub Actions PR workflows passed: SPRX diagnostics, project session
+guard, frontend reload, mod-stack transaction, script priority and in-game
+script log. The project guard completed 46 host regression programs with no
+failures. No native SPRX build, console test, upload, release, merge or issue
+closure was performed. Issues #29 and #33 remain open. The dev.67 shared XAssetEntry reserve-page allocator (#30) was not
 guessed/recreated because the issue notes alone do not provide verified native
 table/free-list layout and allocator hook ABI. Continue reviewing PR #39 first,
 then pursue #30 only with validated native contracts.
