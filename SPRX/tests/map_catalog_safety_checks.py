@@ -175,7 +175,7 @@ int main()
 
     append_functions = (
         extract_function(SOURCE, "static bool AppendChecked(")
-        + "\\n"
+        + "\n"
         + extract_function(SOURCE, "static bool AppendLuaStringChecked(")
     )
     append_harness = r"""
