@@ -846,34 +846,83 @@ static bool AcceptFolderResult(const char* path, const FolderScanResult& result)
     MarkScanFailure(path, result.status, result.error);
     return false;
 }
-static FolderScanResult ListFolder(const char* folder,bool folders,char names[][kListedNameMax],int capacity,bool optional)
+static FolderScanResult ListFolder(const char* folder, bool folders, char names[][kListedNameMax],
+                                   int capacity, bool optional)
 {
-    const int fd=sceKernelOpen(folder,SCE_KERNEL_O_RDONLY|SCE_KERNEL_O_DIRECTORY,0);
-    if(fd<0)return {optional&&fd==(int)kKernelErrorNoEntry?FolderScanStatus::Missing:FolderScanStatus::OpenFailed,0,fd};
-    static std::atomic_flag lock=ATOMIC_FLAG_INIT;
-    while(lock.test_and_set(std::memory_order_acquire))sceKernelUsleep(50);
-    struct Unlock { std::atomic_flag& flag; ~Unlock(){flag.clear(std::memory_order_release);} } unlock{lock};
-    static char buffer[0x10000]; int count=0,error=0;
-    FolderScanStatus status=capacity>0?FolderScanStatus::Ok:FolderScanStatus::CapacityExceeded;
-    while(status==FolderScanStatus::Ok) {
-        const int n=sceKernelGetdents(fd,buffer,sizeof(buffer));
-        if(n==0)break;
-        if(n<0){status=FolderScanStatus::ReadFailed;error=n;break;}
-        if((size_t)n>sizeof(buffer)){status=FolderScanStatus::MalformedRecord;break;}
-        for(int at=0;at<n;) {
-            if(n-at<8){status=FolderScanStatus::MalformedRecord;break;}
-            const SceKernelDirent* entry=(const SceKernelDirent*)(buffer+at);
-            const size_t header=(size_t)((const char*)entry->d_name-(const char*)entry);
-            if(entry->d_reclen<header+1||entry->d_reclen>n-at){status=FolderScanStatus::MalformedRecord;break;}
-            const size_t available=entry->d_reclen-header;
-            const char* end=(const char*)memchr(entry->d_name,0,available);
-            if(!end){status=FolderScanStatus::MalformedRecord;break;}
-            const size_t len=(size_t)(end-entry->d_name); at+=entry->d_reclen;
-            if (entry->d_fileno == 0 || !len || entry->d_name[0] == '.')
+    const int fd = sceKernelOpen(folder, SCE_KERNEL_O_RDONLY | SCE_KERNEL_O_DIRECTORY, 0);
+    if (fd < 0)
+    {
+        const FolderScanStatus status = optional && fd == kKernelErrorNoEntry
+                                            ? FolderScanStatus::Missing
+                                            : FolderScanStatus::OpenFailed;
+        return { status, 0, fd };
+    }
+
+    // All callers share this getdents buffer. Keep it serialized even if a
+    // future caller reaches the scanner outside the normal refresh path.
+    static std::atomic_flag directoryBufferLock = ATOMIC_FLAG_INIT;
+    while (directoryBufferLock.test_and_set(std::memory_order_acquire))
+        sceKernelUsleep(50);
+
+    struct UnlockDirectoryBuffer
+    {
+        std::atomic_flag& flag;
+        ~UnlockDirectoryBuffer() { flag.clear(std::memory_order_release); }
+    } unlock{ directoryBufferLock };
+
+    static char buffer[0x10000];
+    int count = 0;
+    int error = 0;
+    FolderScanStatus status = capacity > 0 ? FolderScanStatus::Ok : FolderScanStatus::CapacityExceeded;
+
+    while (status == FolderScanStatus::Ok)
+    {
+        const int bytesRead = sceKernelGetdents(fd, buffer, sizeof(buffer));
+        if (bytesRead == 0)
+            break;
+        if (bytesRead < 0)
+        {
+            status = FolderScanStatus::ReadFailed;
+            error = bytesRead;
+            break;
+        }
+        if ((size_t)bytesRead > sizeof(buffer))
+        {
+            status = FolderScanStatus::MalformedRecord;
+            break;
+        }
+
+        for (int at = 0; at < bytesRead;)
+        {
+            if (bytesRead - at < 8)
+            {
+                status = FolderScanStatus::MalformedRecord;
+                break;
+            }
+
+            const SceKernelDirent* const entry = (const SceKernelDirent*)(buffer + at);
+            const size_t header = (size_t)((const char*)entry->d_name - (const char*)entry);
+            if (entry->d_reclen < header + 1 || entry->d_reclen > bytesRead - at)
+            {
+                status = FolderScanStatus::MalformedRecord;
+                break;
+            }
+
+            const size_t available = entry->d_reclen - header;
+            const char* const terminator = (const char*)memchr(entry->d_name, 0, available);
+            if (!terminator)
+            {
+                status = FolderScanStatus::MalformedRecord;
+                break;
+            }
+
+            const size_t nameLength = (size_t)(terminator - entry->d_name);
+            at += entry->d_reclen;
+            if (entry->d_fileno == 0 || !nameLength || entry->d_name[0] == '.')
                 continue;
 
             bool isDirectory = entry->d_type == SCE_KERNEL_DT_DIR;
-            if (entry->d_type == 0) // DT_UNKNOWN: classify it instead of silently omitting directories.
+            if (entry->d_type == 0) // DT_UNKNOWN must be classified, not dropped.
             {
                 char child[512];
                 const int pathLength = snprintf(child, sizeof(child), "%s/%s", folder, entry->d_name);
@@ -882,6 +931,7 @@ static FolderScanResult ListFolder(const char* folder,bool folders,char names[][
                     status = FolderScanStatus::NameTooLong;
                     break;
                 }
+
                 SceKernelStat stat{};
                 const int statResult = sceKernelStat(child, &stat);
                 if (statResult < 0)
@@ -892,47 +942,166 @@ static FolderScanResult ListFolder(const char* folder,bool folders,char names[][
                 }
                 isDirectory = (stat.st_mode & 0170000) == 0040000;
             }
+
             if (isDirectory != folders)
                 continue;
-            if(len>=kListedNameMax){status=FolderScanStatus::NameTooLong;break;}
-            if(count>=capacity){status=FolderScanStatus::CapacityExceeded;break;}
-            memcpy(names[count],entry->d_name,len); names[count++][len]=0;
+            if (nameLength >= kListedNameMax)
+            {
+                status = FolderScanStatus::NameTooLong;
+                break;
+            }
+            if (count >= capacity)
+            {
+                status = FolderScanStatus::CapacityExceeded;
+                break;
+            }
+
+            memcpy(names[count], entry->d_name, nameLength);
+            names[count++][nameLength] = 0;
         }
     }
-    const int closeResult=sceKernelClose(fd);
-    if(status==FolderScanStatus::Ok&&closeResult<0){status=FolderScanStatus::CloseFailed;error=closeResult;}
-    return {status,count,error};
+
+    const int closeResult = sceKernelClose(fd);
+    if (status == FolderScanStatus::Ok && closeResult < 0)
+    {
+        status = FolderScanStatus::CloseFailed;
+        error = closeResult;
+    }
+    return { status, count, error };
 }
 
-static void AddFile(const char* rel,const char* folder,int package)
+static void AddFile(const char* rel, const char* folder, int package)
 {
-    for(int i=0;i<g_fileCount;++i)if(strcmp(g_files[i].rel,rel)==0)return;
-    if(g_fileCount>=kMaxFiles){MarkScanFailure("map file catalog",FolderScanStatus::CapacityExceeded,0);return;}
-    if(strlen(rel)>=sizeof(g_files[0].rel)){MarkScanFailure(rel,FolderScanStatus::NameTooLong,0);return;}
-    char path[sizeof(g_files[0].path)]; const int n=snprintf(path,sizeof(path),"%s/%s",folder,rel);
-    if(n<0||(size_t)n>=sizeof(path)){MarkScanFailure(folder,FolderScanStatus::NameTooLong,n);return;}
-    File& file=g_files[g_fileCount++]; snprintf(file.rel,sizeof(file.rel),"%s",rel); memcpy(file.path,path,(size_t)n+1); file.package=package;
+    for (int i = 0; i < g_fileCount; ++i)
+    {
+        if (strcmp(g_files[i].rel, rel) == 0)
+            return;
+    }
+
+    if (g_fileCount >= kMaxFiles)
+    {
+        MarkScanFailure("map file catalog", FolderScanStatus::CapacityExceeded, 0);
+        return;
+    }
+    if (strlen(rel) >= sizeof(g_files[0].rel))
+    {
+        MarkScanFailure(rel, FolderScanStatus::NameTooLong, 0);
+        return;
+    }
+
+    char path[sizeof(g_files[0].path)];
+    const int length = snprintf(path, sizeof(path), "%s/%s", folder, rel);
+    if (length < 0 || (size_t)length >= sizeof(path))
+    {
+        MarkScanFailure(folder, FolderScanStatus::NameTooLong, length);
+        return;
+    }
+
+    File& file = g_files[g_fileCount++];
+    snprintf(file.rel, sizeof(file.rel), "%s", rel);
+    memcpy(file.path, path, (size_t)length + 1);
+    file.package = package;
 }
 
-static bool ScanPackage(const char* folder,int package,bool optional)
+static bool ScanPackage(const char* folder, int package, bool optional)
 {
-    const char* name=g_packages[package].name; static char files[kMaxListed][kListedNameMax]; static char languages[16][kListedNameMax];
-    FolderScanResult r=ListFolder(folder,false,files,kMaxListed,optional); if(!AcceptFolderResult(folder,r))return false; if(r.status==FolderScanStatus::Missing)return true;
-    for(int i=0;i<r.count;++i){if(IsZoneFile(files[i])&&strstr(files[i],name))AddFile(files[i],folder,package);if(g_scanFailed)return false;}
-    char sounds[224];int n=snprintf(sounds,sizeof(sounds),"%s/snd",folder);if(n<0||(size_t)n>=sizeof(sounds)){MarkScanFailure(folder,FolderScanStatus::NameTooLong,n);return false;}
-    FolderScanResult langs=ListFolder(sounds,true,languages,16,true);if(!AcceptFolderResult(sounds,langs))return false;if(langs.status==FolderScanStatus::Missing)return true;
-    for(int l=0;l<langs.count;++l){char language[224];n=snprintf(language,sizeof(language),"%s/%s",sounds,languages[l]);if(n<0||(size_t)n>=sizeof(language)){MarkScanFailure(sounds,FolderScanStatus::NameTooLong,n);return false;}
-        FolderScanResult banks=ListFolder(language,false,files,kMaxListed,false);if(!AcceptFolderResult(language,banks))return false;
-        for(int i=0;i<banks.count;++i)if(IsZoneFile(files[i])&&strstr(files[i],name)){char rel[128];n=snprintf(rel,sizeof(rel),"snd/%s/%s",languages[l],files[i]);if(n<0||(size_t)n>=sizeof(rel)){MarkScanFailure(language,FolderScanStatus::NameTooLong,n);return false;}AddFile(rel,folder,package);if(g_scanFailed)return false;}
-    }return true;
+    const char* const name = g_packages[package].name;
+    static char files[kMaxListed][kListedNameMax];
+    static char languages[16][kListedNameMax];
+
+    FolderScanResult listing = ListFolder(folder, false, files, kMaxListed, optional);
+    if (!AcceptFolderResult(folder, listing))
+        return false;
+    if (listing.status == FolderScanStatus::Missing)
+        return true;
+
+    for (int i = 0; i < listing.count; ++i)
+    {
+        if (IsZoneFile(files[i]) && strstr(files[i], name))
+            AddFile(files[i], folder, package);
+        if (g_scanFailed)
+            return false;
+    }
+
+    char sounds[224];
+    const int soundLength = snprintf(sounds, sizeof(sounds), "%s/snd", folder);
+    if (soundLength < 0 || (size_t)soundLength >= sizeof(sounds))
+    {
+        MarkScanFailure(folder, FolderScanStatus::NameTooLong, soundLength);
+        return false;
+    }
+
+    FolderScanResult languageListing = ListFolder(sounds, true, languages, 16, true);
+    if (!AcceptFolderResult(sounds, languageListing))
+        return false;
+    if (languageListing.status == FolderScanStatus::Missing)
+        return true;
+
+    for (int languageIndex = 0; languageIndex < languageListing.count; ++languageIndex)
+    {
+        char language[224];
+        const int languageLength = snprintf(language, sizeof(language), "%s/%s",
+                                            sounds, languages[languageIndex]);
+        if (languageLength < 0 || (size_t)languageLength >= sizeof(language))
+        {
+            MarkScanFailure(sounds, FolderScanStatus::NameTooLong, languageLength);
+            return false;
+        }
+
+        FolderScanResult bankListing = ListFolder(language, false, files, kMaxListed, false);
+        if (!AcceptFolderResult(language, bankListing))
+            return false;
+
+        for (int i = 0; i < bankListing.count; ++i)
+        {
+            if (!IsZoneFile(files[i]) || !strstr(files[i], name))
+                continue;
+
+            char rel[128];
+            const int relLength = snprintf(rel, sizeof(rel), "snd/%s/%s",
+                                           languages[languageIndex], files[i]);
+            if (relLength < 0 || (size_t)relLength >= sizeof(rel))
+            {
+                MarkScanFailure(language, FolderScanStatus::NameTooLong, relLength);
+                return false;
+            }
+
+            AddFile(rel, folder, package);
+            if (g_scanFailed)
+                return false;
+        }
+    }
+    return true;
 }
 
-static int AddPackage(const char* name,bool map,const char* folder,const char* alternate)
+static int AddPackage(const char* name, bool map, const char* folder, const char* alternate)
 {
-    for(int i=0;i<g_packageCount;++i)if(EqualsNoCase(name,g_packages[i].name))return -1;
-    if(g_packageCount>=kMaxPackages){MarkScanFailure("package catalog",FolderScanStatus::CapacityExceeded,0);return -1;}
-    if(strlen(name)>=sizeof(g_packages[0].name)||strlen(folder)>=sizeof(g_packages[0].folder)||strlen(alternate)>=sizeof(g_packages[0].alternate)){MarkScanFailure(name,FolderScanStatus::NameTooLong,0);return -1;}
-    Package& p=g_packages[g_packageCount]; snprintf(p.name,sizeof(p.name),"%s",name); snprintf(p.folder,sizeof(p.folder),"%s",folder); snprintf(p.alternate,sizeof(p.alternate),"%s",alternate); p.preview[0]=0;p.map=map;return g_packageCount++;
+    for (int i = 0; i < g_packageCount; ++i)
+    {
+        if (EqualsNoCase(name, g_packages[i].name))
+            return -1;
+    }
+
+    if (g_packageCount >= kMaxPackages)
+    {
+        MarkScanFailure("package catalog", FolderScanStatus::CapacityExceeded, 0);
+        return -1;
+    }
+    if (strlen(name) >= sizeof(g_packages[0].name) ||
+        strlen(folder) >= sizeof(g_packages[0].folder) ||
+        strlen(alternate) >= sizeof(g_packages[0].alternate))
+    {
+        MarkScanFailure(name, FolderScanStatus::NameTooLong, 0);
+        return -1;
+    }
+
+    Package& package = g_packages[g_packageCount];
+    snprintf(package.name, sizeof(package.name), "%s", name);
+    snprintf(package.folder, sizeof(package.folder), "%s", folder);
+    snprintf(package.alternate, sizeof(package.alternate), "%s", alternate);
+    package.preview[0] = 0;
+    package.map = map;
+    return g_packageCount++;
 }
 
 static bool FindPackageFile(const Package& package, const char* rel, char* out, size_t size)
@@ -952,28 +1121,121 @@ static bool FindPackageFile(const Package& package, const char* rel, char* out, 
 
 static bool ScanUsermaps(const char* data)
 {
-    char root[224];int n=snprintf(root,sizeof(root),"%s/usermaps",data);if(n<0||(size_t)n>=sizeof(root)){MarkScanFailure(data,FolderScanStatus::NameTooLong,n);return false;}
-    static char folders[kMaxPackages][kListedNameMax];FolderScanResult r=ListFolder(root,true,folders,kMaxPackages,true);if(!AcceptFolderResult(root,r))return false;if(r.status==FolderScanStatus::Missing)return true;
-    for(int i=0;i<r.count;++i){char folder[224],zoneFolder[224],zone[256];SceKernelStat st;
-        int a=snprintf(folder,sizeof(folder),"%s/%s",root,folders[i]),b=snprintf(zoneFolder,sizeof(zoneFolder),"%s/zone",folder);if(a<0||(size_t)a>=sizeof(folder)||b<0||(size_t)b>=sizeof(zoneFolder)){MarkScanFailure(root,FolderScanStatus::NameTooLong,0);return false;}
-        bool valid=IsToken(folders[i]);a=snprintf(zone,sizeof(zone),"%s/%s.ff",folder,folders[i]);int rootStat=a>0&&(size_t)a<sizeof(zone)?sceKernelStat(zone,&st):-1;
-        if(valid&&rootStat<0&&rootStat!=(int)ORBIS_KERNEL_ERROR_ENOENT){MarkScanFailure(zone,FolderScanStatus::OpenFailed,rootStat);return false;}
-        bool atRoot=valid&&rootStat==0;b=snprintf(zone,sizeof(zone),"%s/%s.ff",zoneFolder,folders[i]);int nestedStat=b>0&&(size_t)b<sizeof(zone)?sceKernelStat(zone,&st):-1;
-        if(valid&&!atRoot&&nestedStat<0&&nestedStat!=(int)ORBIS_KERNEL_ERROR_ENOENT){MarkScanFailure(zone,FolderScanStatus::OpenFailed,nestedStat);return false;}
-        bool inZone=valid&&!atRoot&&nestedStat==0;if(!atRoot&&!inZone)continue;
-        int package=atRoot?AddPackage(folders[i],true,folder,zoneFolder):AddPackage(folders[i],true,zoneFolder,folder);if(g_scanFailed)return false;if(package<0)continue;
-        if(!ScanPackage(g_packages[package].folder,package,false)||!ScanPackage(g_packages[package].alternate,package,true))return false;
-    }return true;
+    char root[224];
+    const int rootLength = snprintf(root, sizeof(root), "%s/usermaps", data);
+    if (rootLength < 0 || (size_t)rootLength >= sizeof(root))
+    {
+        MarkScanFailure(data, FolderScanStatus::NameTooLong, rootLength);
+        return false;
+    }
+
+    static char folders[kMaxPackages][kListedNameMax];
+    FolderScanResult listing = ListFolder(root, true, folders, kMaxPackages, true);
+    if (!AcceptFolderResult(root, listing))
+        return false;
+    if (listing.status == FolderScanStatus::Missing)
+        return true;
+
+    for (int i = 0; i < listing.count; ++i)
+    {
+        char folder[224], zoneFolder[224], zone[256];
+        SceKernelStat stat{};
+        const int folderLength = snprintf(folder, sizeof(folder), "%s/%s", root, folders[i]);
+        const int zoneFolderLength = snprintf(zoneFolder, sizeof(zoneFolder), "%s/zone", folder);
+        if (folderLength < 0 || (size_t)folderLength >= sizeof(folder) ||
+            zoneFolderLength < 0 || (size_t)zoneFolderLength >= sizeof(zoneFolder))
+        {
+            MarkScanFailure(root, FolderScanStatus::NameTooLong, 0);
+            return false;
+        }
+
+        const bool validName = IsToken(folders[i]);
+        int pathLength = snprintf(zone, sizeof(zone), "%s/%s.ff", folder, folders[i]);
+        const int rootStat = pathLength > 0 && (size_t)pathLength < sizeof(zone)
+                                 ? sceKernelStat(zone, &stat) : -1;
+        if (validName && rootStat < 0 && rootStat != kKernelErrorNoEntry)
+        {
+            MarkScanFailure(zone, FolderScanStatus::StatFailed, rootStat);
+            return false;
+        }
+        const bool atRoot = validName && rootStat == 0;
+
+        pathLength = snprintf(zone, sizeof(zone), "%s/%s.ff", zoneFolder, folders[i]);
+        const int nestedStat = pathLength > 0 && (size_t)pathLength < sizeof(zone)
+                                   ? sceKernelStat(zone, &stat) : -1;
+        if (validName && !atRoot && nestedStat < 0 && nestedStat != kKernelErrorNoEntry)
+        {
+            MarkScanFailure(zone, FolderScanStatus::StatFailed, nestedStat);
+            return false;
+        }
+        const bool inZone = validName && !atRoot && nestedStat == 0;
+        if (!atRoot && !inZone)
+            continue;
+
+        const int package = atRoot ? AddPackage(folders[i], true, folder, zoneFolder)
+                                   : AddPackage(folders[i], true, zoneFolder, folder);
+        if (g_scanFailed)
+            return false;
+        if (package < 0)
+            continue;
+
+        if (!ScanPackage(g_packages[package].folder, package, false) ||
+            !ScanPackage(g_packages[package].alternate, package, true))
+            return false;
+    }
+    return true;
 }
 
 static bool ScanSharedZones(const char* data)
 {
-    char folder[224];int n=snprintf(folder,sizeof(folder),"%s/zone",data);if(n<0||(size_t)n>=sizeof(folder)){MarkScanFailure(data,FolderScanStatus::NameTooLong,n);return false;}
-    static char files[kMaxListed][kListedNameMax];FolderScanResult r=ListFolder(folder,false,files,kMaxListed,true);if(!AcceptFolderResult(folder,r))return false;if(r.status==FolderScanStatus::Missing)return true;
-    for(int i=0;i<r.count;++i){if(!EndsWith(files[i],".ff"))continue;char zone[kListedNameMax];snprintf(zone,sizeof(zone),"%s",files[i]);zone[strlen(zone)-3]=0;if(!IsToken(zone))continue;
-        bool localized=false;if(strlen(zone)>3&&zone[2]=='_'){char original[kListedNameMax];snprintf(original,sizeof(original),"%s.ff",zone+3);for(int j=0;j<r.count&&!localized;++j)localized=strcmp(files[j],original)==0;}if(localized)continue;
-        int package=AddPackage(zone,false,folder,"");if(g_scanFailed)return false;if(package<0)continue;if(!ScanPackage(folder,package,false))return false;if(strcmp(zone,k_levelCommon)==0)g_levelCommon=package;
-    }return true;
+    char folder[224];
+    const int folderLength = snprintf(folder, sizeof(folder), "%s/zone", data);
+    if (folderLength < 0 || (size_t)folderLength >= sizeof(folder))
+    {
+        MarkScanFailure(data, FolderScanStatus::NameTooLong, folderLength);
+        return false;
+    }
+
+    static char files[kMaxListed][kListedNameMax];
+    FolderScanResult listing = ListFolder(folder, false, files, kMaxListed, true);
+    if (!AcceptFolderResult(folder, listing))
+        return false;
+    if (listing.status == FolderScanStatus::Missing)
+        return true;
+
+    for (int i = 0; i < listing.count; ++i)
+    {
+        if (!EndsWith(files[i], ".ff"))
+            continue;
+
+        char zone[kListedNameMax];
+        snprintf(zone, sizeof(zone), "%s", files[i]);
+        zone[strlen(zone) - 3] = 0;
+        if (!IsToken(zone))
+            continue;
+
+        bool localized = false;
+        if (strlen(zone) > 3 && zone[2] == '_')
+        {
+            char original[kListedNameMax];
+            snprintf(original, sizeof(original), "%s.ff", zone + 3);
+            for (int j = 0; j < listing.count && !localized; ++j)
+                localized = strcmp(files[j], original) == 0;
+        }
+        if (localized)
+            continue;
+
+        const int package = AddPackage(zone, false, folder, "");
+        if (g_scanFailed)
+            return false;
+        if (package < 0)
+            continue;
+        if (!ScanPackage(folder, package, false))
+            return false;
+        if (strcmp(zone, k_levelCommon) == 0)
+            g_levelCommon = package;
+    }
+    return true;
 }
 
 static const char* Relative(const char* path)
@@ -6245,16 +6507,88 @@ static void ReadModInfo(Mod& mod)
 
 static bool ScanMods(const char* data)
 {
-    char root[224];int n=snprintf(root,sizeof(root),"%s/mods",data);if(n<0||(size_t)n>=sizeof(root)){MarkScanFailure(data,FolderScanStatus::NameTooLong,n);return false;}
-    static char folders[kMaxMods][kListedNameMax];FolderScanResult r=ListFolder(root,true,folders,kMaxMods,true);if(!AcceptFolderResult(root,r))return false;if(r.status==FolderScanStatus::Missing)return true;
-    for(int i=0;i<r.count;++i){if(!ModNameValid(folders[i])||FindMod(folders[i])>=0)continue;char base[224],zone[224];int a=snprintf(base,sizeof(base),"%s/%s",root,folders[i]),b=snprintf(zone,sizeof(zone),"%s/zone",base);if(a<0||(size_t)a>=sizeof(base)||b<0||(size_t)b>=sizeof(zone)){MarkScanFailure(root,FolderScanStatus::NameTooLong,0);return false;}
-        Mod candidate{};snprintf(candidate.name,sizeof(candidate.name),"%s",folders[i]);bool atBase=false,any=false;
-        for(int k=0;k<kModZoneKinds;++k){char file[288];SceKernelStat st;a=snprintf(file,sizeof(file),"%s/%s.ff",base,k_modZones[k]);int baseStat=a>0&&(size_t)a<sizeof(file)?sceKernelStat(file,&st):-1;if(baseStat<0&&baseStat!=(int)ORBIS_KERNEL_ERROR_ENOENT){MarkScanFailure(file,FolderScanStatus::OpenFailed,baseStat);return false;}bool here=baseStat==0;
-            b=snprintf(file,sizeof(file),"%s/%s.ff",zone,k_modZones[k]);int zoneStat=b>0&&(size_t)b<sizeof(file)?sceKernelStat(file,&st):-1;if(!here&&zoneStat<0&&zoneStat!=(int)ORBIS_KERNEL_ERROR_ENOENT){MarkScanFailure(file,FolderScanStatus::OpenFailed,zoneStat);return false;}bool inZone=!here&&zoneStat==0;candidate.zones[k]=here||inZone;atBase=atBase||here;any=any||candidate.zones[k];}
-        if(!any)continue;if(g_modCount>=kMaxMods){MarkScanFailure("mod catalog",FolderScanStatus::CapacityExceeded,0);return false;}
-        snprintf(candidate.folder,sizeof(candidate.folder),"%s",atBase?base:zone);snprintf(candidate.alternate,sizeof(candidate.alternate),"%s",atBase?zone:base);ReadModInfo(candidate);g_mods[g_modCount]=candidate;Mod& mod=g_mods[g_modCount++];
-        T7Log_Write("[Mods] found %s (%s):%s%s%s%s",mod.name,mod.title,mod.zones[0]?" core_mod":"",mod.zones[1]?" zm_mod":"",mod.zones[2]?" mp_mod":"",mod.zones[3]?" cp_mod":"");
-    }return true;
+    char root[224];
+    const int rootLength = snprintf(root, sizeof(root), "%s/mods", data);
+    if (rootLength < 0 || (size_t)rootLength >= sizeof(root))
+    {
+        MarkScanFailure(data, FolderScanStatus::NameTooLong, rootLength);
+        return false;
+    }
+
+    static char folders[kMaxMods][kListedNameMax];
+    FolderScanResult listing = ListFolder(root, true, folders, kMaxMods, true);
+    if (!AcceptFolderResult(root, listing))
+        return false;
+    if (listing.status == FolderScanStatus::Missing)
+        return true;
+
+    for (int i = 0; i < listing.count; ++i)
+    {
+        if (!ModNameValid(folders[i]) || FindMod(folders[i]) >= 0)
+            continue;
+
+        char base[224], zone[224];
+        const int baseLength = snprintf(base, sizeof(base), "%s/%s", root, folders[i]);
+        const int zoneLength = snprintf(zone, sizeof(zone), "%s/zone", base);
+        if (baseLength < 0 || (size_t)baseLength >= sizeof(base) ||
+            zoneLength < 0 || (size_t)zoneLength >= sizeof(zone))
+        {
+            MarkScanFailure(root, FolderScanStatus::NameTooLong, 0);
+            return false;
+        }
+
+        Mod candidate{};
+        snprintf(candidate.name, sizeof(candidate.name), "%s", folders[i]);
+        bool atBase = false;
+        bool hasZones = false;
+
+        for (int kind = 0; kind < kModZoneKinds; ++kind)
+        {
+            char file[288];
+            SceKernelStat stat{};
+            int pathLength = snprintf(file, sizeof(file), "%s/%s.ff", base, k_modZones[kind]);
+            const int baseStat = pathLength > 0 && (size_t)pathLength < sizeof(file)
+                                     ? sceKernelStat(file, &stat) : -1;
+            if (baseStat < 0 && baseStat != kKernelErrorNoEntry)
+            {
+                MarkScanFailure(file, FolderScanStatus::StatFailed, baseStat);
+                return false;
+            }
+            const bool atBaseKind = baseStat == 0;
+
+            pathLength = snprintf(file, sizeof(file), "%s/%s.ff", zone, k_modZones[kind]);
+            const int zoneStat = pathLength > 0 && (size_t)pathLength < sizeof(file)
+                                     ? sceKernelStat(file, &stat) : -1;
+            if (!atBaseKind && zoneStat < 0 && zoneStat != kKernelErrorNoEntry)
+            {
+                MarkScanFailure(file, FolderScanStatus::StatFailed, zoneStat);
+                return false;
+            }
+            const bool inZoneKind = !atBaseKind && zoneStat == 0;
+
+            candidate.zones[kind] = atBaseKind || inZoneKind;
+            atBase = atBase || atBaseKind;
+            hasZones = hasZones || candidate.zones[kind];
+        }
+
+        if (!hasZones)
+            continue;
+        if (g_modCount >= kMaxMods)
+        {
+            MarkScanFailure("mod catalog", FolderScanStatus::CapacityExceeded, 0);
+            return false;
+        }
+
+        snprintf(candidate.folder, sizeof(candidate.folder), "%s", atBase ? base : zone);
+        snprintf(candidate.alternate, sizeof(candidate.alternate), "%s", atBase ? zone : base);
+        ReadModInfo(candidate);
+        g_mods[g_modCount] = candidate;
+        Mod& mod = g_mods[g_modCount++];
+        T7Log_Write("[Mods] found %s (%s):%s%s%s%s", mod.name, mod.title,
+                    mod.zones[0] ? " core_mod" : "", mod.zones[1] ? " zm_mod" : "",
+                    mod.zones[2] ? " mp_mod" : "", mod.zones[3] ? " cp_mod" : "");
+    }
+    return true;
 }
 
 static bool WriteChosenMods(const char (*names)[kNameMax], int count)
