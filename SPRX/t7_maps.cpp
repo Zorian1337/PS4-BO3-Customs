@@ -5662,26 +5662,15 @@ static bool JsonString(const char* json, const char* key, char* out, size_t size
     return true;
 }
 
-static bool AppendLuaString(char* out, size_t size, size_t* used, const char* text)
+static void AppendLuaString(char* out, size_t size, size_t* used, const char* text)
 {
-    if (!out || !used || !text || *used + 3 >= size)
-        return false;
+    if (*used + 3 >= size)
+        return;
 
     out[(*used)++] = '"';
-    for (const unsigned char* c = (const unsigned char*)text; *c; ++c)
+
+    for (const unsigned char* c = (const unsigned char*)text; *c && *used + 4 < size; ++c)
     {
-        size_t needed = 0;
-        if (*c == '"' || *c == '\\' || *c == '\n')
-            needed = 2;
-        else if (*c >= 0x20)
-            needed = 1;
-
-        if (*used + needed + 2 >= size)
-        {
-            out[*used] = 0;
-            return false;
-        }
-
         if (*c == '"' || *c == '\\')
         {
             out[(*used)++] = '\\';
@@ -5700,30 +5689,14 @@ static bool AppendLuaString(char* out, size_t size, size_t* used, const char* te
 
     out[(*used)++] = '"';
     out[*used] = 0;
-    return true;
 }
 
-static bool Append(char* out, size_t size, size_t* used, const char* text)
+static void Append(char* out, size_t size, size_t* used, const char* text)
 {
-    if (!out || !used || !text || !size || *used >= size)
-        return false;
+    const int n = snprintf(out + *used, size - *used, "%s", text);
 
-    const size_t available = size - *used;
-    const int length = snprintf(out + *used, available, "%s", text);
-    if (length < 0)
-    {
-        out[*used] = 0;
-        return false;
-    }
-    if ((size_t)length >= available)
-    {
-        *used = size - 1;
-        out[*used] = 0;
-        return false;
-    }
-
-    *used += (size_t)length;
-    return true;
+    if (n > 0)
+        *used = *used + (size_t)n < size ? *used + (size_t)n : size - 1;
 }
 
 struct BbTag
@@ -6329,6 +6302,65 @@ static void FindPreview(Package& package, const char* json)
 }
 
 static bool AllDigits(const char* text);
+
+static bool AppendChecked(char* out, size_t size, size_t* used, const char* text)
+{
+    if (!out || !used || !text || !size || *used >= size)
+        return false;
+
+    const size_t available = size - *used;
+    const int length = snprintf(out + *used, available, "%s", text);
+    if (length < 0 || (size_t)length >= available)
+    {
+        out[size - 1] = 0;
+        *used = size - 1;
+        return false;
+    }
+
+    *used += (size_t)length;
+    return true;
+}
+
+static bool AppendLuaStringChecked(char* out, size_t size, size_t* used, const char* text)
+{
+    if (!out || !used || !text || *used + 3 > size)
+        return false;
+
+    out[(*used)++] = '"';
+    for (const unsigned char* c = (const unsigned char*)text; *c; ++c)
+    {
+        size_t needed = 0;
+        if (*c == '"' || *c == '\\' || *c == '\n')
+            needed = 2;
+        else if (*c >= 0x20)
+            needed = 1;
+
+        if (*used + needed + 2 > size)
+        {
+            out[*used] = 0;
+            return false;
+        }
+
+        if (*c == '"' || *c == '\\')
+        {
+            out[(*used)++] = '\\';
+            out[(*used)++] = (char)*c;
+        }
+        else if (*c == '\n')
+        {
+            out[(*used)++] = '\\';
+            out[(*used)++] = 'n';
+        }
+        else if (*c >= 0x20)
+        {
+            out[(*used)++] = (char)*c;
+        }
+    }
+
+    out[(*used)++] = '"';
+    out[*used] = 0;
+    return true;
+}
 
 static bool BuildCustomMapsLua()
 {
