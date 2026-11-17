@@ -2,6 +2,7 @@
 #include "headers.hpp"
 #include "t7_lua_files.hpp"
 #include "diagnostic_ring.hpp"
+#include "stream_guard.hpp"
 #include "t7_maps.hpp"
 #include "mod_load_context.hpp"
 #include "t7_mapimages.hpp"
@@ -444,6 +445,7 @@ static std::atomic<uint64_t> g_textureProbeAt{0};
 static std::atomic<uint64_t> g_gateLogged{0};
 static std::atomic<uint32_t> g_gateLogs{0};
 #ifdef _DEBUG
+static std::atomic<uint32_t> g_streamRejectDiagnosticCount{0};
 static void*                 g_openMenuOriginal = nullptr;
 static void*                 g_closeMenuOriginal = nullptr;
 static void*                 g_freezeOriginal = nullptr;
@@ -5549,15 +5551,21 @@ static uint64_t BlockJob_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
         const uint32_t stored = *(uint32_t*)(slot + 0x40030);
         const uint64_t ring = *(uint64_t*)(g_base + kReadRing);
 
-        // Subtraction-based range validation avoids wrapping either end
-        // of the ring or the requested length on malformed stream blocks.
-        const bool outside = hashed && (!ring || data < ring ||
-                                      data - ring >= 0xA00000 ||
-                                      hashed > 0xA00000 - (data - ring));
-        const bool odd = (hashed > stored && hashed - stored > 3) || unpacked > 0x40000;
+        // Preserve the existing rejection policy; this helper only names the
+        // branch so DEBUG diagnostics can explain why the job was cleared.
+        const StreamGuard::RejectReason reason = StreamGuard::Evaluate(ring, data, unpacked, hashed, stored);
 
-        if (outside || odd)
+        if (reason != StreamGuard::RejectReason::None)
         {
+#ifdef _DEBUG
+            if (StreamGuard::TryClaimDiagnostic(g_streamRejectDiagnosticCount))
+            {
+                T7Log_Write("[Trace] event=stream-block-rejected reason=%s ring=%llX slot=%llX data=%llX unpacked=%u hashed=%u stored=%u",
+                            reason == StreamGuard::RejectReason::OutsideRing ? "outside-ring" : "invalid-lengths",
+                            (unsigned long long)ring, (unsigned long long)slot, (unsigned long long)data,
+                            (unsigned)unpacked, (unsigned)hashed, (unsigned)stored);
+            }
+#endif
             *(uint32_t*)(slot + 0x4002C) = 0;
             *(uint32_t*)(slot + 0x40028) = 0;
         }
