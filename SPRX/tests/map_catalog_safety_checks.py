@@ -194,7 +194,7 @@ int main()
     assert "Mod candidate{}" in scan_mods and "free(mod.description)" not in scan_mods
     assert "FolderScanStatus::CapacityExceeded" in add_file
     assert "FolderScanStatus::CapacityExceeded" in add_package
-    assert "ORBIS_KERNEL_ERROR_ENOENT" in production
+    assert "kKernelErrorNoEntry" in production
     print("PASS: failed refresh restores catalog arrays, Lua buffers, dirty state and mod-description ownership")
 
 
