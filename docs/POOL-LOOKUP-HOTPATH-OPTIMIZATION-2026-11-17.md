@@ -47,7 +47,7 @@ though LinkXAsset_h() may invoke it from multiple database workers. This was a
 confirmed plugin-owned data race. The latch now uses atomic exchange, and a
 32-worker stress fixture checks that an exhausted type produces one log and
 one pool snapshot. The fixture is included in both the focused diagnostics
-workflow and the full host regression inventory. CI is pending.
+workflow and the full host regression inventory. The updated SPRX diagnostics workflow passed on final source commit `fdcc08e`, including both pool fixtures. Focused mod-stack, frontend-reload, script-priority and import-lifetime workflows also passed.
 
 ## CI coverage correction
 
