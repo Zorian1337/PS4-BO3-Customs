@@ -815,8 +815,30 @@ static bool IsZoneFile(const char* name)
            EndsWith(name, ".sabs");
 }
 
-constexpr int kKernelErrorNoEntry = (int)0x80020002u; // libkernel ENOENT\nenum class FolderScanStatus : uint8_t { Ok, Missing, OpenFailed, ReadFailed, StatFailed, MalformedRecord, NameTooLong, CapacityExceeded, CloseFailed };
-struct FolderScanResult { FolderScanStatus status; int count; int error; bool Complete() const { return status == FolderScanStatus::Ok || status == FolderScanStatus::Missing; } };
+constexpr int kKernelErrorNoEntry = (int)0x80020002u; // libkernel ENOENT\nenum class FolderScanStatus : uint8_t
+{
+    Ok,
+    Missing,
+    OpenFailed,
+    ReadFailed,
+    StatFailed,
+    MalformedRecord,
+    NameTooLong,
+    CapacityExceeded,
+    CloseFailed
+};
+
+struct FolderScanResult
+{
+    FolderScanStatus status;
+    int count;
+    int error;
+
+    bool Complete() const
+    {
+        return status == FolderScanStatus::Ok || status == FolderScanStatus::Missing;
+    }
+};
 static const char* FolderScanStatusName(FolderScanStatus s)
 {
     switch(s) {
@@ -7222,6 +7244,9 @@ static bool BuildMatches(uintptr_t base)
     return true;
 }
 
+// Mod.description pointers are shallow-copied here. The refresh owner must call
+// exactly one of CommitCatalog (free old descriptions) or RestoreCatalog
+// (free candidate descriptions and restore the old pointer set).
 struct CatalogSnapshot
 {
     Package packages[kMaxPackages];int packageCount;File files[kMaxFiles];int fileCount;Movie movies[64];int movieCount;
