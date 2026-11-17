@@ -38,14 +38,14 @@ exhaustion, and unknown entry types. It also exercises checked Lua appends,
 storage-root loss detection, rollback, and description ownership invariants.
 It is registered in the full host inventory and focused SPRX diagnostics.
 
-**Validation:** source head fd6295b821c4e0a39278bc17569f59f552e740dc passed
+**Validation:** implementation source head ba6f5a43d8e3dcf658278c085e9d585a3d9de31a passed
 the full-range source publication audit, publication-guard unit tests, all 42
 registered host regression programs (zero failures), focused SPRX diagnostics,
 and the related frontend/mod-stack/script-priority workflows. The new
-directory, storage-root, Lua-output, and catalog rollback tests all passed.
-No native SPRX build, upload, release, or PS4/PS5 console test was performed.
-The zm_ccube crash cause remains unknown; diagnostics and catalog safety are
-not a claim that the map crash is fixed.
+directory, storage-root, Lua-output builder, and catalog rollback tests all
+passed. No native SPRX build, upload, release, or PS4/PS5 console test was
+performed. The zm_ccube crash cause remains unknown; diagnostics and catalog
+safety are not a claim that the map crash is fixed.
 
 ## Map-load diagnostics
 
