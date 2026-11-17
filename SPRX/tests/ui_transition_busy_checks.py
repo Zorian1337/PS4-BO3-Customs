@@ -39,14 +39,16 @@ PREFIX = r'''
 #include <cassert>
 #include <cstdint>
 #include <cstring>
+#include <cstdio>
+namespace T7Maps {
 static constexpr uintptr_t kZoneNames=0x1000;
 static constexpr int kZoneNameSlots=65;
 static constexpr size_t kZoneNameStride=80, kZoneStateAt=72;
 static constexpr size_t kNameMax=56;
 static uint8_t memory[0x10000];
-static uintptr_t g_base=(uintptr_t)memory;
-static bool g_frontendApplyPending=false, g_frontendApplying=false, g_frontendApplyLoading=false;
-static bool g_reloadCheck=false;
+static uintptr_t T7Maps::g_base=(uintptr_t)memory;
+static bool T7Maps::g_frontendApplyPending=false, T7Maps::g_frontendApplying=false, T7Maps::g_frontendApplyLoading=false;
+static bool T7Maps::g_reloadCheck=false;
 static char g_waitZones[64][kNameMax] = {};
 static int g_waitZoneCount=0;
 static bool EqualsNoCase(const char* a,const char* b) { return std::strcmp(a,b)==0; }
@@ -55,9 +57,9 @@ static bool EqualsNoCase(const char* a,const char* b) { return std::strcmp(a,b)=
 MAIN = r'''
 int main()
 {
-    std::strcpy(g_waitZones[0],"zm_mod");
-    g_waitZoneCount=1;
-    auto* entry=(char*)(g_base+kZoneNames+kZoneNameStride);
+    std::strcpy(T7Maps::g_waitZones[0],"zm_mod");
+    T7Maps::g_waitZoneCount=1;
+    auto* entry=(char*)(T7Maps::g_base+T7Maps::kZoneNames+T7Maps::kZoneNameStride);
     std::strcpy(entry,"zm_mod");
     *(int32_t*)(entry+kZoneStateAt)=1;
 
@@ -100,7 +102,7 @@ def main():
         temp = Path(temp)
         cpp = temp / "ui_transition.cpp"
         exe = temp / "ui_transition"
-        cpp.write_text(PREFIX + ZONE_STATE + "\n" + ANY_LOADING + "\n" + BUSY + "\n" + MAIN)
+        cpp.write_text(PREFIX + ZONE_STATE + "\n" + ANY_LOADING + "\n}\n" + BUSY + "\n" + MAIN)
         subprocess.run([
             "g++", "-std=c++20", "-Wall", "-Wextra", "-Werror", "-O1",
             "-fsanitize=address,undefined", str(cpp), "-o", str(exe)
