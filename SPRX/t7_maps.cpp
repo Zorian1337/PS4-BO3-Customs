@@ -6644,6 +6644,25 @@ static bool ScanAll()
     return !g_scanFailed;
 }
 
+static bool ScanAllInitial()
+{
+    if (ScanAll())
+        return true;
+
+    ReleaseCandidateMods();
+    g_packageCount = 0;
+    g_fileCount = 0;
+    g_movieCount = 0;
+    g_modCount = 0;
+    g_levelCommon = -1;
+    g_listedMaps = 0;
+    memset(g_mods, 0, sizeof(g_mods));
+    g_customMapsLua[0] = 0;
+    g_mapsTableLua[0] = 0;
+    g_modsLuaDirty.store(true);
+    return false;
+}
+
 static std::atomic<int> g_uninstallState{0};
 static char g_uninstallMap[kNameMax];
 static char g_uninstallRoot[224];
@@ -6970,24 +6989,10 @@ void T7Maps_Install(uintptr_t base)
     sceKernelUnlink(k_chosenModFile);
     T7Log_Write("[Mods] starting with all mods disabled; select mods again from the menu");
 
-    // Startup has no published catalog to preserve. Reject a partial first
-    // scan by clearing its candidate state; refreshes use the full snapshot
-    // transaction below to retain the previous catalog.
-    if (!ScanAll())
-    {
-        ReleaseCandidateMods();
-        g_packageCount = 0;
-        g_fileCount = 0;
-        g_movieCount = 0;
-        g_modCount = 0;
-        g_levelCommon = -1;
-        g_listedMaps = 0;
-        memset(g_mods, 0, sizeof(g_mods));
-        g_customMapsLua[0] = 0;
-        g_mapsTableLua[0] = 0;
-        g_modsLuaDirty.store(true);
+    // Startup has no published catalog to preserve. Refreshes use the full
+    // snapshot transaction to retain the last known-good catalog.
+    if (!ScanAllInitial())
         T7Log_Write("[Maps] initial catalog rejected; no partial entries published: %s", g_scanFailure);
-    }
     InstallHooks(base);
 }
 
