@@ -21,7 +21,7 @@ while end < len(source):
     end += 1
 assert depth == 0
 function = source[start:end]
-script_base_start = source.index("static bool ScriptBase(const char* name, char* base, size_t size)\\n{")
+script_base_start = source.index("static bool ScriptBase(const char* name, char* base, size_t size)\n{")
 script_base_open = source.index("{", script_base_start)
 script_base_depth = 0
 script_base_end = script_base_open
@@ -69,7 +69,7 @@ struct ListReader {};
 static int MapPackageFile(const char*) { return 0; }
 static bool EqualsNoCase(const char* a, const char* b) { return strcasecmp(a, b) == 0; }
 static T7LuaOwnership::Index g_modLuaOwnership;
-""" + script_base + "\\n" + function + r"""
+""" + script_base + "\n" + function + r"""
 
 static void Invoke(const char* name)
 {
