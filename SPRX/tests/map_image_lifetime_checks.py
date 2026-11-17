@@ -135,6 +135,7 @@ int main()
     g_pictures[0].image=(uintptr_t)customImage;
     *(uint8_t*)(customImage+kSlotInUse)=1;
     std::strcpy((char*)(customImage+kSlotName),"custom");
+    *(uint16_t*)(handle+2)=8; // The UI element was recycled after this callback was queued.
     *(uint64_t*)(g_base+kElements+408*3+kElementImage)=0x3333;
     assert(Invoke(state,stack,(uintptr_t)customImage)==0);
     assert(*(uint64_t*)(g_base+kElements+408*3+kElementImage)==0x3333);
