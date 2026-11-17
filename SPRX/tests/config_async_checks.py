@@ -14,6 +14,11 @@ assert "bool T7Config_SaveAsync(" in header
 assert "bool T7Config_SaveTakeFailure();" in header
 assert "scePthreadCreate(&worker" in queue
 assert "g_asyncWorkerStarted.store(false" in queue
+assert "if (g_asyncQueueLock.test_and_set(std::memory_order_acquire))" in queue
+assert queue.index("if (g_asyncQueueLock.test_and_set") < queue.index("memcpy(g_asyncSection")
+assert "memcpy(g_asyncLines, lines, linesLength + 1)" in queue
+assert "g_asyncPending.store(true, std::memory_order_release)" in queue
+assert "scePthreadDetach(worker)" in queue
 assert "g_asyncQueueLock.test_and_set(std::memory_order_acquire)" in worker
 assert "g_asyncPending.exchange(false, std::memory_order_acq_rel)" in worker
 assert "T7Config_Save(g_asyncSection, owns, g_asyncLines)" in worker
