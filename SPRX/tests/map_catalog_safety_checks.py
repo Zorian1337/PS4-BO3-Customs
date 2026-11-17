@@ -38,7 +38,7 @@ PREFIX = r"""
 #define SCE_KERNEL_DT_DIR 4
 #define SCE_KERNEL_DT_UNKNOWN 0
 constexpr int kListedNameMax = 96;
-#define ORBIS_KERNEL_ERROR_ENOENT ((int)0x80020002u)
+constexpr int kKernelErrorNoEntry = (int)0x80020002u;
 struct SceKernelDirent { uint64_t d_fileno; uint16_t d_reclen; uint8_t d_type; char d_name[1]; };
 struct SceKernelStat { uint32_t st_mode; };
 static bool g_scanFailed = false;
@@ -108,7 +108,7 @@ int main()
     Reset(); r = ListFolder("/maps", false, names, 2, true);
     assert(r.status == FolderScanStatus::Ok && r.count == 0);
 
-    Reset(); openResult = ORBIS_KERNEL_ERROR_ENOENT;
+    Reset(); openResult = kKernelErrorNoEntry;
     r = ListFolder("/optional", true, names, 2, true);
     assert(r.status == FolderScanStatus::Missing && r.Complete());
     Reset(); openResult = ORBIS_KERNEL_ERROR_ENOENT;
