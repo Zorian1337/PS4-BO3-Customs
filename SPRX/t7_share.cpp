@@ -3674,7 +3674,14 @@ static void Finish()
     {
         if (session.fetched)
         {
-            if (!T7Maps_Refresh())
+#ifdef _DEBUG
+            T7FrameWorkPhase_Set(23);
+#endif
+            const bool refreshed = T7Maps_Refresh();
+#ifdef _DEBUG
+            T7FrameWorkPhase_Set(22);
+#endif
+            if (!refreshed)
                 return;
 
             g_mapsChanged.store(true);
@@ -3817,7 +3824,13 @@ static bool Evaluate(bool frame)
 
     if (frame)
     {
+#ifdef _DEBUG
+        T7FrameWorkPhase_Set(21);
+#endif
         UpdateHosted(role);
+#ifdef _DEBUG
+        T7FrameWorkPhase_Set(20);
+#endif
         PublishRole(role);
     }
 
@@ -3887,7 +3900,15 @@ static bool Evaluate(bool frame)
             g_pendingSince = 0;
 
             if (frame && !g_busy.load() && g_phase.load() == kInstalling)
+            {
+#ifdef _DEBUG
+                T7FrameWorkPhase_Set(22);
+#endif
                 Finish();
+#ifdef _DEBUG
+                T7FrameWorkPhase_Set(20);
+#endif
+            }
 
             if (!g_busy.load() && g_phase.load() == kFailed && !g_overriding)
             {
@@ -4369,7 +4390,13 @@ void T7Share_Tick()
 
     if (T7Share::g_ready)
     {
+#ifdef _DEBUG
+        T7FrameWorkPhase_Set(20);
+#endif
         T7Share::Evaluate(true);
+#ifdef _DEBUG
+        T7FrameWorkPhase_Set(2);
+#endif
         T7Share::HandoverWatch();
         T7Share::RestoreMigrateWait();
     }
