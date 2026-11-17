@@ -7545,6 +7545,7 @@ bool T7Maps_ModsChanged()
 
 int T7Maps_ModCount()
 {
+    T7Maps::ListReader reading;
     return T7Maps::g_buildMatched ? T7Maps::g_modCount : 0;
 }
 
