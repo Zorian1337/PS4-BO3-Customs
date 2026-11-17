@@ -6970,13 +6970,24 @@ void T7Maps_Install(uintptr_t base)
     sceKernelUnlink(k_chosenModFile);
     T7Log_Write("[Mods] starting with all mods disabled; select mods again from the menu");
 
-    BeginListWrite();
-    CatalogSnapshot* const previous=CaptureCatalog();
-    const bool scanned=previous&&ScanAll();
-    if(scanned)CommitCatalog(previous);
-    else if(previous)RestoreCatalog(previous);
-    else T7Log_Write("[Maps] initial catalog scan skipped: could not reserve rollback memory");
-    EndListWrite();
+    // Startup has no published catalog to preserve. Reject a partial first
+    // scan by clearing its candidate state; refreshes use the full snapshot
+    // transaction below to retain the previous catalog.
+    if (!ScanAll())
+    {
+        ReleaseCandidateMods();
+        g_packageCount = 0;
+        g_fileCount = 0;
+        g_movieCount = 0;
+        g_modCount = 0;
+        g_levelCommon = -1;
+        g_listedMaps = 0;
+        memset(g_mods, 0, sizeof(g_mods));
+        g_customMapsLua[0] = 0;
+        g_mapsTableLua[0] = 0;
+        g_modsLuaDirty.store(true);
+        T7Log_Write("[Maps] initial catalog rejected; no partial entries published: %s", g_scanFailure);
+    }
     InstallHooks(base);
 }
 
