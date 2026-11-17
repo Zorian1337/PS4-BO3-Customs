@@ -41,11 +41,17 @@ static int sceKernelMmap(int,size_t bytes,int,int,int,int,void** block) {
 ''' + growth + r'''
 int main() {
     // Use the production table, including its atomic member initialization.
+    // GrowthFor uses binary search, so table ordering is part of its contract.
+    int32_t previousType=-1;
     for (auto& entry:g_poolGrowth) {
+        assert(entry.type>previousType);
+        previousType=entry.type;
         assert(!entry.capped.load() && entry.grown==0);
         nativePools[entry.type].size=entry.size;
         nativePools[entry.type].limit=entry.limit;
+        assert(GrowthFor(entry.type)==&entry);
     }
+    assert(!GrowthFor(-1) && !GrowthFor(4) && !GrowthFor(103));
     auto* material=GrowthFor(6);
     auto* image=GrowthFor(kImageAsset);
     assert(material && material->size==664 && !GrowthFor(4));
