@@ -208,7 +208,7 @@ local-device patches or candidate binaries:
   fallback for retired images, and drops stale element generations without
   forwarding a stale custom pointer. Source-level regression tests were added.
 
-The latest PR head is `2676c9e5f67a4584f091bbcab7a077cf5a48d5c5`.
+The latest PR head is `1ec34834bc49bd254a91788d304a1f5b648db25d`.
 GitHub's combined-status endpoint currently reports no checks for this head;
 do not describe CI as passed. No native SPRX build, console test, FTP upload or
 release was performed. Issues #29 and #33 remain open pending CI/review and
