@@ -1702,14 +1702,30 @@ static int StackIndexOfZone(const char* zone)
 
 static bool ScriptBase(const char* name, char* base, size_t size)
 {
-    const size_t n = strlen(name);
+    if (!name || !base || size < 5)
+        return false;
 
-    if (n < 5 || n + 4 > size || name[n - 4] != '.' ||
-        (!EqualsNoCase(name + n - 3, "gsc") && !EqualsNoCase(name + n - 3, "csc")))
+    // Script names originate in engine-owned asset headers. Never strlen() a
+    // borrowed pointer: a missing terminator can cross an unreadable page.
+    char copy[kInternedMax];
+    const uintptr_t start = (uintptr_t)name;
+    size_t n = 0;
+    for (; n < sizeof(copy); ++n)
+    {
+        if (start > UINTPTR_MAX - n || !RangeReadable(start + n, 1))
+            return false;
+
+        copy[n] = name[n];
+        if (!copy[n])
+            break;
+    }
+
+    if (n >= sizeof(copy) || n < 5 || n + 4 > size || copy[n - 4] != '.' ||
+        (!EqualsNoCase(copy + n - 3, "gsc") && !EqualsNoCase(copy + n - 3, "csc")))
         return false;
 
     for (size_t i = 0; i < n - 4; ++i)
-        base[i] = (name[i] >= 'A' && name[i] <= 'Z') ? (char)(name[i] + 32) : name[i];
+        base[i] = (copy[i] >= 'A' && copy[i] <= 'Z') ? (char)(copy[i] + 32) : copy[i];
 
     base[n - 4] = 0;
     return true;

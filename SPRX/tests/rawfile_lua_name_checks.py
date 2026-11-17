@@ -21,6 +21,21 @@ while end < len(source):
     end += 1
 assert depth == 0
 function = source[start:end]
+script_base_start = source.index("static bool ScriptBase(const char* name, char* base, size_t size)\\n{")
+script_base_open = source.index("{", script_base_start)
+script_base_depth = 0
+script_base_end = script_base_open
+while script_base_end < len(source):
+    if source[script_base_end] == "{":
+        script_base_depth += 1
+    elif source[script_base_end] == "}":
+        script_base_depth -= 1
+        if script_base_depth == 0:
+            script_base_end += 1
+            break
+    script_base_end += 1
+assert script_base_depth == 0
+script_base = source[script_base_start:script_base_end]
 
 fixture = r"""
 #include "t7_lua_ownership.hpp"
@@ -54,7 +69,7 @@ struct ListReader {};
 static int MapPackageFile(const char*) { return 0; }
 static bool EqualsNoCase(const char* a, const char* b) { return strcasecmp(a, b) == 0; }
 static T7LuaOwnership::Index g_modLuaOwnership;
-""" + function + r"""
+""" + script_base + "\\n" + function + r"""
 
 static void Invoke(const char* name)
 {
@@ -67,6 +82,13 @@ static void Invoke(const char* name)
 }
 int main()
 {
+    char base[kInternedMax] = {};
+    const char script[] = "scripts/zm_ccube/example.gsc";
+    assert(ScriptBase(script, base, sizeof(base)));
+    assert(strcmp(base, "scripts/zm_ccube/example") == 0);
+    const char invalidScript[] = "scripts/zm_ccube/example.lua";
+    assert(!ScriptBase(invalidScript, base, sizeof(base)));
+
     const char valid[] = "scripts/zm_ccube/example.lua";
     Invoke(valid);
     assert(g_modLuaOwnership.MayContain(valid));
@@ -85,6 +107,7 @@ int main()
     memory[page - 1] = 'l';
     guardStart = (uintptr_t)(memory + page);
     Invoke(memory + page - 2); // The missing terminator is behind an unreadable page.
+    assert(!ScriptBase(memory + page - 2, base, sizeof(base)));
     const char partial[] = ".l";
     assert(!g_modLuaOwnership.MayContain(partial));
     guardStart = 0;
