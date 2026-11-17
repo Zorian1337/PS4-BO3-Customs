@@ -141,7 +141,7 @@ int main()
     // More rejects cannot exceed the documented 16-event lifetime cap.
     for (unsigned i=0;i<24;++i)
     {
-        *(uint64_t*)(slotBytes + 0x40020) = ringBase + 0xA00000 - 8;
+        *(uint64_t*)(slotBytes + 0x40020) = ringBase + 0xA00000 - 8 - i;
         *(uint32_t*)(slotBytes + 0x40028) = 128;
         *(uint32_t*)(slotBytes + 0x4002C) = 64;
         *(uint32_t*)(slotBytes + 0x40030) = 64;
@@ -149,6 +149,9 @@ int main()
     }
     TraceStreamBlockRejections();
     assert(lines.size() == 16);
+    for (size_t i=0;i<lines.size();++i)
+        for (size_t j=i+1;j<lines.size();++j)
+            assert(lines[i] != lines[j]); // Incremental drains must not replay old samples.
     TraceStreamBlockRejections();
     assert(lines.size() == 16);
     assert(nativeCalls == 28);
