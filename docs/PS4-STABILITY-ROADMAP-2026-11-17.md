@@ -186,3 +186,36 @@ For each P0/P1 change require:
 6. no regressions to disabling mods or restoring original Lua content.
 
 Console tests remain pending until a tester supplies the corresponding logs.
+
+
+## Issue-driven source reimplementation (2026-11-17)
+
+Draft PR [#39](https://github.com/Zorian1337/PS4-BO3-Customs/pull/39) is on
+branch `recovery/issue-driven-dev65-dev69`, based directly on public `main`.
+It reconstructs two scoped source changes from issue evidence without using
+local-device patches or candidate binaries:
+
+- **#33 / dev.69:** DEBUG-only `stream-block-rejected` records are emitted
+  before the existing BlockJob guard clears its fields. The original guard
+  conditions, field writes and native forwarding are preserved. Events are
+  capped at 16 with a saturating nonblocking counter. Host C++ and source-hook
+  regression tests were added.
+- **#29 / dev.65:** queued mod-zone work now blocks tick-driven UI work until
+  the recorded zones are ready. A deliberately held Mods overlay may service
+  close/apply only after readiness; native loading/frontend handoffs still
+  block. UI helpers recheck after acquiring the UI lock. Delayed custom-image
+  assignment revalidates slot ownership, uses a nonblocking native `$white`
+  fallback for retired images, and drops stale element generations without
+  forwarding a stale custom pointer. Source-level regression tests were added.
+
+The latest PR head is `2676c9e5f67a4584f091bbcab7a077cf5a48d5c5`.
+GitHub's combined-status endpoint currently reports no checks for this head;
+do not describe CI as passed. No native SPRX build, console test, FTP upload or
+release was performed. Issues #29 and #33 remain open pending CI/review and
+console validation.
+
+**#30 / dev.67 is intentionally not reconstructed yet.** The issue prose gives
+the allocator strategy and invariants but not independently verifiable native
+table/free-list addresses, structure offsets, hook ABI/signature and matching
+build fingerprint. Guessing these contracts risks corrupting the shared asset
+registry. Keep #30 open until those native contracts are recovered and verified.
