@@ -220,9 +220,9 @@ int main()
 
     root_functions = (
         extract_function(SOURCE, "static bool PathUsesDataRoot(")
-        + "\\n"
+        + "\n"
         + extract_function(SOURCE, "static bool CatalogUsesDataRoot(")
-        + "\\n"
+        + "\n"
         + extract_function(SOURCE, "static bool CheckDataRoot(")
     )
     root_prefix = r"""
