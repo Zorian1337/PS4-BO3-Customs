@@ -13,9 +13,11 @@ are stat-classified rather than silently omitted. Optional folders (user maps,
 shared zones, mod roots, alternate package folders, sound folders, and movie
 folders) may be absent; once present, scan failures abort publication.
 
-All catalog scanners propagate failures. Package/file/mod/movie limits and
-path truncation now fail the candidate scan instead of silently producing a
-partial list. Refresh takes a rollback snapshot of package/file/movie/mod
+All catalog scanners propagate failures. Package/file/mod/movie limits, path truncation, and generated custom-map Lua
+buffer truncation now fail the candidate scan instead of silently producing a
+partial list. Every data root is preflighted and rechecked after scanning; if a
+root that supplied existing catalog entries disappears or becomes inaccessible,
+the candidate is rejected rather than silently dropping that storage's maps. Refresh takes a rollback snapshot of package/file/movie/mod
 arrays, counters, generated map Lua buffers, mod-description ownership, and the
 mod-Lua dirty flag while the existing reader/writer gate excludes readers.
 Only a fully completed scan commits; a failed scan frees candidate descriptions
@@ -31,8 +33,9 @@ on the frame/UI path rather than retaining it across a refresh.
 
 A new host regression exercises the actual production ListFolder() function
 against empty/missing directories, open/read/stat/close failures, malformed
-and unterminated records, overlong names, capacity exhaustion, and unknown
-entry types. It also checks rollback and description ownership invariants.
+and unterminated records, truncated dirent headers, overlong names, capacity
+exhaustion, and unknown entry types. It also exercises checked Lua appends,
+storage-root loss detection, rollback, and description ownership invariants.
 It is registered in the full host inventory and focused SPRX diagnostics.
 
 **Validation status:** the newest changes are in GitHub Actions now. Earlier
