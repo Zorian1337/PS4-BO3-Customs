@@ -14,12 +14,64 @@ retention = source[source.index("struct RawFileAsset"):source.index("static cons
 # Asset-link filename ownership must never call unbounded strlen on a
 # game-owned pointer after checking only its first four bytes.
 maps_source = (root / "t7_maps.cpp").read_text(encoding="utf-8")
+helper = maps_source[maps_source.index("static bool IsLuaUiFileName("):maps_source.index("static void NoteUiFile(")]
 note_ui_file = maps_source[maps_source.index("static void NoteUiFile("):maps_source.index("static void RenameStackAsset(")]
 assert "strlen(name)" not in note_ui_file
-assert "nameAddress > UINTPTR_MAX - n" in note_ui_file
-assert "RangeReadable(nameAddress + n, 1)" in note_ui_file
-assert "n == sizeof(g_modUiFiles[0])" in note_ui_file
-assert note_ui_file.index("RangeReadable(nameAddress + n, 1)") < note_ui_file.index('EqualsNoCase(name + n - 4, ".lua")')
+assert "nameAddress > UINTPTR_MAX - n" in helper
+assert "RangeReadable(nameAddress + n, 1)" in helper
+assert "n == sizeof(g_modUiFiles[0])" in helper
+assert "IsLuaUiFileName(name, &n)" in note_ui_file
+
+filename_fixture = r'''
+#include <cassert>
+#include <cstdint>
+#include <cstring>
+#include <sys/mman.h>
+#include <unistd.h>
+static char g_modUiFiles[1][96];
+static uintptr_t readableBegin=0, readableEnd=0;
+static bool RangeReadable(uintptr_t address,size_t bytes) {
+    return address>=readableBegin && address<=readableEnd && bytes<=readableEnd-address;
+}
+static bool EqualsNoCase(const char* a,const char* b) {
+    while(*a && *b) {
+        const char x=(*a>='A'&&*a<='Z')?char(*a+32):*a;
+        const char y=(*b>='A'&&*b<='Z')?char(*b+32):*b;
+        if(x!=y) return false;
+        ++a; ++b;
+    }
+    return *a==*b;
+}
+''' + helper + r'''
+int main() {
+    size_t length=0;
+    char valid[96]="ui/test.lua";
+    readableBegin=(uintptr_t)valid; readableEnd=readableBegin+sizeof(valid);
+    assert(IsLuaUiFileName(valid,&length) && length==11);
+
+    char wrongSuffix[96]="ui/test.txt";
+    readableBegin=(uintptr_t)wrongSuffix; readableEnd=readableBegin+sizeof(wrongSuffix);
+    assert(!IsLuaUiFileName(wrongSuffix,&length));
+
+    char unterminated[96]; std::memset(unterminated,'x',sizeof(unterminated));
+    readableBegin=(uintptr_t)unterminated; readableEnd=readableBegin+sizeof(unterminated);
+    assert(!IsLuaUiFileName(unterminated,&length));
+
+    const size_t page=(size_t)sysconf(_SC_PAGESIZE);
+    char* memory=(char*)mmap(nullptr,page*2,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
+    assert(memory!=MAP_FAILED);
+    assert(mprotect(memory+page,page,PROT_NONE)==0);
+    char* edge=memory+page-4;
+    std::memcpy(edge,".lua",4);
+    readableBegin=(uintptr_t)edge; readableEnd=readableBegin+4;
+    // The fifth byte is on a PROT_NONE page; the validator must reject it
+    // through RangeReadable without touching that byte.
+    assert(!IsLuaUiFileName(edge,&length));
+    assert(munmap(memory,page*2)==0);
+    std::puts("PASS: Lua UI filename validation bounds reads, rejects missing terminators and stops at unreadable page edges");
+}
+'''
+run("ui-filename-bounds", filename_fixture)
 hook = source[source.index("static uint64_t FindXAsset("):source.index("static void AddPcUtil();")]
 guard = source[source.index("bool T7Lua_PrepareModUiUnload()"):source.index("void T7Lua_RunShareVm(")]
 fixture = r'''
