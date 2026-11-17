@@ -12,7 +12,9 @@ a reproducible exhaustion record and bounded by a measured budget.
   sorted immutable table (review branch; host CI pending).
 - [x] Test strict allowlist ordering, lookup of every registered type, and
   misses below, between, and above registered types.
-- [x] Add the pool-growth fixture to pull-request SPRX diagnostics; first run pending.
+- [x] Add the pool-growth fixture to pull-request SPRX diagnostics.
+- [x] Make the per-type pool-out diagnostic latch atomic for concurrent asset-link workers.
+- [x] Add a concurrent production-function regression to PR diagnostics and the full host test inventory (latest CI pending).
 
 - [x] Exclude COM World and Game World from automatic pool growth.
 - [x] Exclude the one-entry sound-driver, bullet-penetration, and
