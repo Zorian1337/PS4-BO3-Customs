@@ -348,18 +348,20 @@ static bool IsPictureName(const char* name)
            strncmp(name, T7_MOD_PREVIEW_PREFIX, sizeof(T7_MOD_PREVIEW_PREFIX) - 1) == 0;
 }
 
-static bool IsPicture(uint64_t image)
+static bool StillOurs(const Picture& picture);
+
+static Picture* FindPicture(uint64_t image)
 {
     if (!image)
-        return false;
+        return nullptr;
 
     for (int i = 0; i < g_pictureCount; ++i)
     {
         if (g_pictures[i].image == image)
-            return true;
+            return &g_pictures[i];
     }
 
-    return false;
+    return nullptr;
 }
 
 static bool StillOurs(const Picture& picture)
@@ -567,14 +569,39 @@ static uint64_t SetImage_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
     const uint64_t at = base + 16;
 
     if (at < top && top - at >= 16 && RangeReadable((uintptr_t)at, 16) &&
-        (*(uint32_t*)at & 0xF) == kTypeLightUserdata &&
-        IsPicture(*(uint64_t*)(at + 8)))
+        (*(uint32_t*)at & 0xF) == kTypeLightUserdata)
     {
         const uint64_t image = *(uint64_t*)(at + 8);
+        Picture* const picture = FindPicture(image);
+
+        if (!picture)
+            return ((Hook_t)g_setImageOriginal)(a1, a2, a3, a4, a5, a6, x0, x1, x2, x3, x4, x5, x6, x7);
+
+        // A stale element handle must never be forwarded with the retired
+        // custom-image pointer. ElementArgument validates its index/generation.
         const uint64_t element = ElementArgument(a1);
 
-        if (element && image <= UINTPTR_MAX - kImageStreamed && RangeReadable((uintptr_t)image + kImageStreamed, 1) &&
-            !*(uint8_t*)(image + kImageStreamed))
+        if (!element)
+            return 0;
+
+        // Registration-time ownership is not enough: the native image slot
+        // may have been retired and reused before this delayed draw callback.
+        if (!StillOurs(*picture))
+        {
+            const uint64_t white = ((FindAsset_t)(g_base + kFindAsset))(kImageType, "$white", 0, 0);
+            if (white)
+            {
+                *(uint64_t*)(element + kElementImage) = white;
+                *(uint8_t*)(element + kElementFlags) &= (uint8_t)~2;
+
+                if (*(uint64_t*)(element + kElementUpdate) == g_base + kStreamedDraw)
+                    *(uint16_t*)(element + kElementStreaming) = 255;
+            }
+            return 0;
+        }
+
+        if (image <= UINTPTR_MAX - kImageStreamed && RangeReadable((uintptr_t)image + kImageStreamed, 1) &&
+            !*(uint8_t*)(image + kImageStreamed) && StillOurs(*picture))
         {
             *(uint64_t*)(element + kElementImage) = image;
             *(uint8_t*)(element + kElementFlags) &= (uint8_t)~2;
