@@ -55,6 +55,26 @@ elapsed time and returned fd, including failures. The native LoadLevelZones
 call logs its own duration separately from mod preparation. These remain
 observational diagnostics.
 
+## Candidate reconciliation — dev.69 / issue #33
+
+Issue #33 describes a dev.69 DEBUG candidate with a bounded
+`stream-block-rejected` event for the existing backend stream guard. A direct
+source check of both public `main` and PR #36's `SPRX/t7_maps.cpp` found no
+such event string or trace implementation. The issue therefore describes a
+candidate that is not reproducible from the currently published source refs.
+
+The issue records a local SPRX size of 487,856 bytes and a remote FTP SIZE
+response of 576,352 bytes (the OELF container size); the remote bytes were not
+read back. Remote artifact identity is unverified. Treat dev.69 as a local
+test candidate, not a verified public-source build or release.
+
+Next: recover and review the exact dev.69 source patch, reconcile it with the
+current branch, add a production-body regression for both guard branches and
+the 16-event cap, then rerun source CI. Reproduce Buried from a fresh process
+without mods and correlate the trace with the first kernel fault. The SIGSEGV
+at RIP `0xFA2A98` remains unexplained. Do not rebuild, upload, release, or
+claim a fix without explicit approval and matching evidence.
+
 ## Review boundary
 
 Keep PR #36 open for full-diff and final-check review. Do not merge without the
