@@ -16,6 +16,7 @@ a reproducible exhaustion record and bounded by a measured budget.
 - [x] Make the per-type pool-out diagnostic latch atomic for concurrent asset-link workers.
 - [x] Add a concurrent production-function regression to PR diagnostics and the full host test inventory.
 - [x] Confirm the updated SPRX diagnostics workflow passed on final source commit `fdcc08e`, including both pool fixtures.
+- [x] Confirm the follow-up diagnostics run `44170446291` passed host-runner inventory validation and the same pool/Lua checks.
 - [x] Confirm focused mod-stack, frontend-reload, script-priority and import-lifetime workflows passed.
 
 - [x] Exclude COM World and Game World from automatic pool growth.
