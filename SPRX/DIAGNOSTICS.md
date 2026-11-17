@@ -16,7 +16,7 @@ nonblocking diagnostic ring. The backend hook records only bounded scalar
 metadata: rejection reason (`outside`, `odd`, or both), ring base, slot,
 data pointer, unpacked length, hashed length and stored length. It does not
 format strings, allocate memory or wait for the diagnostic lock in the backend
-hook. The next frame-work/diagnostic drain emits
+hook. The next frame-work drain emits
 `[Trace] event=stream-block-rejected` lines. Ring contention drops a sample
 and is counted explicitly; the lifetime cap remains 16 attempted events.
 
