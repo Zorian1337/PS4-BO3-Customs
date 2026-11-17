@@ -6,7 +6,7 @@ The goal is stable custom-map loading and long sessions on constrained PS4
 memory, not maximum asset capacity. Every memory increase must be justified by
 a reproducible exhaustion record and bounded by a measured budget.
 
-## P0 — Map catalog integrity and map-load diagnostics (PR #36; review pending)
+## P0 — Map catalog integrity and map-load diagnostics (PR #36; merged)
 
 Branch: `diagnostics/map-load-phase-timing`
 PR: https://github.com/Zorian1337/PS4-BO3-Customs/pull/36
@@ -25,8 +25,7 @@ PR: https://github.com/Zorian1337/PS4-BO3-Customs/pull/36
   to DEBUG diagnostics.
 - [x] Re-run PR CI after the follow-up correction to legacy mod-stack scanner
   call sites and the new scanner-arity regression.
-- [ ] Complete final full-diff review before merging. PR #36 remains open and
-  unmerged; no merge is authorized by this roadmap update.
+- [x] Complete full-diff review and squash-merge PR #36 to `main` (`10169fc1100eb88813c28bffdf0f2ae32c5a6df6`).
 - [ ] Run the PS4 target build only after explicit approval, then validate on
   console. The earlier PR CI runs were host regressions and do not constitute
   a native build or runtime test.
@@ -34,8 +33,14 @@ PR: https://github.com/Zorian1337/PS4-BO3-Customs/pull/36
 The review caught three mod-stack call sites still using the old four-argument
 ListFolder interface after the scanner changed to a five-argument structured
 result. Those call sites now consume FolderScanResult, report failures, and
-roll back additions from a failed folder scan. The regression now checks every
-ListFolder invocation for the correct argument count. The follow-up CI passed on final reviewed head `c48c5b54e8a6e8bce9fa64d8662cf94f3973067f`: all five required workflows, the full-range source publication audit, publication-guard tests, and the complete registered host regression inventory passed.
+roll back additions from a failed folder scan. The regression checks every
+ListFolder invocation for the correct argument count. PR #36 was squash-merged
+after the full diff review; its final head `6c757633504d048183a119328872b96e058741c2`
+passed all five required workflows: SPRX diagnostics (run 417), project-session
+guard (run 160), frontend reload (run 236), mod-stack transaction (run 235),
+and script-priority (run 241). The full-range publication audit, publication-
+guard tests, and complete registered host regression inventory passed on the
+preceding source/test head. These are host checks only.
 
 The `zm_ccube` crash remains unconfirmed. Both FF and FD opened in the supplied
 excerpt; the first fatal record was not present. Do not treat catalog integrity
@@ -151,7 +156,7 @@ fixed without explicit approval and matching evidence.
 - [ ] Revisit script bytecode and rawfile retention only with before/after
   memory measurements and guaranteed mod-disable/revert behavior.
 
-## Other open workstreams — issue triage
+## GitHub cleanup audit (2026-11-17)\n\nReviewed all 10 open issues and every open PR in `Zorian1337/PS4-BO3-Customs`.\nPR #36 is now merged; it was the only open PR. No issue was closed because\neach remaining issue still has an unresolved source, reproduction, package,\nor console-validation requirement. Issue #32 received a status comment\nclarifying that its focused converter checks do not replace a complete package\nconversion with sound, movies and `acts` enabled plus a console load. The\nrapid X/back symptom in #29 was reported fixed on dev.65, but the corresponding\nsource correction is still documented as local/uncommitted, so it is not yet\nclosed as a repository fix.\n\n## Other open workstreams — issue triage
 
 These tracks are separate from PR #36. Keep their evidence and acceptance
 criteria independent; do not combine them into a broad stability claim.
