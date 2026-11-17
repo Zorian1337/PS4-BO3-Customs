@@ -363,8 +363,7 @@ branch `recovery/issue-driven-dev65-dev69` (base: `main`). It independently
 reconstructs the dev.65 UI transition/custom-image guards (#29) and dev.69
 bounded stream rejection diagnostics (#33) from public source plus issue
 records, not from local-device patches. The branch contains focused host/source
-regression tests and workflow wiring. Latest head:
-`1ec34834bc49bd254a91788d304a1f5b648db25d`.
+regression tests and workflow wiring. The current head SHA is available on the PR page.
 
 CI has not reported a status for that head yet. Do not mark the tests passed
 until the workflow results are visible. No native SPRX build, console test,
