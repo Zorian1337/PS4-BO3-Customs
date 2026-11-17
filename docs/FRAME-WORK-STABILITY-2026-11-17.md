@@ -54,6 +54,21 @@ Debug frame phases now distinguish:
 The watchdog records the phase and elapsed time when it samples a stalled main
 thread. Existing broad phases remain unchanged.
 
+### Rawfile UI filename bounds
+
+A second memory-safety issue was found in the asset-link path:
+`NoteUiFile()` previously checked that the first four bytes of a game-owned
+filename pointer were readable, then called unbounded `strlen()`. If a name
+was unterminated or crossed an unreadable mapping, that scan could walk beyond
+the filename buffer while the engine was linking assets.
+
+The function now scans at most `sizeof(g_modUiFiles[0])` bytes (96 bytes),
+checks each byte with `RangeReadable()`, requires a NUL terminator inside that
+bound, and only then checks the `.lua` suffix or passes the name to ownership
+helpers. Overlong or unreadable names are ignored rather than read past their
+valid range. The existing `mod_lua_retention_checks.py` regression suite now
+guards this ordering and rejects reintroduction of `strlen(name)`.
+
 ## Why the full catalog refresh was not moved to a worker yet
 
 `T7Maps_Refresh()` holds the catalog writer state while `ScanAll()` mutates the
@@ -80,11 +95,20 @@ actually implicated in a fresh stall.
   phase-name reporting.
 - Existing `SPRX/tests/config_io_bounds_checks.py` and
   `SPRX/tests/share_install_checks.py` remain relevant regression coverage.
-- No local repository checkout was available to run the Python test suite.
-  No target build, GitHub Actions run, or PS4/PS5 console test was performed.
+- The existing storage fault-injection fixture was extended with host
+  pthread shims so the production config worker can be compiled in isolation;
+  its original config migration, short-write, fsync, close, rename and
+  preservation checks remain enabled.
+- The complete committed host regression suite passed on commit
+  `e905f5e` in the BO3 Auto Build workflow.
+- The SPRX diagnostics workflow passed on the same commit.
+- The automatic PS4 GoldHEN Debug build, native module/container validation
+  and artifact upload all passed on that commit. This was the repository's
+  push-triggered CI workflow; no separate manual build was requested.
+- No PS4/PS5 console test has been performed. The old October log still cannot
+  be symbolized against the dev.60 binary.
 
-Do not call the historical stall or any crash resolved yet. Run the host suite
-and target syntax/link checks, then capture a matching Debug console session.
-If the new watchdog reports phase 23, prioritize the double-buffered catalog
-redesign. If it reports phase 20/21/22, inspect the specific lobby operation
-before changing its scheduling.
+Do not call the historical stall or any crash resolved yet. The next safe
+engineering task is the double-buffered catalog redesign; the new phase 23
+marker will confirm whether that synchronous refresh is actually involved in
+a reproduced stall. Keep engine-facing hook installation on the game thread.

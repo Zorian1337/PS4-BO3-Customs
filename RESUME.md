@@ -5,14 +5,20 @@
 See [the frame-work hardening report](docs/FRAME-WORK-STABILITY-2026-11-17.md)
 and [the original incident analysis](docs/INVESTIGATION-2026-11-17-FRAME-STALL.md).
 The mod-variable autosave now queues an owned config snapshot for background
-persistence, retries if the queue or disk write fails, and no longer performs
-its periodic read/fsync/rename on the game frame. Debug watchdog phases now
-distinguish lobby evaluation, hosted-state snapshots, share completion and the
-full catalog refresh. The catalog refresh remains synchronous intentionally:
+persistence and retries after queue or disk-write failures. Debug watchdog
+phases distinguish lobby evaluation, hosted-state snapshots, share completion
+and full catalog refresh. Rawfile UI filenames are now scanned only within
+their 96-byte destination bound, with every byte checked readable and a
+terminator required before ownership tracking.
+
+GitHub verification on commit `e905f5e`: the full committed host regression
+suite passed, the SPRX diagnostics workflow passed, and the automatic PS4
+GoldHEN Debug build plus native-artifact validation passed. No console test
+has been performed. The full catalog refresh remains synchronous intentionally:
 its writer lock currently makes readers wait, so a naive worker move would
 still block the main thread. A double-buffered catalog is the safe next design.
-No build, host test suite, Actions run or console validation has been performed;
-do not claim the historical stall/crash resolved.
+Do not claim the historical stall/crash resolved without a matching console
+reproduction and fresh watchdog capture.
 
 The DS4C dev.58 console session reports a stripped-code nil-index in the
 modded progression UI, followed by failed `main`/`Lobby` registrations. The
