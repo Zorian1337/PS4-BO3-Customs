@@ -173,6 +173,86 @@ int main()
                         "-O1", "-pthread", str(cpp), "-o", str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
 
+    transaction_start = SOURCE.index("struct CatalogSnapshot")
+    transaction_end = SOURCE.index("static bool ScanAll()", transaction_start)
+    transaction = SOURCE[transaction_start:transaction_end]
+    transaction_prefix = r"""
+#include <atomic>
+#include <cassert>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+constexpr int kMaxPackages = 4, kMaxFiles = 8, kMaxMods = 4;
+struct Package { int marker; };
+struct File { int marker; };
+struct Movie { int marker; };
+struct Mod { int marker; char* description; };
+static Package g_packages[kMaxPackages];
+static File g_files[kMaxFiles];
+static Movie g_movies[64];
+static Mod g_mods[kMaxMods];
+static int g_packageCount=0, g_fileCount=0, g_movieCount=0, g_modCount=0;
+static int g_levelCommon=-1, g_listedMaps=0;
+static char g_customMapsLua[64]={}, g_mapsTableLua[96]={};
+static std::atomic<bool> g_modsLuaDirty{false};
+"""
+    transaction_main = r"""
+int main()
+{
+    g_packageCount=1; g_packages[0].marker=41;
+    g_fileCount=1; g_files[0].marker=42;
+    g_movieCount=1; g_movies[0].marker=43;
+    g_modCount=1; g_mods[0].marker=44; g_mods[0].description=strdup("previous-description");
+    g_levelCommon=5; g_listedMaps=6;
+    std::strcpy(g_customMapsLua,"previous-maps"); std::strcpy(g_mapsTableLua,"previous-table");
+    g_modsLuaDirty.store(false);
+
+    CatalogSnapshot* snapshot=CaptureCatalog();
+    assert(snapshot);
+    char* const previousDescription=g_mods[0].description;
+
+    g_packageCount=2; g_packages[0].marker=99;
+    g_fileCount=3; g_files[0].marker=98;
+    g_movieCount=4; g_movies[0].marker=97;
+    std::memset(g_mods,0,sizeof(g_mods));
+    g_modCount=1; g_mods[0].marker=96; g_mods[0].description=strdup("candidate-description");
+    g_levelCommon=95; g_listedMaps=94;
+    std::strcpy(g_customMapsLua,"candidate-maps"); std::strcpy(g_mapsTableLua,"candidate-table");
+    g_modsLuaDirty.store(true);
+
+    RestoreCatalog(snapshot);
+    assert(g_packageCount==1 && g_packages[0].marker==41);
+    assert(g_fileCount==1 && g_files[0].marker==42);
+    assert(g_movieCount==1 && g_movies[0].marker==43);
+    assert(g_modCount==1 && g_mods[0].marker==44);
+    assert(g_mods[0].description==previousDescription);
+    assert(std::strcmp(g_mods[0].description,"previous-description")==0);
+    assert(g_levelCommon==5 && g_listedMaps==6);
+    assert(std::strcmp(g_customMapsLua,"previous-maps")==0);
+    assert(std::strcmp(g_mapsTableLua,"previous-table")==0);
+    assert(!g_modsLuaDirty.load());
+
+    snapshot=CaptureCatalog();
+    assert(snapshot);
+    char* const committedOldDescription=g_mods[0].description;
+    std::memset(g_mods,0,sizeof(g_mods));
+    g_modCount=1; g_mods[0].description=strdup("committed-description");
+    CommitCatalog(snapshot);
+    assert(g_mods[0].description && std::strcmp(g_mods[0].description,"committed-description")==0);
+    free(g_mods[0].description);
+    g_mods[0].description=nullptr;
+    (void)committedOldDescription; // CommitCatalog owns and frees the previous allocation.
+    std::puts("PASS: catalog rollback restores all arrays, counters, Lua buffers and mod-description ownership");
+}
+"""
+    with tempfile.TemporaryDirectory(prefix="bo3-map-catalog-transaction-") as temp:
+        cpp = Path(temp) / "transaction.cpp"
+        binary = Path(temp) / "transaction"
+        cpp.write_text(transaction_prefix + transaction + transaction_main)
+        subprocess.run([os.environ.get("CXX", "g++"), "-std=c++20", "-Wall", "-Wextra", "-Werror",
+                        "-fsanitize=address,undefined", str(cpp), "-o", str(binary)], check=True)
+        subprocess.run([str(binary)], check=True)
+
     refresh = extract_function(SOURCE, "bool T7Maps_Refresh()")
     install = extract_function(SOURCE, "void T7Maps_Install(")
     rollback = extract_function(SOURCE, "static void RestoreCatalog(")
