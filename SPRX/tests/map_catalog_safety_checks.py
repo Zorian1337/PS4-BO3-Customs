@@ -226,6 +226,7 @@ int main()
 #include <cctype>
 #include <cstdarg>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 constexpr int kRawDescriptionMax=256, kDescriptionMax=256, kNameMax=56;
 #define T7_USERMAP_PREVIEW_PREFIX "preview_"
