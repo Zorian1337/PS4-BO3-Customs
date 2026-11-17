@@ -8,9 +8,10 @@ original chronology; for the active branch and candidate status, see
 ## Current review state (2026-11-17)
 
 PR [#36 — map-load diagnostics and transactional catalog refresh](https://github.com/Zorian1337/PS4-BO3-Customs/pull/36)
-is open against `main`. Its source changes add structured directory-scan
-results, rollback-safe catalog publication, storage-root presence checks,
-bounded generated Lua output, and DEBUG map-load timing. The supplied
+was full-diff reviewed and squash-merged to `main` as
+`10169fc1100eb88813c28bffdf0f2ae32c5a6df6`. Its source changes add structured
+directory-scan results, rollback-safe catalog publication, storage-root
+presence checks, bounded generated Lua output, and DEBUG map-load timing. The supplied
 `zm_ccube` excerpt still does not establish the crash cause.
 
 Review found stale four-argument `ListFolder` calls in the mod-stack scanner
@@ -19,15 +20,23 @@ results, log failures, and discard additions from a failed folder scan. A
 regression checks the argument count of every production `ListFolder`
 invocation.
 
-Final reviewed head before this documentation sync,
-`c48c5b54e8a6e8bce9fa64d8662cf94f3973067f`, passed all five required
-workflows: SPRX diagnostics, project-session guard, frontend reload,
-mod-stack transaction and script-priority. The project-session guard audited
-the complete `main`-to-PR diff, passed its publication-guard unit tests and
-the complete registered host regression inventory. No native SPRX build,
-upload, release or PS4/PS5 runtime test has been performed for PR #36. Do not
-merge without the user's explicit approval; do not claim the reported map
-crash is fixed.
+Final PR head `6c757633504d048183a119328872b96e058741c2` passed all five required
+workflows: SPRX diagnostics (run 417), project-session guard (run 160),
+frontend reload (run 236), mod-stack transaction (run 235), and script-priority
+(run 241). The project-session guard audited the complete `main`-to-PR diff,
+passed its publication-guard unit tests and the complete registered host
+regression inventory. No native SPRX build, upload, release or PS4/PS5 runtime
+test was performed. Do not claim the reported map crash is fixed.
+
+## GitHub cleanup audit (2026-11-17)
+
+The repository had 10 open issues and one open PR. PR #36 was the only open
+PR and is now merged. All 10 issues were reviewed; none was closed because
+each still has an unresolved fix, provenance, reproduction, complete-package,
+or console-validation requirement. Issue #32 received a comment clarifying
+that full package conversion and console loading remain unverified. Issue #29
+has a tester-confirmed improvement on dev.65, but the associated source patch
+is still local/uncommitted and is not yet a repository fix.
 
 ## dev.69 candidate provenance
 
