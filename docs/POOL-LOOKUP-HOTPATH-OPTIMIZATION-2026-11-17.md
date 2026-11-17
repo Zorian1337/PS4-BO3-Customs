@@ -53,8 +53,7 @@ workflow and the full host regression inventory. CI is pending.
 
 The focused pull-request diagnostics workflow previously omitted the pool
 fixture. It now runs pool_growth_checks.py, so the production binary-search
-lookup and existing growth invariants are tested on pull requests. The new run
-is pending.
+lookup and existing growth invariants are tested on pull requests. The updated SPRX diagnostics workflow passed on final source commit `fdcc08e`, including both pool fixtures. Focused mod-stack, frontend-reload, script-priority and import-lifetime workflows also passed. No native build or console test was performed.
 
 ## Validation status
 
