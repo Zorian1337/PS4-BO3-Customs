@@ -655,8 +655,6 @@ static PoolGrowth g_poolGrowth[] =
     { 10, "sound", 139440, 32, 0 },
     { 11, "sound_patch", 24, 16, 0 },
     { 12, "col_map", 720, 2, 0 },
-    { 13, "com_map", 136, 2, 0 },
-    { 14, "game_map", 80, 2, 0 },
     { 15, "map_ents", 72, 2, 0 },
     { 17, "lightdef", 40, 32, 0 },
     { 18, "lensflaredef", 536, 64, 0 },
@@ -674,7 +672,6 @@ static PoolGrowth g_poolGrowth[] =
     { 34, "customizationtable", 40, 8, 0 },
     { 35, "customizationtable_feimages", 24, 8, 0 },
     { 36, "customizationtablecolor", 48, 1024, 0 },
-    { 37, "snddriverglobals", 120, 1, 0 },
     { 38, "fx", 144, 1875, 0 },
     { 39, "tagfx", 24, 64, 0 },
     { 41, "impactsfxtable", 24, 256, 0 },
@@ -707,8 +704,6 @@ static PoolGrowth g_poolGrowth[] =
     { 69, "scriptbundle", 48, 1024, 0 },
     { 70, "scriptbundlelist", 32, 64, 0 },
     { 71, "rumble", 64, 256, 0 },
-    { 72, "bulletpenetration", 488, 1, 0 },
-    { 73, "locdmgtable", 96, 1, 0 },
     { 74, "aimtable", 816, 12, 0 },
     { 75, "animselectortable", 24, 64, 0 },
     { 76, "animmappingtable", 24, 64, 0 },
@@ -738,6 +733,9 @@ static PoolGrowth g_poolGrowth[] =
     { 102, "streamerhint", 40, 50, 0 },
 };
 
+// Deliberately not grown: COM/Game World pools use fixed engine-global references.
+// The one-entry sound-driver, bullet-penetration and location-damage tables
+// remain fixed until their native allocation contracts are proven safe to extend.
 constexpr uint32_t kPoolStepMin  = 8;
 constexpr uint32_t kPoolStepMax  = 4096;
 constexpr uint32_t kPoolExtraMin = 64;
@@ -1702,7 +1700,7 @@ static int StackIndexOfZone(const char* zone)
 
 static bool ScriptBase(const char* name, char* base, size_t size)
 {
-    if (!name || !base || size < 5)
+    if (!name || !base || size < 2)
         return false;
 
     // Script names originate in engine-owned asset headers. Never strlen() a
@@ -1720,7 +1718,7 @@ static bool ScriptBase(const char* name, char* base, size_t size)
             break;
     }
 
-    if (n >= sizeof(copy) || n < 5 || n + 4 > size || copy[n - 4] != '.' ||
+    if (n >= sizeof(copy) || n < 5 || n - 4 >= size || copy[n - 4] != '.' ||
         (!EqualsNoCase(copy + n - 3, "gsc") && !EqualsNoCase(copy + n - 3, "csc")))
         return false;
 
@@ -2137,9 +2135,9 @@ static void NoteLevelLua(uint64_t asset)
         *(const int32_t*)asset != kRawFileAsset)
         return;
 
-    // Zone and rawfile names are engine-owned pointers. A short initial probe
-    // followed by strlen() can cross into an unmapped page during asset linking.
-    // Copy each byte only after its exact address has passed the readable check.
+    // Zone and rawfile names are engine-owned pointers. Copy each byte only
+    // after its exact address has passed the readable check; never scan beyond
+    // a bounded local buffer during asset linking.
     const auto copyReadableText = [](const char* source, char* destination, size_t capacity, size_t* length) {
         if (!source || !destination || capacity < 2)
             return false;

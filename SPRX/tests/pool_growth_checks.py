@@ -50,7 +50,23 @@ int main() {
     auto* image=GrowthFor(kImageAsset);
     assert(material && material->size==664 && !GrowthFor(4));
     assert(image && image->size==304 && image->limit==45979);
+
+    // Fixed engine-global world pools and one-entry asset pools are excluded.
+    assert(!GrowthFor(13) && !GrowthFor(14));
+    assert(!GrowthFor(37) && !GrowthFor(72) && !GrowthFor(73));
+    const auto excludedAttempts=allocations.load();
+    GrowPool(13); GrowPool(14); GrowPool(37); GrowPool(72); GrowPool(73);
+    assert(allocations==excludedAttempts);
+
     auto& pool=nativePools[6];
+
+    // Even an eligible pool must not grow when the engine marks it singleton.
+    const auto singletonAttempts=allocations.load();
+    const auto singletonLimit=pool.limit;
+    pool.single=1;
+    GrowPool(6);
+    assert(allocations==singletonAttempts && pool.free==0 && pool.limit==singletonLimit);
+    pool.single=0;
 
     // The ordinary nonexhausted asset-link path must not wait for the grow lock.
     pool.free=1;

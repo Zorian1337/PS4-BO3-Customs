@@ -86,6 +86,12 @@ int main()
     const char script[] = "scripts/zm_ccube/example.gsc";
     assert(ScriptBase(script, base, sizeof(base)));
     assert(strcmp(base, "scripts/zm_ccube/example") == 0);
+    char shortBase[2] = {};
+    const char shortScript[] = "a.gsc";
+    assert(ScriptBase(shortScript, shortBase, sizeof(shortBase)));
+    assert(strcmp(shortBase, "a") == 0);
+    char undersizedBase[1] = {};
+    assert(!ScriptBase(shortScript, undersizedBase, sizeof(undersizedBase)));
     const char invalidScript[] = "scripts/zm_ccube/example.lua";
     assert(!ScriptBase(invalidScript, base, sizeof(base)));
 
