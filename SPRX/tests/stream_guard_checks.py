@@ -142,7 +142,7 @@ int main()
     // More rejects cannot exceed the documented 16-event lifetime cap.
     for (unsigned i=0;i<24;++i)
     {
-        *(uint64_t*)(slotBytes + 0x40020) = ringBase + 0xA00000 - 8 - i;
+        *(uint64_t*)(slotBytes + 0x40020) = ringBase - 1 - i;
         *(uint32_t*)(slotBytes + 0x40028) = 128;
         *(uint32_t*)(slotBytes + 0x4002C) = 64;
         *(uint32_t*)(slotBytes + 0x40030) = 64;
