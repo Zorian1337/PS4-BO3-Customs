@@ -8325,16 +8325,28 @@ bool T7Maps_NeedsLuaRetention(const char* name)
     return T7Maps::g_modLuaOwnership.MayContain(name);
 }
 
+static bool HeldModZonesReadyForUi()
+{
+    if (!g_reloadCheck || !g_reloadHeld || AnyZoneLoading())
+        return false;
+
+    for (int i = 0; i < g_waitZoneCount; ++i)
+        if (ZoneStateOf(g_waitZones[i]) < 2)
+            return false;
+
+    return true;
+}
+
 bool T7Maps_UiTransitionBusy()
 {
     using namespace T7Maps;
 
-    // A zone request is busy as soon as it is queued, not only after the
-    // engine publishes its loading state. Keep tick-driven UI work out of the
-    // gap between queueing the request and the native loading-slot update.
-    return g_base && (g_reloadCheck || g_waitZoneCount > 0 ||
-                      g_frontendApplyPending || g_frontendApplying ||
-                      g_frontendApplyLoading || AnyZoneLoading());
+    // A queued request blocks UI work until its zones are ready. The held Mods
+    // overlay is the exception: once every recorded zone is ready, it may
+    // service close/apply. Native loading and frontend handoffs still block.
+    const bool queuedZonesBusy = g_reloadCheck && !HeldModZonesReadyForUi();
+    return g_base && (queuedZonesBusy || g_frontendApplyPending ||
+                      g_frontendApplying || g_frontendApplyLoading || AnyZoneLoading());
 }
 
 static_assert(T7Maps::kNameMax == kT7ShareName, "shared names use the map name size");
