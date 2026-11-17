@@ -7,12 +7,21 @@ of a full linear scan for every linked asset. This preserves the same allowlist
 and capacity policy while reducing lookup comparisons from O(N) to O(log N).
 The host fixture now verifies strict table ordering, every entry's lookup, and
 missing types. This is an algorithmic hot-path reduction, not a measured
-console speed claim. It is isolated on stability/pool-lookup-hotpath; CI and
-review are pending, no native build or console test was requested or performed.
+console speed claim. It is isolated on stability/pool-lookup-hotpath. The final PR diagnostics run
+passed, including both pool fixtures, and the focused mod-stack, frontend-reload,
+script-priority and import-lifetime workflows passed. No native build or console
+test was requested or performed.
 
 See [the pool lookup optimization note](docs/POOL-LOOKUP-HOTPATH-OPTIMIZATION-2026-11-17.md).
 
 # Current candidate: dev.60
+
+## Pool-out diagnostic concurrency fix (2026-11-17)
+
+T7Log_PoolOut() runs from concurrent asset-link workers. Its process-lifetime
+once-only latch is now atomic, and a 32-worker production-function stress test
+verifies one diagnostic per exhausted type. The pool-growth and pool-out tests
+are both part of pull-request diagnostics and the full host test inventory.
 
 ## Frame-stall hardening (2026-11-17)
 
