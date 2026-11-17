@@ -39,6 +39,16 @@ ASan/UBSan in the diagnostics workflow.
 - No new native hook, detour, thread, or lock was added.
 - No converter, Lua, or gameplay behavior changed.
 
+## Additional confirmed concurrency fix
+
+Review of the same asset-link path found that T7Log_PoolOut() used an
+unsynchronized static bool array to suppress repeated per-type messages, even
+though LinkXAsset_h() may invoke it from multiple database workers. This was a
+confirmed plugin-owned data race. The latch now uses atomic exchange, and a
+32-worker stress fixture checks that an exhausted type produces one log and
+one pool snapshot. The fixture is included in both the focused diagnostics
+workflow and the full host regression inventory. CI is pending.
+
 ## CI coverage correction
 
 The focused pull-request diagnostics workflow previously omitted the pool
