@@ -6219,14 +6219,79 @@ static bool MoviePlayable(const char* path, char* why, size_t whySize)
 static bool ScanMovies()
 {
     static char names[64][kListedNameMax];
-    for(int i=0;i<g_packageCount;++i){if(!g_packages[i].map)continue;for(int place=0;place<2;++place){const char* base=place==0?g_packages[i].folder:g_packages[i].alternate;if(!base[0])continue;
-        char folder[224];int n=snprintf(folder,sizeof(folder),"%s/video",base);if(n<0||(size_t)n>=sizeof(folder)){MarkScanFailure(base,FolderScanStatus::NameTooLong,n);return false;}
-        FolderScanResult r=ListFolder(folder,false,names,64,true);if(!AcceptFolderResult(folder,r))return false;if(r.status==FolderScanStatus::Missing)continue;
-        for(int x=0;x<r.count;++x){size_t len=strlen(names[x]);if(len<=4||!EqualsNoCase(names[x]+len-4,".mkv"))continue;bool taken=false;for(int m=0;m<g_movieCount&&!taken;++m)taken=strlen(g_movies[m].name)==len-4&&strncmp(g_movies[m].file,names[x],len-4)==0;if(taken)continue;
-            char path[320],why[160];n=snprintf(path,sizeof(path),"%s/%s",folder,names[x]);if(n<0||(size_t)n>=sizeof(path)){MarkScanFailure(folder,FolderScanStatus::NameTooLong,n);return false;}if(!MoviePlayable(path,why,sizeof(why)))continue;
-            if(g_movieCount>=64){MarkScanFailure("movie catalog",FolderScanStatus::CapacityExceeded,0);return false;}Movie& movie=g_movies[g_movieCount++];snprintf(movie.file,sizeof(movie.file),"%s",names[x]);snprintf(movie.name,sizeof(movie.name),"%.*s",(int)(len-4),names[x]);snprintf(movie.folder,sizeof(movie.folder),"%s",folder);movie.package=i;
+
+    for (int i = 0; i < g_packageCount; ++i)
+    {
+        if (!g_packages[i].map)
+            continue;
+
+        for (int place = 0; place < 2; ++place)
+        {
+            const char* const base = place == 0 ? g_packages[i].folder : g_packages[i].alternate;
+            if (!base[0])
+                continue;
+
+            char folder[224];
+            const int folderLength = snprintf(folder, sizeof(folder), "%s/video", base);
+            if (folderLength < 0 || (size_t)folderLength >= sizeof(folder))
+            {
+                MarkScanFailure(base, FolderScanStatus::NameTooLong, folderLength);
+                return false;
+            }
+
+            FolderScanResult listing = ListFolder(folder, false, names, 64, true);
+            if (!AcceptFolderResult(folder, listing))
+                return false;
+            if (listing.status == FolderScanStatus::Missing)
+                continue;
+
+            for (int n = 0; n < listing.count; ++n)
+            {
+                const size_t length = strlen(names[n]);
+                if (length <= 4 || !EqualsNoCase(names[n] + length - 4, ".mkv"))
+                    continue;
+
+                bool alreadyListed = false;
+                for (int m = 0; m < g_movieCount && !alreadyListed; ++m)
+                {
+                    alreadyListed = strlen(g_movies[m].name) == length - 4 &&
+                                    strncmp(g_movies[m].file, names[n], length - 4) == 0;
+                }
+                if (alreadyListed)
+                    continue;
+
+                char path[320], why[160];
+                const int pathLength = snprintf(path, sizeof(path), "%s/%s", folder, names[n]);
+                if (pathLength < 0 || (size_t)pathLength >= sizeof(path))
+                {
+                    MarkScanFailure(folder, FolderScanStatus::NameTooLong, pathLength);
+                    return false;
+                }
+                if (!MoviePlayable(path, why, sizeof(why)))
+                    continue;
+
+                if (g_movieCount >= (int)(sizeof(g_movies) / sizeof(g_movies[0])))
+                {
+                    MarkScanFailure("movie catalog", FolderScanStatus::CapacityExceeded, 0);
+                    return false;
+                }
+                if (length >= sizeof(g_movies[0].file) ||
+                    length - 4 >= sizeof(g_movies[0].name) ||
+                    strlen(folder) >= sizeof(g_movies[0].folder))
+                {
+                    MarkScanFailure(path, FolderScanStatus::NameTooLong, 0);
+                    return false;
+                }
+
+                Movie& movie = g_movies[g_movieCount++];
+                snprintf(movie.file, sizeof(movie.file), "%s", names[n]);
+                snprintf(movie.name, sizeof(movie.name), "%.*s", (int)(length - 4), names[n]);
+                snprintf(movie.folder, sizeof(movie.folder), "%s", folder);
+                movie.package = i;
+            }
         }
-    }}return true;
+    }
+    return true;
 }
 
 static void FindPreview(Package& package, const char* json)
