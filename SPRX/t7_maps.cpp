@@ -8343,12 +8343,15 @@ bool T7Maps_UiTransitionBusy()
 {
     using namespace T7Maps;
 
+    if (!g_base)
+        return false;
+
     // A queued request blocks UI work until its zones are ready. The held Mods
     // overlay is the exception: once every recorded zone is ready, it may
     // service close/apply. Native loading and frontend handoffs still block.
     const bool queuedZonesBusy = g_reloadCheck && !HeldModZonesReadyForUi();
-    return g_base && (queuedZonesBusy || g_frontendApplyPending ||
-                      g_frontendApplying || g_frontendApplyLoading || AnyZoneLoading());
+    return queuedZonesBusy || g_frontendApplyPending ||
+           g_frontendApplying || g_frontendApplyLoading || AnyZoneLoading();
 }
 
 static_assert(T7Maps::kNameMax == kT7ShareName, "shared names use the map name size");
