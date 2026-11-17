@@ -526,6 +526,7 @@ static std::atomic<uint32_t>  g_dispatchSkipped{0};
 static DiagnosticRing<StreamBlockRejected, 16> g_streamBlockRejected;
 static std::atomic<uint32_t> g_streamRejectAttempts{0};
 static std::atomic<uint32_t> g_streamRejectDropped{0};
+static std::atomic<uint32_t> g_streamRejectDroppedLogged{0};
 static std::atomic<uint32_t> g_streamRejectLogged{0};
 static std::atomic<bool> g_streamRejectFlush{false};
 static std::atomic<uint32_t>  g_spawnersDropped{0};
@@ -5614,12 +5615,18 @@ static void TraceStreamBlockRejections()
         ~FlushRelease() { busy.store(false, std::memory_order_release); }
     } release{g_streamRejectFlush};
 
+    const uint32_t attempts = g_streamRejectAttempts.load(std::memory_order_relaxed);
+    const uint32_t logged = g_streamRejectLogged.load(std::memory_order_relaxed);
+    const uint32_t dropped = g_streamRejectDropped.load(std::memory_order_relaxed);
+    const uint32_t droppedLogged = g_streamRejectDroppedLogged.load(std::memory_order_relaxed);
+    if (logged + droppedLogged >= attempts)
+        return;
+
     StreamBlockRejected records[16]{};
     uint64_t count = 0;
     if (!g_streamBlockRejected.TrySnapshot(records, count))
         return;
 
-    const uint32_t logged = g_streamRejectLogged.load(std::memory_order_relaxed);
     if (count > 16)
         count = 16;
 
@@ -5637,9 +5644,11 @@ static void TraceStreamBlockRejections()
     }
 
     g_streamRejectLogged.store((uint32_t)count, std::memory_order_relaxed);
-    const uint32_t dropped = g_streamRejectDropped.exchange(0, std::memory_order_relaxed);
-    if (dropped)
-        T7Log_Write("[Trace] event=stream-block-diagnostic-dropped count=%u", dropped);
+    if (dropped > droppedLogged)
+    {
+        T7Log_Write("[Trace] event=stream-block-diagnostic-dropped count=%u", dropped - droppedLogged);
+        g_streamRejectDroppedLogged.store(dropped, std::memory_order_relaxed);
+    }
 }
 #endif
 
