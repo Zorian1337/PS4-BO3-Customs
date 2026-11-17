@@ -22,7 +22,7 @@ assert tick.index("if (T7Maps_UiTransitionBusy())") < tick.index("g_menuInitPend
 assert "if (!T7Maps_UiTransitionBusy() && UiUp())" in tick
 for helper in ("static void ShowShare()", "static void InjectScripts()", "static void CheckMenus()", "static void AddPcUtil()"):
     start = lua.rindex(helper) if helper == "static void AddPcUtil()" else lua.index(helper)
-    end = lua.find("\\n}", start)
+    end = lua.find("\n}", start)
     assert "if (T7Maps_UiTransitionBusy())" in lua[start:end], helper
 
 trace_start = lua.index("void T7Lua_TraceState(")
