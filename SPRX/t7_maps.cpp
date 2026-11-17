@@ -274,6 +274,8 @@ using Hook_t = uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, ui
 static uintptr_t g_base = 0;
 static Package   g_packages[kMaxPackages];
 static int       g_packageCount = 0;
+static bool      g_scanFailed = false;
+static char      g_scanFailure[224] = {};
 static File      g_files[kMaxFiles];
 static int       g_fileCount = 0;
 static Movie     g_movies[64];
@@ -813,154 +815,90 @@ static bool IsZoneFile(const char* name)
            EndsWith(name, ".sabs");
 }
 
-static int ListFolder(const char* folder, bool folders, char names[][kListedNameMax], int capacity)
+enum class FolderScanStatus : uint8_t { Ok, Missing, OpenFailed, ReadFailed, MalformedRecord, NameTooLong, CapacityExceeded, CloseFailed };
+struct FolderScanResult { FolderScanStatus status; int count; int error; bool Complete() const { return status == FolderScanStatus::Ok || status == FolderScanStatus::Missing; } };
+static const char* FolderScanStatusName(FolderScanStatus s)
 {
-    const int fd = sceKernelOpen(folder, SCE_KERNEL_O_RDONLY | SCE_KERNEL_O_DIRECTORY, 0);
-
-    if (fd < 0)
-        return 0;
-
-    // ScanAll can be invoked by refresh paths while another scan is active.
-    // Serialize access to the shared 64 KiB getdents buffer.
-    static std::atomic_flag directoryBufferLock = ATOMIC_FLAG_INIT;
-    while (directoryBufferLock.test_and_set(std::memory_order_acquire))
-        sceKernelUsleep(50);
-    struct UnlockDirectoryBuffer
-    {
-        std::atomic_flag& flag;
-        ~UnlockDirectoryBuffer() { flag.clear(std::memory_order_release); }
-    } unlock{directoryBufferLock};
-    static char buffer[0x10000];
-    int count = 0;
-
-    for (;;)
-    {
-        const int n = sceKernelGetdents(fd, buffer, sizeof(buffer));
-
-        if (n <= 0)
-            break;
-
-        for (int at = 0; at + 8 <= n;)
-        {
-            const SceKernelDirent* const entry = (const SceKernelDirent*)(buffer + at);
-
-            // A damaged or truncated directory record must not advance past
-            // the getdents buffer and cause an out-of-bounds name read.
-            if (entry->d_reclen < 8 || entry->d_reclen > n - at)
-                break;
-
-            const size_t header = (size_t)((const char*)entry->d_name - (const char*)entry);
-            if (header >= entry->d_reclen)
-                break;
-            const size_t available = entry->d_reclen - header;
-            const char* const terminator = (const char*)memchr(entry->d_name, 0, available);
-            if (!terminator)
-                break;
-            const size_t nameLength = (size_t)(terminator - entry->d_name);
-            at += entry->d_reclen;
-
-            if (entry->d_fileno == 0 || !nameLength || entry->d_name[0] == '.')
-                continue;
-
-            if ((entry->d_type == SCE_KERNEL_DT_DIR) != folders || nameLength >= kListedNameMax)
-                continue;
-
-            if (count < capacity)
-            {
-                memcpy(names[count], entry->d_name, nameLength);
-                names[count++][nameLength] = 0;
-            }
+    switch(s) {
+    case FolderScanStatus::Ok:return "ok"; case FolderScanStatus::Missing:return "missing";
+    case FolderScanStatus::OpenFailed:return "open-failed"; case FolderScanStatus::ReadFailed:return "read-failed";
+    case FolderScanStatus::MalformedRecord:return "malformed-record"; case FolderScanStatus::NameTooLong:return "name-too-long";
+    case FolderScanStatus::CapacityExceeded:return "capacity-exceeded"; case FolderScanStatus::CloseFailed:return "close-failed";
+    } return "unknown";
+}
+static void MarkScanFailure(const char* path, FolderScanStatus status, int error)
+{
+    if(g_scanFailed)return; g_scanFailed=true;
+    snprintf(g_scanFailure,sizeof(g_scanFailure),"%s: %s (0x%08X)",path?path:"catalog",FolderScanStatusName(status),(unsigned)error);
+    T7Log_Write("[Maps] catalog scan aborted: %s",g_scanFailure);
+}
+static bool AcceptFolderResult(const char* path,const FolderScanResult& r)
+{
+    if(r.Complete())return true; MarkScanFailure(path,r.status,r.error); return false;
+}
+static FolderScanResult ListFolder(const char* folder,bool folders,char names[][kListedNameMax],int capacity,bool optional)
+{
+    const int fd=sceKernelOpen(folder,SCE_KERNEL_O_RDONLY|SCE_KERNEL_O_DIRECTORY,0);
+    if(fd<0)return {optional&&fd==(int)ORBIS_KERNEL_ERROR_ENOENT?FolderScanStatus::Missing:FolderScanStatus::OpenFailed,0,fd};
+    static std::atomic_flag lock=ATOMIC_FLAG_INIT;
+    while(lock.test_and_set(std::memory_order_acquire))sceKernelUsleep(50);
+    struct Unlock { std::atomic_flag& flag; ~Unlock(){flag.clear(std::memory_order_release);} } unlock{lock};
+    static char buffer[0x10000]; int count=0,error=0;
+    FolderScanStatus status=capacity>0?FolderScanStatus::Ok:FolderScanStatus::CapacityExceeded;
+    while(status==FolderScanStatus::Ok) {
+        const int n=sceKernelGetdents(fd,buffer,sizeof(buffer));
+        if(n==0)break;
+        if(n<0){status=FolderScanStatus::ReadFailed;error=n;break;}
+        if((size_t)n>sizeof(buffer)){status=FolderScanStatus::MalformedRecord;break;}
+        for(int at=0;at<n;) {
+            if(n-at<8){status=FolderScanStatus::MalformedRecord;break;}
+            const SceKernelDirent* entry=(const SceKernelDirent*)(buffer+at);
+            const size_t header=(size_t)((const char*)entry->d_name-(const char*)entry);
+            if(entry->d_reclen<header+1||entry->d_reclen>n-at){status=FolderScanStatus::MalformedRecord;break;}
+            const size_t available=entry->d_reclen-header;
+            const char* end=(const char*)memchr(entry->d_name,0,available);
+            if(!end){status=FolderScanStatus::MalformedRecord;break;}
+            const size_t len=(size_t)(end-entry->d_name); at+=entry->d_reclen;
+            if(entry->d_fileno==0||!len||entry->d_name[0]=='.'||((entry->d_type==SCE_KERNEL_DT_DIR)!=folders))continue;
+            if(len>=kListedNameMax){status=FolderScanStatus::NameTooLong;break;}
+            if(count>=capacity){status=FolderScanStatus::CapacityExceeded;break;}
+            memcpy(names[count],entry->d_name,len); names[count++][len]=0;
         }
     }
-
-    sceKernelClose(fd);
-    return count;
+    const int closeResult=sceKernelClose(fd);
+    if(status==FolderScanStatus::Ok&&closeResult<0){status=FolderScanStatus::CloseFailed;error=closeResult;}
+    return {status,count,error};
 }
 
-static void AddFile(const char* rel, const char* folder, int package)
+static void AddFile(const char* rel,const char* folder,int package)
 {
-    for (int i = 0; i < g_fileCount; ++i)
-    {
-        if (strcmp(g_files[i].rel, rel) == 0)
-        {
-            return;
-        }
-    }
-
-    if (g_fileCount >= kMaxFiles)
-        return;
-
-    // The registry must never contain silently truncated paths: loading a
-    // different or nonexistent fastfile can leave the DB loader waiting.
-    if (strlen(rel) >= sizeof(g_files[0].rel))
-        return;
-    char path[sizeof(g_files[0].path)];
-    const int length = snprintf(path, sizeof(path), "%s/%s", folder, rel);
-    if (length < 0 || (size_t)length >= sizeof(path))
-        return;
-
-    File& file = g_files[g_fileCount++];
-    snprintf(file.rel, sizeof(file.rel), "%s", rel);
-    memcpy(file.path, path, (size_t)length + 1);
-    file.package = package;
+    for(int i=0;i<g_fileCount;++i)if(strcmp(g_files[i].rel,rel)==0)return;
+    if(g_fileCount>=kMaxFiles){MarkScanFailure("map file catalog",FolderScanStatus::CapacityExceeded,0);return;}
+    if(strlen(rel)>=sizeof(g_files[0].rel)){MarkScanFailure(rel,FolderScanStatus::NameTooLong,0);return;}
+    char path[sizeof(g_files[0].path)]; const int n=snprintf(path,sizeof(path),"%s/%s",folder,rel);
+    if(n<0||(size_t)n>=sizeof(path)){MarkScanFailure(folder,FolderScanStatus::NameTooLong,n);return;}
+    File& file=g_files[g_fileCount++]; snprintf(file.rel,sizeof(file.rel),"%s",rel); memcpy(file.path,path,(size_t)n+1); file.package=package;
 }
 
-static void ScanPackage(const char* folder, int package)
+static bool ScanPackage(const char* folder,int package,bool optional)
 {
-    const char* const name = g_packages[package].name;
-    static char files[kMaxListed][kListedNameMax];
-    static char languages[16][kListedNameMax];
-
-    const int fileCount = ListFolder(folder, false, files, kMaxListed);
-
-    for (int i = 0; i < fileCount; ++i)
-    {
-        if (IsZoneFile(files[i]) && strstr(files[i], name))
-            AddFile(files[i], folder, package);
-    }
-
-    char sounds[224];
-    snprintf(sounds, sizeof(sounds), "%s/snd", folder);
-
-    const int languageCount = ListFolder(sounds, true, languages, 16);
-
-    for (int l = 0; l < languageCount; ++l)
-    {
-        char language[224];
-        snprintf(language, sizeof(language), "%s/%s", sounds, languages[l]);
-
-        const int bankCount = ListFolder(language, false, files, kMaxListed);
-
-        for (int i = 0; i < bankCount; ++i)
-        {
-            if (IsZoneFile(files[i]) && strstr(files[i], name))
-            {
-                char rel[128];
-                snprintf(rel, sizeof(rel), "snd/%s/%s", languages[l], files[i]);
-                AddFile(rel, folder, package);
-            }
-        }
-    }
+    const char* name=g_packages[package].name; static char files[kMaxListed][kListedNameMax]; static char languages[16][kListedNameMax];
+    FolderScanResult r=ListFolder(folder,false,files,kMaxListed,optional); if(!AcceptFolderResult(folder,r))return false; if(r.status==FolderScanStatus::Missing)return true;
+    for(int i=0;i<r.count;++i){if(IsZoneFile(files[i])&&strstr(files[i],name))AddFile(files[i],folder,package);if(g_scanFailed)return false;}
+    char sounds[224];int n=snprintf(sounds,sizeof(sounds),"%s/snd",folder);if(n<0||(size_t)n>=sizeof(sounds)){MarkScanFailure(folder,FolderScanStatus::NameTooLong,n);return false;}
+    FolderScanResult langs=ListFolder(sounds,true,languages,16,true);if(!AcceptFolderResult(sounds,langs))return false;if(langs.status==FolderScanStatus::Missing)return true;
+    for(int l=0;l<langs.count;++l){char language[224];n=snprintf(language,sizeof(language),"%s/%s",sounds,languages[l]);if(n<0||(size_t)n>=sizeof(language)){MarkScanFailure(sounds,FolderScanStatus::NameTooLong,n);return false;}
+        FolderScanResult banks=ListFolder(language,false,files,kMaxListed,false);if(!AcceptFolderResult(language,banks))return false;
+        for(int i=0;i<banks.count;++i)if(IsZoneFile(files[i])&&strstr(files[i],name)){char rel[128];n=snprintf(rel,sizeof(rel),"snd/%s/%s",languages[l],files[i]);if(n<0||(size_t)n>=sizeof(rel)){MarkScanFailure(language,FolderScanStatus::NameTooLong,n);return false;}AddFile(rel,folder,package);if(g_scanFailed)return false;}
+    }return true;
 }
 
-static int AddPackage(const char* name, bool map, const char* folder, const char* alternate)
+static int AddPackage(const char* name,bool map,const char* folder,const char* alternate)
 {
-    if (g_packageCount >= kMaxPackages)
-        return -1;
-
-    for (int i = 0; i < g_packageCount; ++i)
-    {
-        if (EqualsNoCase(name, g_packages[i].name))
-            return -1;
-    }
-
-    Package& package = g_packages[g_packageCount];
-    snprintf(package.name, sizeof(package.name), "%s", name);
-    snprintf(package.folder, sizeof(package.folder), "%s", folder);
-    snprintf(package.alternate, sizeof(package.alternate), "%s", alternate);
-    package.preview[0] = 0;
-    package.map = map;
-    return g_packageCount++;
+    for(int i=0;i<g_packageCount;++i)if(EqualsNoCase(name,g_packages[i].name))return -1;
+    if(g_packageCount>=kMaxPackages){MarkScanFailure("package catalog",FolderScanStatus::CapacityExceeded,0);return -1;}
+    if(strlen(name)>=sizeof(g_packages[0].name)||strlen(folder)>=sizeof(g_packages[0].folder)||strlen(alternate)>=sizeof(g_packages[0].alternate)){MarkScanFailure(name,FolderScanStatus::NameTooLong,0);return -1;}
+    Package& p=g_packages[g_packageCount]; snprintf(p.name,sizeof(p.name),"%s",name); snprintf(p.folder,sizeof(p.folder),"%s",folder); snprintf(p.alternate,sizeof(p.alternate),"%s",alternate); p.preview[0]=0;p.map=map;return g_packageCount++;
 }
 
 static bool FindPackageFile(const Package& package, const char* rel, char* out, size_t size)
@@ -978,88 +916,30 @@ static bool FindPackageFile(const Package& package, const char* rel, char* out, 
     return second > 0 && (size_t)second < size && sceKernelStat(out, &st) == 0 && ((st.st_mode & 0170000) == 0100000);
 }
 
-static void ScanUsermaps(const char* data)
+static bool ScanUsermaps(const char* data)
 {
-    char root[224];
-    snprintf(root, sizeof(root), "%s/usermaps", data);
-
-    static char folders[kMaxPackages][kListedNameMax];
-    const int count = ListFolder(root, true, folders, kMaxPackages);
-
-    for (int i = 0; i < count; ++i)
-    {
-        char folder[224];
-        char zoneFolder[224];
-        char zone[256];
-        SceKernelStat st;
-
-        snprintf(folder, sizeof(folder), "%s/%s", root, folders[i]);
-        snprintf(zoneFolder, sizeof(zoneFolder), "%s/zone", folder);
-
-        const bool valid = IsToken(folders[i]);
-        snprintf(zone, sizeof(zone), "%s/%s.ff", folder, folders[i]);
-        const bool atRoot = valid && sceKernelStat(zone, &st) == 0;
-        snprintf(zone, sizeof(zone), "%s/%s.ff", zoneFolder, folders[i]);
-        const bool inZone = valid && !atRoot && sceKernelStat(zone, &st) == 0;
-
-        if (!atRoot && !inZone)
-            continue;
-
-        const int package = atRoot ? AddPackage(folders[i], true, folder, zoneFolder)
-                                   : AddPackage(folders[i], true, zoneFolder, folder);
-
-        if (package < 0)
-            continue;
-
-        ScanPackage(g_packages[package].folder, package);
-        ScanPackage(g_packages[package].alternate, package);
-    }
+    char root[224];int n=snprintf(root,sizeof(root),"%s/usermaps",data);if(n<0||(size_t)n>=sizeof(root)){MarkScanFailure(data,FolderScanStatus::NameTooLong,n);return false;}
+    static char folders[kMaxPackages][kListedNameMax];FolderScanResult r=ListFolder(root,true,folders,kMaxPackages,true);if(!AcceptFolderResult(root,r))return false;if(r.status==FolderScanStatus::Missing)return true;
+    for(int i=0;i<r.count;++i){char folder[224],zoneFolder[224],zone[256];SceKernelStat st;
+        int a=snprintf(folder,sizeof(folder),"%s/%s",root,folders[i]),b=snprintf(zoneFolder,sizeof(zoneFolder),"%s/zone",folder);if(a<0||(size_t)a>=sizeof(folder)||b<0||(size_t)b>=sizeof(zoneFolder)){MarkScanFailure(root,FolderScanStatus::NameTooLong,0);return false;}
+        bool valid=IsToken(folders[i]);a=snprintf(zone,sizeof(zone),"%s/%s.ff",folder,folders[i]);int rootStat=a>0&&(size_t)a<sizeof(zone)?sceKernelStat(zone,&st):-1;
+        if(valid&&rootStat<0&&rootStat!=(int)ORBIS_KERNEL_ERROR_ENOENT){MarkScanFailure(zone,FolderScanStatus::OpenFailed,rootStat);return false;}
+        bool atRoot=valid&&rootStat==0;b=snprintf(zone,sizeof(zone),"%s/%s.ff",zoneFolder,folders[i]);int nestedStat=b>0&&(size_t)b<sizeof(zone)?sceKernelStat(zone,&st):-1;
+        if(valid&&!atRoot&&nestedStat<0&&nestedStat!=(int)ORBIS_KERNEL_ERROR_ENOENT){MarkScanFailure(zone,FolderScanStatus::OpenFailed,nestedStat);return false;}
+        bool inZone=valid&&!atRoot&&nestedStat==0;if(!atRoot&&!inZone)continue;
+        int package=atRoot?AddPackage(folders[i],true,folder,zoneFolder):AddPackage(folders[i],true,zoneFolder,folder);if(g_scanFailed)return false;if(package<0)continue;
+        if(!ScanPackage(g_packages[package].folder,package,false)||!ScanPackage(g_packages[package].alternate,package,true))return false;
+    }return true;
 }
 
-static void ScanSharedZones(const char* data)
+static bool ScanSharedZones(const char* data)
 {
-    char folder[224];
-    snprintf(folder, sizeof(folder), "%s/zone", data);
-
-    static char files[kMaxListed][kListedNameMax];
-    const int count = ListFolder(folder, false, files, kMaxListed);
-
-    for (int i = 0; i < count; ++i)
-    {
-        if (!EndsWith(files[i], ".ff"))
-            continue;
-
-        char zone[kListedNameMax];
-        snprintf(zone, sizeof(zone), "%s", files[i]);
-        zone[strlen(zone) - 3] = 0;
-
-        if (!IsToken(zone))
-            continue;
-
-        bool localized = false;
-
-        if (strlen(zone) > 3 && zone[2] == '_')
-        {
-            char original[kListedNameMax];
-            snprintf(original, sizeof(original), "%s.ff", zone + 3);
-
-            for (int j = 0; j < count && !localized; ++j)
-                localized = strcmp(files[j], original) == 0;
-        }
-
-        if (localized)
-            continue;
-
-        const int package = AddPackage(zone, false, folder, "");
-
-        if (package < 0)
-            continue;
-
-        ScanPackage(folder, package);
-
-        if (strcmp(zone, k_levelCommon) == 0)
-            g_levelCommon = package;
-    }
+    char folder[224];int n=snprintf(folder,sizeof(folder),"%s/zone",data);if(n<0||(size_t)n>=sizeof(folder)){MarkScanFailure(data,FolderScanStatus::NameTooLong,n);return false;}
+    static char files[kMaxListed][kListedNameMax];FolderScanResult r=ListFolder(folder,false,files,kMaxListed,true);if(!AcceptFolderResult(folder,r))return false;if(r.status==FolderScanStatus::Missing)return true;
+    for(int i=0;i<r.count;++i){if(!EndsWith(files[i],".ff"))continue;char zone[kListedNameMax];snprintf(zone,sizeof(zone),"%s",files[i]);zone[strlen(zone)-3]=0;if(!IsToken(zone))continue;
+        bool localized=false;if(strlen(zone)>3&&zone[2]=='_'){char original[kListedNameMax];snprintf(original,sizeof(original),"%s.ff",zone+3);for(int j=0;j<r.count&&!localized;++j)localized=strcmp(files[j],original)==0;}if(localized)continue;
+        int package=AddPackage(zone,false,folder,"");if(g_scanFailed)return false;if(package<0)continue;if(!ScanPackage(folder,package,false))return false;if(strcmp(zone,k_levelCommon)==0)g_levelCommon=package;
+    }return true;
 }
 
 static const char* Relative(const char* path)
@@ -6013,57 +5893,17 @@ static bool MoviePlayable(const char* path, char* why, size_t whySize)
     return true;
 }
 
-static void ScanMovies()
+static bool ScanMovies()
 {
     static char names[64][kListedNameMax];
-
-    for (int i = 0; i < g_packageCount; ++i)
-    {
-        if (!g_packages[i].map)
-            continue;
-
-        for (int place = 0; place < 2; ++place)
-        {
-            const char* const base = place == 0 ? g_packages[i].folder : g_packages[i].alternate;
-
-            if (!base[0])
-                continue;
-
-            char folder[224];
-            snprintf(folder, sizeof(folder), "%s/video", base);
-
-            const int count = ListFolder(folder, false, names, 64);
-
-            for (int n = 0; n < count; ++n)
-            {
-                const size_t length = strlen(names[n]);
-
-                if (length <= 4 || !EqualsNoCase(names[n] + length - 4, ".mkv"))
-                    continue;
-
-                bool taken = false;
-
-                for (int m = 0; m < g_movieCount && !taken; ++m)
-                    taken = strlen(g_movies[m].name) == length - 4 && strncmp(g_movies[m].file, names[n], length - 4) == 0;
-
-                if (taken || g_movieCount >= (int)(sizeof(g_movies) / sizeof(g_movies[0])))
-                    continue;
-
-                char path[320];
-                char why[160];
-                snprintf(path, sizeof(path), "%s/%s", folder, names[n]);
-
-                if (!MoviePlayable(path, why, sizeof(why)))
-                    continue;
-
-                Movie& movie = g_movies[g_movieCount++];
-                snprintf(movie.file, sizeof(movie.file), "%s", names[n]);
-                snprintf(movie.name, sizeof(movie.name), "%.*s", (int)(length - 4), names[n]);
-                snprintf(movie.folder, sizeof(movie.folder), "%s", folder);
-                movie.package = i;
-            }
+    for(int i=0;i<g_packageCount;++i){if(!g_packages[i].map)continue;for(int place=0;place<2;++place){const char* base=place==0?g_packages[i].folder:g_packages[i].alternate;if(!base[0])continue;
+        char folder[224];int n=snprintf(folder,sizeof(folder),"%s/video",base);if(n<0||(size_t)n>=sizeof(folder)){MarkScanFailure(base,FolderScanStatus::NameTooLong,n);return false;}
+        FolderScanResult r=ListFolder(folder,false,names,64,true);if(!AcceptFolderResult(folder,r))return false;if(r.status==FolderScanStatus::Missing)continue;
+        for(int x=0;x<r.count;++x){size_t len=strlen(names[x]);if(len<=4||!EqualsNoCase(names[x]+len-4,".mkv"))continue;bool taken=false;for(int m=0;m<g_movieCount&&!taken;++m)taken=strlen(g_movies[m].name)==len-4&&strncmp(g_movies[m].file,names[x],len-4)==0;if(taken)continue;
+            char path[320],why[160];n=snprintf(path,sizeof(path),"%s/%s",folder,names[x]);if(n<0||(size_t)n>=sizeof(path)){MarkScanFailure(folder,FolderScanStatus::NameTooLong,n);return false;}if(!MoviePlayable(path,why,sizeof(why)))continue;
+            if(g_movieCount>=64){MarkScanFailure("movie catalog",FolderScanStatus::CapacityExceeded,0);return false;}Movie& movie=g_movies[g_movieCount++];snprintf(movie.file,sizeof(movie.file),"%s",names[x]);snprintf(movie.name,sizeof(movie.name),"%.*s",(int)(len-4),names[x]);snprintf(movie.folder,sizeof(movie.folder),"%s",folder);movie.package=i;
         }
-    }
+    }}return true;
 }
 
 static void FindPreview(Package& package, const char* json)
@@ -6372,57 +6212,18 @@ static void ReadModInfo(Mod& mod)
     free(json);
 }
 
-static void ScanMods(const char* data)
+static bool ScanMods(const char* data)
 {
-    char root[224];
-    snprintf(root, sizeof(root), "%s/mods", data);
-
-    static char folders[kMaxMods][kListedNameMax];
-    const int count = ListFolder(root, true, folders, kMaxMods);
-
-    for (int i = 0; i < count && g_modCount < kMaxMods; ++i)
-    {
-        if (!ModNameValid(folders[i]) || FindMod(folders[i]) >= 0)
-            continue;
-
-        char base[224];
-        char zone[224];
-        snprintf(base, sizeof(base), "%s/%s", root, folders[i]);
-        snprintf(zone, sizeof(zone), "%s/zone", base);
-
-        Mod& mod = g_mods[g_modCount];
-        free(mod.description);
-        memset(&mod, 0, sizeof(mod));
-        snprintf(mod.name, sizeof(mod.name), "%s", folders[i]);
-
-        bool atBase = false;
-        bool any = false;
-
-        for (int k = 0; k < kModZoneKinds; ++k)
-        {
-            char file[288];
-            SceKernelStat st;
-            snprintf(file, sizeof(file), "%s/%s.ff", base, k_modZones[k]);
-            const bool here = sceKernelStat(file, &st) == 0;
-            snprintf(file, sizeof(file), "%s/%s.ff", zone, k_modZones[k]);
-            const bool inZone = !here && sceKernelStat(file, &st) == 0;
-
-            mod.zones[k] = here || inZone;
-            atBase = atBase || here;
-            any = any || mod.zones[k];
-        }
-
-        if (!any)
-            continue;
-
-        snprintf(mod.folder, sizeof(mod.folder), "%s", atBase ? base : zone);
-        snprintf(mod.alternate, sizeof(mod.alternate), "%s", atBase ? zone : base);
-        ReadModInfo(mod);
-        ++g_modCount;
-
-        T7Log_Write("[Mods] found %s (%s):%s%s%s%s", mod.name, mod.title, mod.zones[0] ? " core_mod" : "",
-                    mod.zones[1] ? " zm_mod" : "", mod.zones[2] ? " mp_mod" : "", mod.zones[3] ? " cp_mod" : "");
-    }
+    char root[224];int n=snprintf(root,sizeof(root),"%s/mods",data);if(n<0||(size_t)n>=sizeof(root)){MarkScanFailure(data,FolderScanStatus::NameTooLong,n);return false;}
+    static char folders[kMaxMods][kListedNameMax];FolderScanResult r=ListFolder(root,true,folders,kMaxMods,true);if(!AcceptFolderResult(root,r))return false;if(r.status==FolderScanStatus::Missing)return true;
+    for(int i=0;i<r.count;++i){if(!ModNameValid(folders[i])||FindMod(folders[i])>=0)continue;char base[224],zone[224];int a=snprintf(base,sizeof(base),"%s/%s",root,folders[i]),b=snprintf(zone,sizeof(zone),"%s/zone",base);if(a<0||(size_t)a>=sizeof(base)||b<0||(size_t)b>=sizeof(zone)){MarkScanFailure(root,FolderScanStatus::NameTooLong,0);return false;}
+        Mod candidate{};snprintf(candidate.name,sizeof(candidate.name),"%s",folders[i]);bool atBase=false,any=false;
+        for(int k=0;k<kModZoneKinds;++k){char file[288];SceKernelStat st;a=snprintf(file,sizeof(file),"%s/%s.ff",base,k_modZones[k]);int baseStat=a>0&&(size_t)a<sizeof(file)?sceKernelStat(file,&st):-1;if(baseStat<0&&baseStat!=(int)ORBIS_KERNEL_ERROR_ENOENT){MarkScanFailure(file,FolderScanStatus::OpenFailed,baseStat);return false;}bool here=baseStat==0;
+            b=snprintf(file,sizeof(file),"%s/%s.ff",zone,k_modZones[k]);int zoneStat=b>0&&(size_t)b<sizeof(file)?sceKernelStat(file,&st):-1;if(!here&&zoneStat<0&&zoneStat!=(int)ORBIS_KERNEL_ERROR_ENOENT){MarkScanFailure(file,FolderScanStatus::OpenFailed,zoneStat);return false;}bool inZone=!here&&zoneStat==0;candidate.zones[k]=here||inZone;atBase=atBase||here;any=any||candidate.zones[k];}
+        if(!any)continue;if(g_modCount>=kMaxMods){MarkScanFailure("mod catalog",FolderScanStatus::CapacityExceeded,0);return false;}
+        snprintf(candidate.folder,sizeof(candidate.folder),"%s",atBase?base:zone);snprintf(candidate.alternate,sizeof(candidate.alternate),"%s",atBase?zone:base);ReadModInfo(candidate);g_mods[g_modCount]=candidate;Mod& mod=g_mods[g_modCount++];
+        T7Log_Write("[Mods] found %s (%s):%s%s%s%s",mod.name,mod.title,mod.zones[0]?" core_mod":"",mod.zones[1]?" zm_mod":"",mod.zones[2]?" mp_mod":"",mod.zones[3]?" cp_mod":"");
+    }return true;
 }
 
 static bool WriteChosenMods(const char (*names)[kNameMax], int count)
@@ -6806,33 +6607,35 @@ static bool BuildMatches(uintptr_t base)
     return true;
 }
 
-static void ScanAll()
+struct CatalogSnapshot
 {
-    g_packageCount = 0;
-    g_fileCount = 0;
-    g_movieCount = 0;
-    g_levelCommon = -1;
-    g_listedMaps = 0;
-    g_modCount = 0;
-
-    ScanUsermaps("/data/BO3-Customs");
-    ScanSharedZones("/data/BO3-Customs");
-    ScanMods("/data/BO3-Customs");
-
-    for (const char* const drive : k_driveRoots)
-    {
-        char data[64];
-        snprintf(data, sizeof(data), "/%s/BO3-Customs", drive);
-        ScanUsermaps(data);
-        ScanSharedZones(data);
-        ScanMods(data);
-    }
-
-    g_modsLuaDirty.store(true);
-
-    ScanMovies();
-    BuildCustomMapsLua();
-    BuildMapsTableLua();
+    Package packages[kMaxPackages];int packageCount;File files[kMaxFiles];int fileCount;Movie movies[64];int movieCount;
+    Mod mods[kMaxMods];int modCount;int levelCommon;int listedMaps;
+    char customMapsLua[sizeof(g_customMapsLua)];char mapsTableLua[sizeof(g_mapsTableLua)];bool modsLuaDirty;
+};
+static CatalogSnapshot* CaptureCatalog()
+{
+    CatalogSnapshot* p=(CatalogSnapshot*)malloc(sizeof(CatalogSnapshot));if(!p)return nullptr;
+    memcpy(p->packages,g_packages,sizeof(g_packages));p->packageCount=g_packageCount;memcpy(p->files,g_files,sizeof(g_files));p->fileCount=g_fileCount;
+    memcpy(p->movies,g_movies,sizeof(g_movies));p->movieCount=g_movieCount;memcpy(p->mods,g_mods,sizeof(g_mods));p->modCount=g_modCount;
+    p->levelCommon=g_levelCommon;p->listedMaps=g_listedMaps;memcpy(p->customMapsLua,g_customMapsLua,sizeof(g_customMapsLua));memcpy(p->mapsTableLua,g_mapsTableLua,sizeof(g_mapsTableLua));p->modsLuaDirty=g_modsLuaDirty.load();return p;
+}
+static void ReleaseCandidateMods(){for(int i=0;i<g_modCount;++i){free(g_mods[i].description);g_mods[i].description=nullptr;}}
+static void RestoreCatalog(CatalogSnapshot* p)
+{
+    ReleaseCandidateMods();memcpy(g_packages,p->packages,sizeof(g_packages));g_packageCount=p->packageCount;memcpy(g_files,p->files,sizeof(g_files));g_fileCount=p->fileCount;
+    memcpy(g_movies,p->movies,sizeof(g_movies));g_movieCount=p->movieCount;memcpy(g_mods,p->mods,sizeof(g_mods));g_modCount=p->modCount;
+    g_levelCommon=p->levelCommon;g_listedMaps=p->listedMaps;memcpy(g_customMapsLua,p->customMapsLua,sizeof(g_customMapsLua));memcpy(g_mapsTableLua,p->mapsTableLua,sizeof(g_mapsTableLua));g_modsLuaDirty.store(p->modsLuaDirty);free(p);
+}
+static void CommitCatalog(CatalogSnapshot* p){for(int i=0;i<p->modCount;++i)free(p->mods[i].description);free(p);}
+static bool ScanAll()
+{
+    g_scanFailed=false;g_scanFailure[0]=0;g_packageCount=0;g_fileCount=0;g_movieCount=0;g_levelCommon=-1;g_listedMaps=0;g_modCount=0;
+    // The transaction owner retains old description allocations until commit.
+    memset(g_mods,0,sizeof(g_mods));
+    if(!ScanUsermaps("/data/BO3-Customs")||!ScanSharedZones("/data/BO3-Customs")||!ScanMods("/data/BO3-Customs"))return false;
+    for(const char* const drive:k_driveRoots){char data[64];int n=snprintf(data,sizeof(data),"/%s/BO3-Customs",drive);if(n<0||(size_t)n>=sizeof(data)){MarkScanFailure(drive,FolderScanStatus::NameTooLong,n);return false;}if(!ScanUsermaps(data)||!ScanSharedZones(data)||!ScanMods(data))return false;}
+    if(!ScanMovies()||g_scanFailed)return false;BuildCustomMapsLua();BuildMapsTableLua();g_modsLuaDirty.store(true);return !g_scanFailed;
 }
 
 static std::atomic<int> g_uninstallState{0};
@@ -7161,7 +6964,13 @@ void T7Maps_Install(uintptr_t base)
     sceKernelUnlink(k_chosenModFile);
     T7Log_Write("[Mods] starting with all mods disabled; select mods again from the menu");
 
-    ScanAll();
+    BeginListWrite();
+    CatalogSnapshot* const previous=CaptureCatalog();
+    const bool scanned=previous&&ScanAll();
+    if(scanned)CommitCatalog(previous);
+    else if(previous)RestoreCatalog(previous);
+    else T7Log_Write("[Maps] initial catalog scan skipped: could not reserve rollback memory");
+    EndListWrite();
     InstallHooks(base);
 }
 
@@ -7173,12 +6982,13 @@ bool T7Maps_Refresh()
         return false;
 
     BeginListWrite();
-    ScanAll();
+    CatalogSnapshot* const previous=CaptureCatalog();
+    if(!previous){EndListWrite();T7Log_Write("[Maps] refresh skipped: could not reserve rollback memory");return false;}
+    const bool scanned=ScanAll();
+    if(scanned)CommitCatalog(previous);else RestoreCatalog(previous);
     EndListWrite();
-
-    if (g_packageCount || g_modCount)
-        InstallHooks(g_base);
-
+    if(!scanned)return false;
+    if(g_packageCount||g_modCount)InstallHooks(g_base);
     return true;
 }
 
@@ -7270,6 +7080,7 @@ int T7Maps_UninstallResult(char* map, size_t mapSize, char* message, size_t mess
 
 int T7Maps_MapCount()
 {
+    T7Maps::ListReader reading;
     return T7Maps::g_buildMatched ? T7Maps::g_listedMaps : -1;
 }
 
