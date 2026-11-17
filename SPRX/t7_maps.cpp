@@ -5606,6 +5606,12 @@ static uint64_t BlockJob_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
 #ifdef _DEBUG
 static void TraceStreamBlockRejections()
 {
+    const uint32_t attempts = g_streamRejectAttempts.load(std::memory_order_relaxed);
+    const uint32_t logged = g_streamRejectLogged.load(std::memory_order_relaxed);
+    const uint32_t droppedLogged = g_streamRejectDroppedLogged.load(std::memory_order_relaxed);
+    if (logged + droppedLogged >= attempts)
+        return;
+
     if (g_streamRejectFlush.exchange(true, std::memory_order_acquire))
         return;
 
@@ -5615,12 +5621,7 @@ static void TraceStreamBlockRejections()
         ~FlushRelease() { busy.store(false, std::memory_order_release); }
     } release{g_streamRejectFlush};
 
-    const uint32_t attempts = g_streamRejectAttempts.load(std::memory_order_relaxed);
-    const uint32_t logged = g_streamRejectLogged.load(std::memory_order_relaxed);
     const uint32_t dropped = g_streamRejectDropped.load(std::memory_order_relaxed);
-    const uint32_t droppedLogged = g_streamRejectDroppedLogged.load(std::memory_order_relaxed);
-    if (logged + droppedLogged >= attempts)
-        return;
 
     StreamBlockRejected records[16]{};
     uint64_t count = 0;
