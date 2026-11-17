@@ -815,13 +815,14 @@ static bool IsZoneFile(const char* name)
            EndsWith(name, ".sabs");
 }
 
-enum class FolderScanStatus : uint8_t { Ok, Missing, OpenFailed, ReadFailed, MalformedRecord, NameTooLong, CapacityExceeded, CloseFailed };
+enum class FolderScanStatus : uint8_t { Ok, Missing, OpenFailed, ReadFailed, StatFailed, MalformedRecord, NameTooLong, CapacityExceeded, CloseFailed };
 struct FolderScanResult { FolderScanStatus status; int count; int error; bool Complete() const { return status == FolderScanStatus::Ok || status == FolderScanStatus::Missing; } };
 static const char* FolderScanStatusName(FolderScanStatus s)
 {
     switch(s) {
     case FolderScanStatus::Ok:return "ok"; case FolderScanStatus::Missing:return "missing";
     case FolderScanStatus::OpenFailed:return "open-failed"; case FolderScanStatus::ReadFailed:return "read-failed";
+    case FolderScanStatus::StatFailed:return "stat-failed";
     case FolderScanStatus::MalformedRecord:return "malformed-record"; case FolderScanStatus::NameTooLong:return "name-too-long";
     case FolderScanStatus::CapacityExceeded:return "capacity-exceeded"; case FolderScanStatus::CloseFailed:return "close-failed";
     } return "unknown";
@@ -859,7 +860,31 @@ static FolderScanResult ListFolder(const char* folder,bool folders,char names[][
             const char* end=(const char*)memchr(entry->d_name,0,available);
             if(!end){status=FolderScanStatus::MalformedRecord;break;}
             const size_t len=(size_t)(end-entry->d_name); at+=entry->d_reclen;
-            if(entry->d_fileno==0||!len||entry->d_name[0]=='.'||((entry->d_type==SCE_KERNEL_DT_DIR)!=folders))continue;
+            if (entry->d_fileno == 0 || !len || entry->d_name[0] == '.')
+                continue;
+
+            bool isDirectory = entry->d_type == SCE_KERNEL_DT_DIR;
+            if (entry->d_type == 0) // DT_UNKNOWN: classify it instead of silently omitting directories.
+            {
+                char child[512];
+                const int pathLength = snprintf(child, sizeof(child), "%s/%s", folder, entry->d_name);
+                if (pathLength < 0 || (size_t)pathLength >= sizeof(child))
+                {
+                    status = FolderScanStatus::NameTooLong;
+                    break;
+                }
+                SceKernelStat stat{};
+                const int statResult = sceKernelStat(child, &stat);
+                if (statResult < 0)
+                {
+                    status = FolderScanStatus::StatFailed;
+                    error = statResult;
+                    break;
+                }
+                isDirectory = (stat.st_mode & 0170000) == 0040000;
+            }
+            if (isDirectory != folders)
+                continue;
             if(len>=kListedNameMax){status=FolderScanStatus::NameTooLong;break;}
             if(count>=capacity){status=FolderScanStatus::CapacityExceeded;break;}
             memcpy(names[count],entry->d_name,len); names[count++][len]=0;
