@@ -12,6 +12,7 @@ a reproducible exhaustion record and bounded by a measured budget.
   sorted immutable table (review branch; host CI pending).
 - [x] Test strict allowlist ordering, lookup of every registered type, and
   misses below, between, and above registered types.
+- [x] Add the pool-growth fixture to pull-request SPRX diagnostics; first run pending.
 
 - [x] Exclude COM World and Game World from automatic pool growth.
 - [x] Exclude the one-entry sound-driver, bullet-penetration, and
