@@ -7,6 +7,18 @@ import os
 import subprocess
 import tempfile
 
+
+def run(name, code):
+    with tempfile.TemporaryDirectory(prefix=f"bo3-{name}-") as directory:
+        source = Path(directory) / "fixture.cpp"
+        binary = Path(directory) / "fixture"
+        source.write_text(code, encoding="utf-8")
+        subprocess.run([os.environ.get("CXX", "g++"), "-std=c++20", "-Wall", "-Wextra", "-Werror",
+                        "-O1", "-pthread", "-fsanitize=address,undefined", "-I", str(root),
+                        str(source), "-o", str(binary)], check=True)
+        subprocess.run([str(binary)], check=True, timeout=30)
+
+
 root = Path(__file__).resolve().parents[1]
 
 
