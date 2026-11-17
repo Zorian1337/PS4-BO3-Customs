@@ -6,7 +6,7 @@ The goal is stable custom-map loading and long sessions on constrained PS4
 memory, not maximum asset capacity. Every memory increase must be justified by
 a reproducible exhaustion record and bounded by a measured budget.
 
-## P0 — Landed source hardening; verify in CI
+## P0 — Landed source hardening; CI verified
 
 - [x] Exclude COM World and Game World from automatic pool growth.
 - [x] Exclude the one-entry sound-driver, bullet-penetration, and
@@ -15,8 +15,10 @@ a reproducible exhaustion record and bounded by a measured budget.
 - [x] Regression-test the fixed-pool allowlist and the native singleton flag.
 - [x] Bound rawfile Lua ownership name reads.
 - [x] Bound script-name reads and correct output-capacity validation.
-- [ ] Confirm the GitHub diagnostics workflow passes on the resulting commit.
-- [ ] Confirm the PS4 GoldHEN Debug build and native artifact validation pass.
+- [x] Confirm the GitHub diagnostics workflow passes.
+- [x] Confirm the PS4 GoldHEN Debug build and native artifact validation pass.
+- [ ] Compare pool-enabled and pool-restricted builds on console before
+  declaring the pool policy a performance or stability win.
 
 ## P1 — Prove native allocator concurrency contract
 
@@ -29,6 +31,9 @@ a reproducible exhaustion record and bounded by a measured budget.
   allocator hooks.
 - [ ] Only implement a shared allocator/growth lock if the call graph proves
   the lock is re-entrant-safe and does not serialize unrelated engine work.
+- [ ] Separate pool exhaustion observation from confirmed allocator failure;
+  the current LinkXAsset hook observes an empty free list but does not capture
+  the native allocator's failed-allocation return.
 
 ## P1 — Diagnose map streaming and lighting dependencies
 
