@@ -7316,10 +7316,86 @@ static void CommitCatalog(CatalogSnapshot* snapshot)
         free(snapshot->mods[i].description);
     free(snapshot);
 }
+static bool PathUsesDataRoot(const char* path, const char* root)
+{
+    if (!path || !root)
+        return false;
+
+    const size_t rootLength = strlen(root);
+    return strncmp(path, root, rootLength) == 0 &&
+           (path[rootLength] == 0 || path[rootLength] == '/');
+}
+
+static bool CatalogUsesDataRoot(const char* root)
+{
+    for (int i = 0; i < g_packageCount; ++i)
+    {
+        if (PathUsesDataRoot(g_packages[i].folder, root) ||
+            PathUsesDataRoot(g_packages[i].alternate, root))
+            return true;
+    }
+    for (int i = 0; i < g_modCount; ++i)
+    {
+        if (PathUsesDataRoot(g_mods[i].folder, root) ||
+            PathUsesDataRoot(g_mods[i].alternate, root))
+            return true;
+    }
+    return false;
+}
+
+static bool CheckDataRoot(const char* root, bool requirePresent, bool* present)
+{
+    if (present)
+        *present = false;
+
+    const int fd = sceKernelOpen(root, SCE_KERNEL_O_RDONLY | SCE_KERNEL_O_DIRECTORY, 0);
+    if (fd < 0)
+    {
+        if (fd == kKernelErrorNoEntry && !requirePresent && !CatalogUsesDataRoot(root))
+            return true;
+
+        MarkScanFailure(root, FolderScanStatus::OpenFailed, fd);
+        return false;
+    }
+
+    const int closeResult = sceKernelClose(fd);
+    if (closeResult < 0)
+    {
+        MarkScanFailure(root, FolderScanStatus::CloseFailed, closeResult);
+        return false;
+    }
+
+    if (present)
+        *present = true;
+    return true;
+}
+
 static bool ScanAll()
 {
     g_scanFailed = false;
     g_scanFailure[0] = 0;
+
+    constexpr size_t kRootCount = 1 + sizeof(k_driveRoots) / sizeof(k_driveRoots[0]);
+    char dataRoots[kRootCount][64] = {};
+    bool rootPresent[kRootCount] = {};
+
+    snprintf(dataRoots[0], sizeof(dataRoots[0]), "/data/BO3-Customs");
+    if (!CheckDataRoot(dataRoots[0], false, &rootPresent[0]))
+        return false;
+
+    for (size_t i = 0; i < sizeof(k_driveRoots) / sizeof(k_driveRoots[0]); ++i)
+    {
+        const int length = snprintf(dataRoots[i + 1], sizeof(dataRoots[i + 1]),
+                                    "/%s/BO3-Customs", k_driveRoots[i]);
+        if (length < 0 || (size_t)length >= sizeof(dataRoots[i + 1]))
+        {
+            MarkScanFailure(k_driveRoots[i], FolderScanStatus::NameTooLong, length);
+            return false;
+        }
+        if (!CheckDataRoot(dataRoots[i + 1], false, &rootPresent[i + 1]))
+            return false;
+    }
+
     g_packageCount = 0;
     g_fileCount = 0;
     g_movieCount = 0;
@@ -7330,21 +7406,14 @@ static bool ScanAll()
     // The transaction owner retains old description allocations until commit.
     memset(g_mods, 0, sizeof(g_mods));
 
-    if (!ScanUsermaps("/data/BO3-Customs") ||
-        !ScanSharedZones("/data/BO3-Customs") ||
-        !ScanMods("/data/BO3-Customs"))
-        return false;
-
-    for (const char* const drive : k_driveRoots)
+    for (size_t i = 0; i < kRootCount; ++i)
     {
-        char data[64];
-        const int length = snprintf(data, sizeof(data), "/%s/BO3-Customs", drive);
-        if (length < 0 || (size_t)length >= sizeof(data))
-        {
-            MarkScanFailure(drive, FolderScanStatus::NameTooLong, length);
-            return false;
-        }
-        if (!ScanUsermaps(data) || !ScanSharedZones(data) || !ScanMods(data))
+        if (!rootPresent[i])
+            continue;
+
+        if (!ScanUsermaps(dataRoots[i]) ||
+            !ScanSharedZones(dataRoots[i]) ||
+            !ScanMods(dataRoots[i]))
             return false;
     }
 
@@ -7360,6 +7429,15 @@ static bool ScanAll()
         MarkScanFailure("ui_scripts/maptable.lua", FolderScanStatus::ReadFailed, 0);
         return false;
     }
+
+    // A drive can disappear after preflight. Do not commit a catalog that
+    // silently lost all entries from a root that was present at scan start.
+    for (size_t i = 0; i < kRootCount; ++i)
+    {
+        if (rootPresent[i] && !CheckDataRoot(dataRoots[i], true, nullptr))
+            return false;
+    }
+
     g_modsLuaDirty.store(true);
     return !g_scanFailed;
 }
