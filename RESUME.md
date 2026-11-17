@@ -1,4 +1,63 @@
-# Current work: map-load diagnostics PR #36
+# Current work: map-load diagnostics + transactional catalog refresh (PR #36)
+
+Branch: diagnostics/map-load-phase-timing; PR:
+https://github.com/Zorian1337/PS4-BO3-Customs/pull/36
+
+## Catalog refresh safety implementation
+
+The current branch now treats directory enumeration as a result, not just an
+entry count. It distinguishes optional ENOENT from open failures, getdents
+read errors, stat failures for DT_UNKNOWN entries, malformed/truncated records,
+overlong names, capacity exhaustion, and close failures. DT_UNKNOWN entries
+are stat-classified rather than silently omitted. Optional folders (user maps,
+shared zones, mod roots, alternate package folders, sound folders, and movie
+folders) may be absent; once present, scan failures abort publication.
+
+All catalog scanners propagate failures. Package/file/mod/movie limits and
+path truncation now fail the candidate scan instead of silently producing a
+partial list. Refresh takes a rollback snapshot of package/file/movie/mod
+arrays, counters, generated map Lua buffers, mod-description ownership, and the
+mod-Lua dirty flag while the existing reader/writer gate excludes readers.
+Only a fully completed scan commits; a failed scan frees candidate descriptions
+and restores the last known-good snapshot. Snapshot allocation failure leaves
+the current catalog untouched. Startup has no previous catalog, so a failed
+initial scan clears its candidate and publishes no partial entries.
+
+The scan remains synchronous. No worker-thread scan or double-buffered
+publication was introduced. T7Maps_MapCount() and T7Maps_ModCount() now
+participate in the reader gate. The Lua-string accessors retain their existing
+synchronous-consumption contract; callers run the returned source immediately
+on the frame/UI path rather than retaining it across a refresh.
+
+A new host regression exercises the actual production ListFolder() function
+against empty/missing directories, open/read/stat/close failures, malformed
+and unterminated records, overlong names, capacity exhaustion, and unknown
+entry types. It also checks rollback and description ownership invariants.
+It is registered in the full host inventory and focused SPRX diagnostics.
+
+**Validation status:** the newest changes are in GitHub Actions now. Earlier
+attempts exposed integration gaps in the existing startup fixture and were
+corrected; do not report the latest revision as passing until its final checks
+complete. No native SPRX build, upload, release, or PS4/PS5 console test was
+performed. The zm_ccube crash cause remains unknown; diagnostics and catalog
+safety are not a claim that the map crash is fixed.
+
+## Map-load diagnostics
+
+The Debug map preflight checks package-local .ff and .fd files separately
+and records the /app0/zone fallback state. Custom-map package file opens log
+elapsed time and returned fd, including failures. The native LoadLevelZones
+call logs its own duration separately from mod preparation. These remain
+observational diagnostics.
+
+## Review boundary
+
+Keep PR #36 open for full-diff and final-check review. Do not merge without the
+user's explicit approval. Do not build/upload/release an SPRX unless separately
+requested.
+
+---
+
 
 Branch: `diagnostics/map-load-phase-timing`; PR:
 https://github.com/Zorian1337/PS4-BO3-Customs/pull/36
