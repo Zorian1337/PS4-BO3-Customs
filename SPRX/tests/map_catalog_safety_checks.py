@@ -122,6 +122,13 @@ int main()
     r = ListFolder("/io", false, names, 2, false);
     assert(r.status == FolderScanStatus::ReadFailed);
 
+    Reset(); byteCount = 8;
+    r = ListFolder("/short-header", false, names, 2, false);
+    assert(r.status == FolderScanStatus::MalformedRecord);
+    Reset(); byteCount = 9;
+    r = ListFolder("/short-header", false, names, 2, false);
+    assert(r.status == FolderScanStatus::MalformedRecord);
+
     Reset(); AddEntry(0, "broken");
     ((SceKernelDirent*)bytes)->d_reclen = 0;
     r = ListFolder("/bad-record", false, names, 2, false);
