@@ -1,0 +1,59 @@
+name: Project session guard
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-session-guard-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-policy-and-host-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out the exact commit under review
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install host regression dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ lua5.1
+
+      - name: Audit changed source against publication policy
+        env:
+          AUDIT_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python3 tools/project_session.py audit --commit "$AUDIT_COMMIT"
+
+      - name: Test publication guard itself
+        run: |
+          python3 -m unittest discover -s tools -p 'test_project_session.py' -v
+
+      - name: Run the complete registered host regression inventory
+        env:
+          BO3_LUA_RUNNER: /usr/bin/lua5.1
+        run: |
+          python3 .github/scripts/run_host_checks.py --list
+          python3 .github/scripts/run_host_checks.py
+
+      - name: Publish verification summary
+        if: always()
+        run: |
+          {
+            echo "## Project session guard"
+            echo "- Commit: `$GITHUB_SHA`"
+            echo "- Source publication audit, publication-guard unit tests, and the registered host regression inventory are run as independent steps above."
+            echo "- This workflow does not build, upload, or release an SPRX and does not replace PS4/PS5 console validation."
+          } >> "$GITHUB_STEP_SUMMARY"
