@@ -23,7 +23,7 @@ ARGUMENTS = {name: LUA_ARGUMENTS.get(name, []) for name in (
     'frontend_reload_checks.py game_log_bridge_checks.py gpu_progress_checks.py '
     'lobby_target_timing_checks.py lua_compat_scope_checks.py lua_file_roots_checks.py lua_menu_apply_checks.py lua_menu_recovery_checks.py '
     'lua_menu_reload_checks.py lua_ownership_index_checks.py lua_zone_lifetime_checks.py '
-    'map_fastfile_route_checks.py map_image_surface_checks.py missing_import_lifetime_checks.py '
+    'map_fastfile_route_checks.py map_load_timing_checks.py map_image_surface_checks.py missing_import_lifetime_checks.py '
     'mod_files_revision_checks.py mod_lua_retention_checks.py mod_stack_transaction_checks.py '
     'readable_range_checks.py rawfile_lua_name_checks.py pc_widget_child_fallback_checks.py pool_growth_checks.py script_priority_context_checks.py session_common_activation_checks.py '
     'session_mod_publish_checks.py session_mod_ready_checks.py session_mod_ui_checks.py frame_work_timing_checks.py '
