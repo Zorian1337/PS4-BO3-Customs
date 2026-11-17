@@ -815,7 +815,7 @@ static bool IsZoneFile(const char* name)
            EndsWith(name, ".sabs");
 }
 
-enum class FolderScanStatus : uint8_t { Ok, Missing, OpenFailed, ReadFailed, StatFailed, MalformedRecord, NameTooLong, CapacityExceeded, CloseFailed };
+constexpr int kKernelErrorNoEntry = (int)0x80020002u; // libkernel ENOENT\nenum class FolderScanStatus : uint8_t { Ok, Missing, OpenFailed, ReadFailed, StatFailed, MalformedRecord, NameTooLong, CapacityExceeded, CloseFailed };
 struct FolderScanResult { FolderScanStatus status; int count; int error; bool Complete() const { return status == FolderScanStatus::Ok || status == FolderScanStatus::Missing; } };
 static const char* FolderScanStatusName(FolderScanStatus s)
 {
@@ -840,7 +840,7 @@ static bool AcceptFolderResult(const char* path,const FolderScanResult& r)
 static FolderScanResult ListFolder(const char* folder,bool folders,char names[][kListedNameMax],int capacity,bool optional)
 {
     const int fd=sceKernelOpen(folder,SCE_KERNEL_O_RDONLY|SCE_KERNEL_O_DIRECTORY,0);
-    if(fd<0)return {optional&&fd==(int)ORBIS_KERNEL_ERROR_ENOENT?FolderScanStatus::Missing:FolderScanStatus::OpenFailed,0,fd};
+    if(fd<0)return {optional&&fd==(int)kKernelErrorNoEntry?FolderScanStatus::Missing:FolderScanStatus::OpenFailed,0,fd};
     static std::atomic_flag lock=ATOMIC_FLAG_INIT;
     while(lock.test_and_set(std::memory_order_acquire))sceKernelUsleep(50);
     struct Unlock { std::atomic_flag& flag; ~Unlock(){flag.clear(std::memory_order_release);} } unlock{lock};
