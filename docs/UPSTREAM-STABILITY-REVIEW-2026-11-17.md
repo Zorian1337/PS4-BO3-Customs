@@ -190,18 +190,30 @@ In particular:
 - `T7Maps_FrameWork()` can process a pending mod/frontend transaction and
   reload-state bookkeeping.
 
-Status in our repo (source committed 2026-11-17): Debug builds now mark
-the active phase before each callback and the original engine frame. When the
-watchdog samples a stall, it reports the phase and elapsed time. This is a
-low-volume, stall-triggered diagnostic rather than per-frame logging. It can
-distinguish map maintenance, sharing, builtins/config save, engine
-`Com_Frame`, and Lua tick. It does not yet identify an expensive sub-operation
-inside a callback; add narrower timing only after a fresh capture identifies
-the responsible phase. Keep filesystem/network work off the engine thread only
-after separating it from engine-affine state access.
+Status in our repo (source committed 2026-11-17): Debug builds mark the
+active phase before each callback and the original engine frame. The watchdog
+also distinguishes lobby evaluation, hosted-state snapshotting, share
+completion and the full map-catalog refresh. It reports the phase and elapsed
+time only when sampling a stall.
 
-This is the best next investigation for the historical stall: the old binary
-is still required to identify which callback occupied the stack at that time.
+The periodic mod-variable autosave was a confirmed synchronous filesystem path
+inside `T7Builtins_Tick()`. It now publishes an owned snapshot to a dedicated
+config worker; the worker retains the existing merge/temp-file/fsync/rename
+semantics. Queue pressure or worker creation failure leaves variables dirty
+for retry, and a failed background write signals the next tick to retry.
+Keyboard/mouse and graphics config saves remain synchronous on their explicit
+user-action paths.
+
+The shared-download completion path still invokes `T7Maps_Refresh()` from the
+frame callback. It was not naively moved to a worker: `ScanAll()` holds the
+catalog writer state, and `ListReader` currently spins until that writer
+finishes. A worker scan would therefore still block main-thread catalog readers.
+The safe next step is a double-buffered catalog with a short atomic publication
+step. See [the frame-work hardening report](INVESTIGATION-2026-11-17-FRAME-WORK-STABILITY.md).
+
+This is a concrete reduction in main-thread IO risk, not proof of the
+historical stall's cause. The old binary is still required to identify which
+callback occupied the stack at that time.
 
 ### P2 — Bound the rawfile-name read in Lua ownership tracking
 
