@@ -57,6 +57,7 @@ jobs:
           python3 SPRX/tests/map_fastfile_route_checks.py
           python3 SPRX/tests/gpu_progress_checks.py
           python3 SPRX/tests/pool_growth_checks.py
+          python3 SPRX/tests/pool_out_concurrency_checks.py
           python3 SPRX/tests/rawfile_lua_name_checks.py
       - name: Check companion Lua syntax and recovery callbacks
         run: |
