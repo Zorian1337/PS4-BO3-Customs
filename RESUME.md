@@ -1,7 +1,14 @@
-# Current work: map-load diagnostics + transactional catalog refresh (PR #36)
+# Current repository status (2026-11-17)
 
-Branch: diagnostics/map-load-phase-timing; PR:
-https://github.com/Zorian1337/PS4-BO3-Customs/pull/36
+- Open PRs: none. PR #36 was the only open PR and was squash-merged to `main` as `10169fc1100eb88813c28bffdf0f2ae32c5a6df6`.
+- Open issues: 10 reviewed; none closed because each still has an unresolved fix, provenance, reproduction, complete-package, or console-validation requirement.
+- All five required PR workflows passed on head `6c757633504d048183a119328872b96e058741c2`: SPRX diagnostics (417), project-session guard (160), frontend reload (236), mod-stack transaction (235), and script-priority (241).
+- No native SPRX build, upload, release, or PS4/PS5 console test was performed.
+- Issue #32 has a new comment explaining why complete package conversion and console validation are still required. Issue #29's rapid X/back symptom was reported fixed on dev.65, but its source changes remain local/uncommitted.
+
+---
+
+## Historical handoff: map-load diagnostics + transactional catalog refresh (PR #36; now merged)
 
 ## Catalog refresh safety implementation
 
@@ -91,14 +98,13 @@ registered host regression inventory. The directory scanner, storage-root,
 Lua-output, catalog rollback and map-load timing fixtures passed.
 
 No native SPRX build, upload, release or PS4/PS5 console test was performed.
-PR #36 remains open and must not be merged without the user's explicit
-approval. The `zm_ccube` crash remains unresolved.
+PR #36 is merged. No native SPRX build, upload, release or PS4/PS5 console
+test was performed. The `zm_ccube` crash remains unresolved.
 
 ## Review boundary
 
-Keep PR #36 open for full-diff and final-check review. Do not merge without the
-user's explicit approval. Do not build/upload/release an SPRX unless separately
-requested.
+PR #36 is merged; no further PR action is pending. Do not build/upload/release
+an SPRX unless separately requested.
 
 ---
 
@@ -116,12 +122,10 @@ routing or claim to fix the `zm_ccube` crash.
 PR head `ca9fd4d5f8f901b5b35daeaa5807fc8a31317532`: focused SPRX diagnostics
 passed; full-range publication audit passed; publication guard unit tests
 passed; all 41 registered host regression programs passed. No native SPRX
-build or PS4/PS5 console test was performed. Keep PR #36 open for final
-diff/check review before merge.
+build or PS4/PS5 console test was performed. PR #36 is now merged.
 
-Next source task after PR #36: make directory enumeration report open/read/
-malformed-record/capacity outcomes distinctly, then make catalog refresh
-preserve the last known-good catalog when a required scan is incomplete.
+Next source task: recover and review the dev.69 trace patch provenance, then
+continue the Buried crash investigation without speculative runtime changes.
 Do not move scanning to a worker until catalog pointer lifetime and reclamation
 are explicitly safe. Keep the current synchronous refresh behavior until the
 double-buffer design is proven.
