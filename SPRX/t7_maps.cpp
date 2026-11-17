@@ -7017,7 +7017,7 @@ void T7Maps_Install(uintptr_t base)
     // Startup has no published catalog to preserve. Refreshes use the full
     // snapshot transaction to retain the last known-good catalog.
     if (!ScanAllInitial())
-        T7Log_Write("[Maps] initial catalog rejected; no partial entries published: %s", g_scanFailure);
+        T7Log_Write("[Maps] initial catalog rejected; no partial entries published");
     InstallHooks(base);
 }
 
