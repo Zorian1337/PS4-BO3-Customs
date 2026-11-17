@@ -531,6 +531,9 @@ void T7Builtins_Tick()
 {
     using namespace T7Builtins;
 
+    if (T7Config_SaveTakeFailure())
+        g_varsDirty.store(true, std::memory_order_release);
+
     if (!g_base || !g_varsDirty.load(std::memory_order_relaxed))
         return;
 
