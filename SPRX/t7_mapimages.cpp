@@ -348,18 +348,18 @@ static bool IsPictureName(const char* name)
            strncmp(name, T7_MOD_PREVIEW_PREFIX, sizeof(T7_MOD_PREVIEW_PREFIX) - 1) == 0;
 }
 
-static bool IsPicture(uint64_t image)
+static Picture* PictureByAddress(uint64_t image)
 {
     if (!image)
-        return false;
+        return nullptr;
 
     for (int i = 0; i < g_pictureCount; ++i)
     {
         if (g_pictures[i].image == image)
-            return true;
+            return &g_pictures[i];
     }
 
-    return false;
+    return nullptr;
 }
 
 static bool StillOurs(const Picture& picture)
@@ -567,23 +567,55 @@ static uint64_t SetImage_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
     const uint64_t at = base + 16;
 
     if (at < top && top - at >= 16 && RangeReadable((uintptr_t)at, 16) &&
-        (*(uint32_t*)at & 0xF) == kTypeLightUserdata &&
-        IsPicture(*(uint64_t*)(at + 8)))
+        (*(uint32_t*)at & 0xF) == kTypeLightUserdata)
     {
         const uint64_t image = *(uint64_t*)(at + 8);
-        const uint64_t element = ElementArgument(a1);
+        Picture* const picture = PictureByAddress(image);
 
-        if (element && image <= UINTPTR_MAX - kImageStreamed && RangeReadable((uintptr_t)image + kImageStreamed, 1) &&
-            !*(uint8_t*)(image + kImageStreamed))
+        if (picture)
         {
-            *(uint64_t*)(element + kElementImage) = image;
-            *(uint8_t*)(element + kElementFlags) &= (uint8_t)~2;
+            const uint64_t element = ElementArgument(a1);
 
-            if (*(uint64_t*)(element + kElementUpdate) == g_base + kStreamedDraw)
-                *(uint16_t*)(element + kElementStreaming) = 255;
+            // A cached address is not ownership proof: the engine may have
+            // retired and reused the image slot while this Lua callback waited.
+            if (!StillOurs(*picture))
+            {
+                picture->image = 0;
+                picture->retryAfter = 0;
+
+                // waitMs=0 requests the already-loaded native white asset
+                // without waiting on the database/streaming pipeline.
+                const uint64_t white = element ?
+                    ((FindAsset_t)(g_base + kFindAsset))(kImageType, "$white", 1, 0) : 0;
+
+                if (element && white && white <= UINTPTR_MAX - kImageStreamed &&
+                    RangeReadable((uintptr_t)white + kImageStreamed, 1) &&
+                    !*(uint8_t*)(white + kImageStreamed))
+                {
+                    *(uint64_t*)(element + kElementImage) = white;
+                    *(uint8_t*)(element + kElementFlags) &= (uint8_t)~2;
+
+                    if (*(uint64_t*)(element + kElementUpdate) == g_base + kStreamedDraw)
+                        *(uint16_t*)(element + kElementStreaming) = 255;
+                }
+
+                // Never forward a retired custom pointer to the native method.
+                return 0;
+            }
+
+            if (element && image <= UINTPTR_MAX - kImageStreamed &&
+                RangeReadable((uintptr_t)image + kImageStreamed, 1) &&
+                !*(uint8_t*)(image + kImageStreamed))
+            {
+                *(uint64_t*)(element + kElementImage) = image;
+                *(uint8_t*)(element + kElementFlags) &= (uint8_t)~2;
+
+                if (*(uint64_t*)(element + kElementUpdate) == g_base + kStreamedDraw)
+                    *(uint16_t*)(element + kElementStreaming) = 255;
+            }
+
+            return 0;
         }
-
-        return 0;
     }
 
     return ((Hook_t)g_setImageOriginal)(a1, a2, a3, a4, a5, a6, x0, x1, x2, x3, x4, x5, x6, x7);
