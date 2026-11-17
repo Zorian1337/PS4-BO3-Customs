@@ -4,6 +4,7 @@
 #include <atomic>
 #include <cstdint>
 #include <limits>
+#include <thread>
 
 int main()
 {
@@ -42,10 +43,10 @@ int main()
             if (StreamGuard::TryClaimDiagnostic(concurrent))
                 claimed.fetch_add(1, std::memory_order_relaxed);
     };
-    // Keep the fixture single-threaded for maximum portability in PS4 CI
-    // environments; the CAS loop itself is the production concurrency guard.
-    worker();
-    worker();
+    std::thread first(worker);
+    std::thread second(worker);
+    first.join();
+    second.join();
     assert(claimed.load() == 16);
     assert(concurrent.load() == 16);
 }
