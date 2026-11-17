@@ -56,6 +56,7 @@ jobs:
           python3 SPRX/tests/config_io_bounds_checks.py
           python3 SPRX/tests/map_fastfile_route_checks.py
           python3 SPRX/tests/gpu_progress_checks.py
+          python3 SPRX/tests/rawfile_lua_name_checks.py
       - name: Check companion Lua syntax and recovery callbacks
         run: |
           sudo apt-get update
