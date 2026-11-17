@@ -6980,26 +6980,89 @@ struct CatalogSnapshot
 };
 static CatalogSnapshot* CaptureCatalog()
 {
-    CatalogSnapshot* p=(CatalogSnapshot*)malloc(sizeof(CatalogSnapshot));if(!p)return nullptr;
-    memcpy(p->packages,g_packages,sizeof(g_packages));p->packageCount=g_packageCount;memcpy(p->files,g_files,sizeof(g_files));p->fileCount=g_fileCount;
-    memcpy(p->movies,g_movies,sizeof(g_movies));p->movieCount=g_movieCount;memcpy(p->mods,g_mods,sizeof(g_mods));p->modCount=g_modCount;
-    p->levelCommon=g_levelCommon;p->listedMaps=g_listedMaps;memcpy(p->customMapsLua,g_customMapsLua,sizeof(g_customMapsLua));memcpy(p->mapsTableLua,g_mapsTableLua,sizeof(g_mapsTableLua));p->modsLuaDirty=g_modsLuaDirty.load();return p;
+    CatalogSnapshot* const snapshot = (CatalogSnapshot*)malloc(sizeof(CatalogSnapshot));
+    if (!snapshot)
+        return nullptr;
+
+    memcpy(snapshot->packages, g_packages, sizeof(g_packages));
+    snapshot->packageCount = g_packageCount;
+    memcpy(snapshot->files, g_files, sizeof(g_files));
+    snapshot->fileCount = g_fileCount;
+    memcpy(snapshot->movies, g_movies, sizeof(g_movies));
+    snapshot->movieCount = g_movieCount;
+    memcpy(snapshot->mods, g_mods, sizeof(g_mods));
+    snapshot->modCount = g_modCount;
+    snapshot->levelCommon = g_levelCommon;
+    snapshot->listedMaps = g_listedMaps;
+    memcpy(snapshot->customMapsLua, g_customMapsLua, sizeof(g_customMapsLua));
+    memcpy(snapshot->mapsTableLua, g_mapsTableLua, sizeof(g_mapsTableLua));
+    snapshot->modsLuaDirty = g_modsLuaDirty.load();
+    return snapshot;
 }
-static void ReleaseCandidateMods(){for(int i=0;i<g_modCount;++i){free(g_mods[i].description);g_mods[i].description=nullptr;}}
-static void RestoreCatalog(CatalogSnapshot* p)
+static void ReleaseCandidateMods()
 {
-    ReleaseCandidateMods();memcpy(g_packages,p->packages,sizeof(g_packages));g_packageCount=p->packageCount;memcpy(g_files,p->files,sizeof(g_files));g_fileCount=p->fileCount;
-    memcpy(g_movies,p->movies,sizeof(g_movies));g_movieCount=p->movieCount;memcpy(g_mods,p->mods,sizeof(g_mods));g_modCount=p->modCount;
-    g_levelCommon=p->levelCommon;g_listedMaps=p->listedMaps;memcpy(g_customMapsLua,p->customMapsLua,sizeof(g_customMapsLua));memcpy(g_mapsTableLua,p->mapsTableLua,sizeof(g_mapsTableLua));g_modsLuaDirty.store(p->modsLuaDirty);free(p);
+    for (int i = 0; i < g_modCount; ++i)
+    {
+        free(g_mods[i].description);
+        g_mods[i].description = nullptr;
+    }
 }
-static void CommitCatalog(CatalogSnapshot* p){for(int i=0;i<p->modCount;++i)free(p->mods[i].description);free(p);}
+static void RestoreCatalog(CatalogSnapshot* snapshot)
+{
+    ReleaseCandidateMods();
+    memcpy(g_packages, snapshot->packages, sizeof(g_packages));
+    g_packageCount = snapshot->packageCount;
+    memcpy(g_files, snapshot->files, sizeof(g_files));
+    g_fileCount = snapshot->fileCount;
+    memcpy(g_movies, snapshot->movies, sizeof(g_movies));
+    g_movieCount = snapshot->movieCount;
+    memcpy(g_mods, snapshot->mods, sizeof(g_mods));
+    g_modCount = snapshot->modCount;
+    g_levelCommon = snapshot->levelCommon;
+    g_listedMaps = snapshot->listedMaps;
+    memcpy(g_customMapsLua, snapshot->customMapsLua, sizeof(g_customMapsLua));
+    memcpy(g_mapsTableLua, snapshot->mapsTableLua, sizeof(g_mapsTableLua));
+    g_modsLuaDirty.store(snapshot->modsLuaDirty);
+    free(snapshot);
+}
+static void CommitCatalog(CatalogSnapshot* snapshot)
+{
+    for (int i = 0; i < snapshot->modCount; ++i)
+        free(snapshot->mods[i].description);
+    free(snapshot);
+}
 static bool ScanAll()
 {
-    g_scanFailed=false;g_scanFailure[0]=0;g_packageCount=0;g_fileCount=0;g_movieCount=0;g_levelCommon=-1;g_listedMaps=0;g_modCount=0;
+    g_scanFailed = false;
+    g_scanFailure[0] = 0;
+    g_packageCount = 0;
+    g_fileCount = 0;
+    g_movieCount = 0;
+    g_levelCommon = -1;
+    g_listedMaps = 0;
+    g_modCount = 0;
+
     // The transaction owner retains old description allocations until commit.
-    memset(g_mods,0,sizeof(g_mods));
-    if(!ScanUsermaps("/data/BO3-Customs")||!ScanSharedZones("/data/BO3-Customs")||!ScanMods("/data/BO3-Customs"))return false;
-    for(const char* const drive:k_driveRoots){char data[64];int n=snprintf(data,sizeof(data),"/%s/BO3-Customs",drive);if(n<0||(size_t)n>=sizeof(data)){MarkScanFailure(drive,FolderScanStatus::NameTooLong,n);return false;}if(!ScanUsermaps(data)||!ScanSharedZones(data)||!ScanMods(data))return false;}
+    memset(g_mods, 0, sizeof(g_mods));
+
+    if (!ScanUsermaps("/data/BO3-Customs") ||
+        !ScanSharedZones("/data/BO3-Customs") ||
+        !ScanMods("/data/BO3-Customs"))
+        return false;
+
+    for (const char* const drive : k_driveRoots)
+    {
+        char data[64];
+        const int length = snprintf(data, sizeof(data), "/%s/BO3-Customs", drive);
+        if (length < 0 || (size_t)length >= sizeof(data))
+        {
+            MarkScanFailure(drive, FolderScanStatus::NameTooLong, length);
+            return false;
+        }
+        if (!ScanUsermaps(data) || !ScanSharedZones(data) || !ScanMods(data))
+            return false;
+    }
+
     if (!ScanMovies() || g_scanFailed)
         return false;
     BuildCustomMapsLua();
@@ -7372,13 +7435,25 @@ bool T7Maps_Refresh()
         return false;
 
     BeginListWrite();
-    CatalogSnapshot* const previous=CaptureCatalog();
-    if(!previous){EndListWrite();T7Log_Write("[Maps] refresh skipped: could not reserve rollback memory");return false;}
-    const bool scanned=ScanAll();
-    if(scanned)CommitCatalog(previous);else RestoreCatalog(previous);
+    CatalogSnapshot* const previous = CaptureCatalog();
+    if (!previous)
+    {
+        EndListWrite();
+        T7Log_Write("[Maps] refresh skipped: could not reserve rollback memory");
+        return false;
+    }
+
+    const bool scanned = ScanAll();
+    if (scanned)
+        CommitCatalog(previous);
+    else
+        RestoreCatalog(previous);
     EndListWrite();
-    if(!scanned)return false;
-    if(g_packageCount||g_modCount)InstallHooks(g_base);
+
+    if (!scanned)
+        return false;
+    if (g_packageCount || g_modCount)
+        InstallHooks(g_base);
     return true;
 }
 
