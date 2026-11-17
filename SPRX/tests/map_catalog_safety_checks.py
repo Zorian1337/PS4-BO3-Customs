@@ -218,6 +218,75 @@ int main()
                         str(cpp), "-o", str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
 
+    builder_start = SOURCE.index("static bool BuildCustomMapsLua()")
+    builder_end = SOURCE.index("static char g_mapsTableLua", builder_start)
+    builder = SOURCE[builder_start:builder_end]
+    builder_prefix = r"""
+#include <cassert>
+#include <cctype>
+#include <cstdarg>
+#include <cstdio>
+#include <cstring>
+constexpr int kRawDescriptionMax=256, kDescriptionMax=256, kNameMax=56;
+#define T7_USERMAP_PREVIEW_PREFIX "preview_"
+#define T7_USERMAP_LOADING_PREFIX "loading_"
+struct Package { char name[64]; bool map; char preview[96]; };
+struct Movie { int package; char name[64]; };
+static Package g_packages[32];
+static Movie g_movies[64];
+static int g_packageCount=0, g_movieCount=0, g_listedMaps=0;
+static char g_customMapsLua[2048]={};
+static bool EqualsNoCase(const char* a,const char* b)
+{
+    while(*a&&*b){if(std::tolower((unsigned char)*a)!=std::tolower((unsigned char)*b))return false;++a;++b;}
+    return *a==*b;
+}
+static bool AllDigits(const char* text)
+{
+    if(!text[0])return false;
+    for(const char* p=text;*p;++p)if(*p<'0'||*p>'9')return false;
+    return true;
+}
+static bool FindPackageFile(const Package&,const char*,char* out,size_t size){if(size)out[0]=0;return false;}
+static char* ReadSmallFile(const char*,size_t){return nullptr;}
+static bool JsonString(const char*,const char*,char*,size_t){return false;}
+static void FormatDescription(const char*,char* out,size_t size){if(size)out[0]=0;}
+static void FindPreview(Package& package,const char*){package.preview[0]=0;}
+static void LimitText(const char* text,char* out,size_t size){if(size)std::snprintf(out,size,"%s",text);}
+static void T7Log_Write(const char*,...){}
+"""
+    builder_main = r"""
+int main()
+{
+    std::strcpy(g_packages[0].name,"zm_map_00");
+    std::strcpy(g_packages[1].name,"mp_map_01");
+    g_packages[0].map=true; g_packages[1].map=true; g_packageCount=2;
+    assert(BuildCustomMapsLua());
+    assert(g_listedMaps==2);
+    assert(std::strstr(g_customMapsLua,"zm_map_00"));
+    assert(std::strstr(g_customMapsLua,"mp_map_01"));
+    assert(std::strstr(g_customMapsLua,"})"));
+
+    g_packageCount=32; g_listedMaps=0; g_customMapsLua[0]=0;
+    for(int i=0;i<g_packageCount;++i){
+        std::snprintf(g_packages[i].name,sizeof(g_packages[i].name),"zm_catalog_entry_%02d",i);
+        g_packages[i].map=true;
+        g_packages[i].preview[0]=0;
+    }
+    assert(!BuildCustomMapsLua());
+    assert(g_listedMaps<g_packageCount);
+    assert(!std::strstr(g_customMapsLua,"})"));
+    std::puts("PASS: custom-map Lua builder rejects an output list that cannot fit completely");
+}
+"""
+    with tempfile.TemporaryDirectory(prefix="bo3-map-lua-builder-") as temp:
+        cpp = Path(temp) / "builder.cpp"
+        binary = Path(temp) / "builder"
+        cpp.write_text("#include <cstddef>\\n#include <cstdio>\\n" + builder_prefix + append_functions + "\\n" + builder + builder_main)
+        subprocess.run([os.environ.get("CXX", "g++"), "-std=c++20", "-Wall", "-Wextra", "-Werror",
+                        str(cpp), "-o", str(binary)], check=True)
+        subprocess.run([str(binary)], check=True)
+
     root_functions = (
         extract_function(SOURCE, "static bool PathUsesDataRoot(")
         + "\n"
