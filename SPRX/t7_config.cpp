@@ -35,10 +35,6 @@ static bool (*g_asyncOwns)(const char* line) = nullptr;
 
 static void* AsyncSaveWorker(void*)
 {
-    char section[sizeof(g_asyncSection)];
-    char lines[sizeof(g_asyncLines)];
-    bool (*owns)(const char*) = nullptr;
-
     for (;;)
     {
         if (!g_asyncPending.load(std::memory_order_acquire))
@@ -56,18 +52,18 @@ static void* AsyncSaveWorker(void*)
             continue;
         }
 
-        memcpy(section, g_asyncSection, sizeof(section));
-        memcpy(lines, g_asyncLines, sizeof(lines));
-        owns = g_asyncOwns;
-        g_asyncQueueLock.clear(std::memory_order_release);
+        // Keep the queue lock while saving so the worker can use the owned
+        // snapshot in place instead of consuming a 32 KiB stack buffer.
+        bool (*owns)(const char* line) = g_asyncOwns;
+        const bool saved = owns && T7Config_Save(g_asyncSection, owns, g_asyncLines);
+        if (!saved)
+            T7Log_Write("[Config] background save of %s failed; a later change can retry", g_asyncSection);
 
-        if (owns && !T7Config_Save(section, owns, lines))
-            T7Log_Write("[Config] background save of %s failed; a later change can retry", section);
+        g_asyncQueueLock.clear(std::memory_order_release);
     }
 
     return nullptr;
 }
-
 struct Lock
 {
     Lock()
