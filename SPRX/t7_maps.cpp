@@ -6386,13 +6386,13 @@ static bool BuildCustomMapsLua()
             continue;
 
         char path[320];
-        FindPackageFile(package, "workshop.json", path, sizeof(path));
+        const bool hasWorkshopInfo = FindPackageFile(package, "workshop.json", path, sizeof(path));
         char title[160];
         snprintf(title, sizeof(title), "%s", package.name);
         char workshop[32] = {};
         raw[0] = 0;
 
-        char* const json = ReadSmallFile(path, 64 * 1024);
+        char* const json = hasWorkshopInfo ? ReadSmallFile(path, 64 * 1024) : nullptr;
         if (json)
         {
             if (!JsonString(json, "Title", title, sizeof(title)) || !title[0])
