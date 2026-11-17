@@ -3341,7 +3341,9 @@ static void SampleStalledThreads(uint32_t round, uint64_t stalledMs)
     {
         const char* const phaseName = phase == 1 ? "maps" : phase == 2 ? "sharing" :
                                       phase == 3 ? "builtins/config-save" : phase == 4 ? "engine Com_Frame" :
-                                      phase == 5 ? "Lua tick" : "unknown";
+                                      phase == 5 ? "Lua tick" : phase == 20 ? "share/Evaluate" :
+                                      phase == 21 ? "share/hosted snapshot" : phase == 22 ? "share/Finish" :
+                                      phase == 23 ? "share/map catalog refresh" : "unknown";
         const uint64_t phaseNow = sceKernelGetProcessTime();
         const uint64_t phaseMs = phaseNow >= phaseStarted ? (phaseNow - phaseStarted) / 1000 : 0;
         ReportLine("[Stall] frame callback phase: %s has not returned for %llu ms", phaseName,
