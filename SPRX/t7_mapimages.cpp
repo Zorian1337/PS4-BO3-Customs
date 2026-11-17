@@ -65,6 +65,7 @@ struct Picture
 };
 
 static uintptr_t g_base = 0;
+static FindAsset_t g_findAsset = nullptr;
 static Picture   g_pictures[kMaxPictures];
 static int       g_pictureCount = 0;
 
@@ -585,8 +586,7 @@ static uint64_t SetImage_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
 
                 // waitMs=0 requests the already-loaded native white asset
                 // without waiting on the database/streaming pipeline.
-                const uint64_t white = element ?
-                    ((FindAsset_t)(g_base + kFindAsset))(kImageType, "$white", 1, 0) : 0;
+                const uint64_t white = element && g_findAsset ? g_findAsset(kImageType, "$white", 1, 0) : 0;
 
                 if (element && white && white <= UINTPTR_MAX - kImageStreamed &&
                     RangeReadable((uintptr_t)white + kImageStreamed, 1) &&
@@ -656,6 +656,7 @@ void T7MapImages_Install(uintptr_t base)
     }
 
     g_base = base;
+    g_findAsset = (FindAsset_t)(base + kFindAsset);
 
     if (!g_setImageOriginal)
         Detour_Attach(&g_setImageDetour, (uint64_t)(base + kSetImage), (void*)SetImage_h, &g_setImageOriginal);
