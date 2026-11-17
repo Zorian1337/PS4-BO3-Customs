@@ -280,3 +280,15 @@ The new source/tests were committed in
 committed in `0c97ead415a2f2b117fb95bc1478a63c555fe357`. At the time of this
 addendum, the diagnostics workflow and main build were running. PS4 console
 validation and the exact cause of the reported crash remain unconfirmed.
+
+## Additional confirmed concurrency defect — pool-out once-only latch
+
+T7Log_PoolOut() is invoked from LinkXAsset_h(), which can execute on multiple
+database workers. The function used a plain static bool told[kTypeCount] for
+its once-only per-type diagnostic. Concurrent read/write of that array was
+a data race. The latch is now std::atomic<bool> and uses exchange() after
+checking the pool state. A production-function stress fixture runs 32 workers
+against the same exhausted type and checks for exactly one diagnostic.
+The fixture is registered in the PR diagnostics workflow and full host suite.
+Do not confuse this diagnostic race with a native allocator race; the latter
+remains unproven and requires PS4 binary-level allocator analysis.
