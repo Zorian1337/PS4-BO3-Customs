@@ -4,6 +4,33 @@ These diagnostics address the logging gaps in issues #1 and #2. They are enabled
 in Debug builds. They do not suppress script exceptions, bypass clientfield
 validation, change zone priorities, unload mods or write player profiles.
 
+## Queued menu transitions and retired custom images (issue #29)
+
+The periodic Lua compatibility tick now treats recorded mod-zone requests as
+busy before native zone state reaches `loading`. It remains busy while any
+recorded zone is below ready, but a held Mods overlay can resume once those
+zones are ready. Native loading and frontend handoff phases continue to block
+the tick.
+
+Tick-driven UI helpers recheck the transition predicate after acquiring the
+nonblocking UI lock. This closes the race where a transition begins between
+the initial frame check and the locked Lua injection/probe. The lock is
+released without Lua mutation when the second check observes a transition.
+
+Custom image callbacks no longer trust a cached image address by itself.
+`SetImage_h` revalidates the registered slot's in-use flag and name before
+assigning it. A retired/reused custom slot is replaced with the native
+`$white` asset using a zero-wait lookup; the stale custom pointer is never
+forwarded. The existing element-handle generation check still rejects stale
+UI elements without writes or native forwarding. Stock images continue
+through the original native method with unchanged arguments and result.
+
+Run `python3 SPRX/tests/ui_transition_busy_checks.py` and
+`python3 SPRX/tests/map_image_lifetime_checks.py` for host regressions. These
+tests compile the production transition predicate and image hook/helpers with
+sanitizers. They do not validate PS4 engine offsets or prove the dev.65
+main-menu crash is universally fixed; console confirmation remains required.
+
 ## Distinct script errors
 
 The old shared 200-line limit could be exhausted by one repeated GSC failure,
