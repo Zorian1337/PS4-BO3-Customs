@@ -9,6 +9,10 @@ clears the UI-error latch and retries compatibility injection with fresh
 state-local caches. Focused ASan/UBSan coverage passes. See
 [the DS4C investigation](docs/INVESTIGATION-2026-11-02-DS4C-UI.md).
 
+## Upstream stability review (2026-11-17)
+
+See [the Joker upstream comparison and stability action list](docs/UPSTREAM-STABILITY-REVIEW-2026-11-17.md). It records which upstream hot-path implementations are less safe than ours, the shared unchecked initialization/watchdog thread creation defects, and the next timing/test work. No source behavior or build was changed during that review.
+
 Dev.60 is a Debug test candidate. The target build still needs to pass. Console
 validation of the DS4C UI remains required; no gameplay crash or map stability
 claim follows from these logs.
