@@ -282,7 +282,7 @@ int main()
     with tempfile.TemporaryDirectory(prefix="bo3-map-lua-builder-") as temp:
         cpp = Path(temp) / "builder.cpp"
         binary = Path(temp) / "builder"
-        cpp.write_text("#include <cstddef>\\n#include <cstdio>\\n" + builder_prefix + append_functions + "\\n" + builder + builder_main)
+        cpp.write_text(builder_prefix + append_functions + "\n" + builder + builder_main)
         subprocess.run([os.environ.get("CXX", "g++"), "-std=c++20", "-Wall", "-Wextra", "-Werror",
                         str(cpp), "-o", str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
