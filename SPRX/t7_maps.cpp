@@ -3335,6 +3335,21 @@ static void SampleStalledThreads(uint32_t round, uint64_t stalledMs)
                 *(const uint8_t*)(g_base + kStreamStarted), *(const uint8_t*)(g_base + kStreamDone), loaded[0], count[0], loaded[1],
                 count[1], loaded[2], count[2], loaded[4], count[4]);
 
+    uint64_t phaseStarted = 0;
+    const uint32_t phase = T7FrameWorkPhase_Get(&phaseStarted);
+    if (phase)
+    {
+        const char* const phaseName = phase == 1 ? "maps" : phase == 2 ? "sharing" :
+                                      phase == 3 ? "builtins/config-save" : phase == 4 ? "engine Com_Frame" :
+                                      phase == 5 ? "Lua tick" : "unknown";
+        const uint64_t phaseNow = sceKernelGetProcessTime();
+        const uint64_t phaseMs = phaseNow >= phaseStarted ? (phaseNow - phaseStarted) / 1000 : 0;
+        ReportLine("[Stall] frame callback phase: %s has not returned for %llu ms", phaseName,
+                   (unsigned long long)phaseMs);
+    }
+    else
+        ReportLine("[Stall] no BO3-Customs frame callback is currently active");
+
     ReportGpuProgress("gameplay-stall", g_levelStart.load(std::memory_order_relaxed), sceKernelGetProcessTime());
 
     for (int i = 0; i < kStreamBlobCount; ++i)
@@ -3639,15 +3654,27 @@ static void StartStallWatch()
             T7Log_Write("[Stall] installing the exception handler through %s failed (0x%08X)", from, (uint32_t)installed);
     }
 
-    ScePthread thread;
-    const int created = scePthreadCreate(&thread, nullptr, StallWatch, nullptr, "BO3-Customs Stall");
-    const int mirrored = scePthreadCreate(&thread, nullptr, StallMirror, nullptr, "BO3-Customs Stall Log");
-    const char* const state = created == 0 && mirrored == 0 ? "running" : "NOT started";
+    ScePthread watchThread{};
+    ScePthread mirrorThread{};
+    const int created = scePthreadCreate(&watchThread, nullptr, StallWatch, nullptr, "BO3-Customs Stall");
+    const int mirrored = scePthreadCreate(&mirrorThread, nullptr, StallMirror, nullptr, "BO3-Customs Stall Log");
+
+    int watchDetached = -1;
+    int mirrorDetached = -1;
+    if (created == 0)
+        watchDetached = scePthreadDetach(watchThread);
+    if (mirrored == 0)
+        mirrorDetached = scePthreadDetach(mirrorThread);
+
+    const char* const state = created == 0 && mirrored == 0 ? "running" :
+                              created == 0 || mirrored == 0 ? "partially running" : "NOT started";
 
     if (g_raiseException)
-        T7Log_Write("[Stall] watchdog %s (threads are sampled by a signal through %s, plus stack walks)", state, from);
+        T7Log_Write("[Stall] watchdog %s (watch create=%d detach=%d; mirror create=%d detach=%d; signal via %s)",
+                    state, created, watchDetached, mirrored, mirrorDetached, from);
     else
-        T7Log_Write("[Stall] watchdog %s (threads are sampled by stack walks only)", state);
+        T7Log_Write("[Stall] watchdog %s (watch create=%d detach=%d; mirror create=%d detach=%d; stack walks only)",
+                    state, created, watchDetached, mirrored, mirrorDetached);
 }
 
 static void FrameHeartbeat()
