@@ -275,6 +275,7 @@ static uintptr_t g_base = 0;
 static Package   g_packages[kMaxPackages];
 static int       g_packageCount = 0;
 static bool      g_scanFailed = false;
+static bool      g_scanCandidateActive = false;
 static char      g_scanFailure[224] = {};
 static File      g_files[kMaxFiles];
 static int       g_fileCount = 0;
@@ -7176,7 +7177,9 @@ static void ReleaseCandidateMods()
 }
 static void RestoreCatalog(CatalogSnapshot* snapshot)
 {
-    ReleaseCandidateMods();
+    if (g_scanCandidateActive)
+        ReleaseCandidateMods();
+    g_scanCandidateActive = false;
     memcpy(g_packages, snapshot->packages, sizeof(g_packages));
     g_packageCount = snapshot->packageCount;
     memcpy(g_files, snapshot->files, sizeof(g_files));
@@ -7255,6 +7258,7 @@ static bool CheckDataRoot(const char* root, bool requirePresent, bool* present)
 static bool ScanAll()
 {
     g_scanFailed = false;
+    g_scanCandidateActive = false;
     g_scanFailure[0] = 0;
 
     constexpr size_t kRootCount = 1 + sizeof(k_driveRoots) / sizeof(k_driveRoots[0]);
@@ -7287,6 +7291,7 @@ static bool ScanAll()
 
     // The transaction owner retains old description allocations until commit.
     memset(g_mods, 0, sizeof(g_mods));
+    g_scanCandidateActive = true;
 
     for (size_t i = 0; i < kRootCount; ++i)
     {
@@ -7327,9 +7332,14 @@ static bool ScanAll()
 static bool ScanAllInitial()
 {
     if (ScanAll())
+    {
+        g_scanCandidateActive = false;
         return true;
+    }
 
-    ReleaseCandidateMods();
+    if (g_scanCandidateActive)
+        ReleaseCandidateMods();
+    g_scanCandidateActive = false;
     g_packageCount = 0;
     g_fileCount = 0;
     g_movieCount = 0;
