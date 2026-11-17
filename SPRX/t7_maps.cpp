@@ -2149,8 +2149,7 @@ static void NoteLevelLua(uint64_t asset)
 
     const char* const zone = (const char*)g_zoneLoadContexts.Current((uint64_t)scePthreadSelf());
     char zoneName[kNameMax];
-    size_t zoneLength = 0;
-    if (!copyReadableText(zone, zoneName, sizeof(zoneName), &zoneLength))
+    if (!copyReadableText(zone, zoneName, sizeof(zoneName), nullptr))
         return;
 
     char relative[kNameMax];

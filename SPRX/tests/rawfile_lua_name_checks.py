@@ -85,7 +85,8 @@ int main()
     memory[page - 1] = 'l';
     guardStart = (uintptr_t)(memory + page);
     Invoke(memory + page - 2); // The missing terminator is behind an unreadable page.
-    assert(!g_modLuaOwnership.MayContain(memory + page - 2));
+    const char partial[] = ".l";
+    assert(!g_modLuaOwnership.MayContain(partial));
     guardStart = 0;
     assert(munmap(memory, (size_t)page * 2) == 0);
 
