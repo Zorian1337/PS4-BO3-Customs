@@ -196,3 +196,35 @@ and the full host workflow passed on PR head
 inventory reports 41 regression programs with zero failures. The publication
 audit covers the complete PR base-to-head diff. No SPRX build or console test
 was performed. PR #36 remains subject to final review before merge.
+
+
+## Catalog-safety follow-up (source implementation; console validation pending)
+
+The map-catalog refresh path has been hardened independently of the crash
+hypothesis:
+
+- Directory enumeration now reports open, read, stat, malformed-record,
+  overlong-name, capacity, and close outcomes separately. Optional directories
+  are ignored only when the kernel reports ENOENT; other open errors abort.
+- Directory entries with DT_UNKNOWN are classified with a bounded path and
+  sceKernelStat. A failed classification aborts the scan rather than silently
+  dropping a directory.
+- Scanner failures and fixed-capacity/path truncation propagate to the top-level
+  scan. The candidate is rejected instead of publishing a partial catalog.
+- Refresh snapshots the previous catalog, generated map Lua, mod-description
+  pointers and dirty state under the existing reader/writer exclusion. A
+  complete candidate commits and releases old descriptions; a failed candidate
+  is discarded and the previous catalog is restored. If snapshot allocation
+  fails, refresh returns without modifying the current catalog.
+- Startup has no previous catalog to preserve; failed initial scans clear the
+  candidate rather than exposing partial entries.
+- Scanning remains synchronous. This change does not introduce worker threads
+  or claim that double-buffering is safe. Reader lifetime and reclamation still
+  need a separate design before any asynchronous scan is considered.
+
+The new host test executes the production directory-enumeration function with
+controlled kernel-call results and checks the distinct outcomes, plus source
+guards for rollback and description ownership. CI is still the required
+validation for the current PR head. No native SPRX build or PS4/PS5 test was
+performed. This work improves catalog integrity; it does not establish or fix
+the cause of the reported zm_ccube crash.
