@@ -69,6 +69,7 @@ GLOBALS = r'''
 static DiagnosticRing<StreamBlockRejected, 16> g_streamBlockRejected;
 static std::atomic<uint32_t> g_streamRejectAttempts{0};
 static std::atomic<uint32_t> g_streamRejectDropped{0};
+static std::atomic<uint32_t> g_streamRejectDroppedLogged{0};
 static std::atomic<uint32_t> g_streamRejectLogged{0};
 static std::atomic<bool> g_streamRejectFlush{false};
 '''
