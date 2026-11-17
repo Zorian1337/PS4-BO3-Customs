@@ -22,6 +22,7 @@ constexpr int      kPixelFormat   = 0x14;
 constexpr int      kImageFlags    = 4;
 constexpr int      kMaxElements   = 0x4E20;
 constexpr int      kMaxPictures   = 128;
+constexpr int      kRetiredPictureMax = 256;
 constexpr size_t   kMaxFileBytes  = 48u * 1024 * 1024;
 
 constexpr int kPreviewWidth  = 640;
@@ -68,6 +69,8 @@ static uintptr_t g_base = 0;
 static FindAsset_t g_findAsset = nullptr;
 static Picture   g_pictures[kMaxPictures];
 static int       g_pictureCount = 0;
+static Picture   g_retiredPictures[kRetiredPictureMax];
+static uint32_t  g_retiredPictureNext = 0;
 
 static Detour g_registerDetour{};
 static void*  g_registerOriginal = nullptr;
@@ -349,8 +352,11 @@ static bool IsPictureName(const char* name)
            strncmp(name, T7_MOD_PREVIEW_PREFIX, sizeof(T7_MOD_PREVIEW_PREFIX) - 1) == 0;
 }
 
-static Picture* PictureByAddress(uint64_t image)
+static Picture* PictureByAddress(uint64_t image, bool* retired)
 {
+    if (retired)
+        *retired = false;
+
     if (!image)
         return nullptr;
 
@@ -358,6 +364,16 @@ static Picture* PictureByAddress(uint64_t image)
     {
         if (g_pictures[i].image == image)
             return &g_pictures[i];
+    }
+
+    for (int i = 0; i < kRetiredPictureMax; ++i)
+    {
+        if (g_retiredPictures[i].image == image)
+        {
+            if (retired)
+                *retired = true;
+            return &g_retiredPictures[i];
+        }
     }
 
     return nullptr;
@@ -369,6 +385,25 @@ static bool StillOurs(const Picture& picture)
            RangeReadable((uintptr_t)picture.image + kSlotName, 64) &&
            RangeReadable((uintptr_t)picture.image + kSlotInUse, 1) && *(uint8_t*)(picture.image + kSlotInUse) &&
            strncmp((const char*)(picture.image + kSlotName), picture.name, 63) == 0;
+}
+
+static void RetirePicture(const Picture& picture)
+{
+    if (!picture.image)
+        return;
+
+    // Keep a bounded tombstone so delayed callbacks cannot fall through to
+    // the native method after the active Picture record is recycled.
+    for (int i = 0; i < kRetiredPictureMax; ++i)
+    {
+        if (g_retiredPictures[i].image == picture.image)
+        {
+            g_retiredPictures[i] = picture;
+            return;
+        }
+    }
+
+    g_retiredPictures[g_retiredPictureNext++ % kRetiredPictureMax] = picture;
 }
 
 static uint64_t RetryPicture(Picture& picture)
@@ -571,7 +606,8 @@ static uint64_t SetImage_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
         (*(uint32_t*)at & 0xF) == kTypeLightUserdata)
     {
         const uint64_t image = *(uint64_t*)(at + 8);
-        Picture* const picture = PictureByAddress(image);
+        bool retired = false;
+        Picture* const picture = PictureByAddress(image, &retired);
 
         if (picture)
         {
@@ -581,8 +617,12 @@ static uint64_t SetImage_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
             // retired and reused the image slot while this Lua callback waited.
             if (!StillOurs(*picture))
             {
-                picture->image = 0;
-                picture->retryAfter = 0;
+                if (!retired)
+                {
+                    RetirePicture(*picture);
+                    picture->image = 0;
+                    picture->retryAfter = 0;
+                }
 
                 // waitMs=0 requests the already-loaded native white asset
                 // without waiting on the database/streaming pipeline.
