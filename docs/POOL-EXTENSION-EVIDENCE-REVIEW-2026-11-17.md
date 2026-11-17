@@ -92,6 +92,20 @@ This is a provable reduction in comparisons (O(N) to O(log N)); it has not yet
 been benchmarked on console, so no frame-time percentage is claimed. Host CI
 is pending. No native build or console test has been performed for this branch.
 
+## Confirmed diagnostic data race corrected
+
+T7Log_PoolOut() is called from LinkXAsset_h(), which runs on database
+workers. Its static per-type told[] latch was a plain bool array read and
+written without synchronization. Concurrent calls therefore had a C++ data
+race and could emit duplicate pool-out snapshots. The latch now uses
+std::atomic<bool>::exchange() after confirming the pool is genuinely empty,
+so exactly one worker claims the once-only diagnostic. A host stress fixture
+extracts and compiles the production function, starts 32 concurrent workers,
+and verifies exactly one diagnostic/snapshot for an exhausted type while
+ignoring free, singleton, zero-limit and invalid types. This corrects the
+plugin-owned diagnostic race; it does not synchronize diagnostic reads with
+the engine's native allocator or establish a failed allocation.
+
 ## CI coverage gap found and corrected
 
 The dedicated pull-request SPRX diagnostics workflow did not previously run
