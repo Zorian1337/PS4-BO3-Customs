@@ -7200,6 +7200,7 @@ static void CommitCatalog(CatalogSnapshot* snapshot)
     for (int i = 0; i < snapshot->modCount; ++i)
         free(snapshot->mods[i].description);
     free(snapshot);
+    g_scanCandidateActive = false;
 }
 static bool PathUsesDataRoot(const char* path, const char* root)
 {
