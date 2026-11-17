@@ -6,6 +6,41 @@ The goal is stable custom-map loading and long sessions on constrained PS4
 memory, not maximum asset capacity. Every memory increase must be justified by
 a reproducible exhaustion record and bounded by a measured budget.
 
+## P0 — Map catalog integrity and map-load diagnostics (PR #36; review pending)
+
+Branch: `diagnostics/map-load-phase-timing`
+PR: https://github.com/Zorian1337/PS4-BO3-Customs/pull/36
+
+- [x] Replace count-only directory enumeration with structured scan outcomes
+  for open/read/stat/record/name/capacity/close failures.
+- [x] Reject incomplete catalog candidates instead of publishing partial maps,
+  mods, movies, or generated map Lua.
+- [x] Preflight and recheck storage roots; retain the previous catalog if a
+  populated drive disappears or becomes inaccessible during refresh.
+- [x] Snapshot and restore catalog arrays, counters, generated Lua, mod
+  description ownership, and dirty state on refresh failure.
+- [x] Add production-function host coverage for directory parsing, unknown
+  dirent types, storage-root loss, Lua output bounds, and rollback ownership.
+- [x] Add FF/FD preflight, package-open timing, and native LoadLevelZones timing
+  to DEBUG diagnostics.
+- [ ] Re-run PR CI after the follow-up correction to legacy mod-stack scanner
+  call sites and the new scanner-arity regression.
+- [ ] Complete final full-diff review before merging. PR #36 remains open and
+  unmerged; no merge is authorized by this roadmap update.
+- [ ] Run the PS4 target build only after explicit approval, then validate on
+  console. The earlier PR CI runs were host regressions and do not constitute
+  a native build or runtime test.
+
+The review caught three mod-stack call sites still using the old four-argument
+ListFolder interface after the scanner changed to a five-argument structured
+result. Those call sites now consume FolderScanResult, report failures, and
+roll back additions from a failed folder scan. The regression now checks every
+ListFolder invocation for the correct argument count. Re-run CI is pending.
+
+The `zm_ccube` crash remains unconfirmed. Both FF and FD opened in the supplied
+excerpt; the first fatal record was not present. Do not treat catalog integrity
+or added timing as a fix for that crash.
+
 ## P0 — Landed source hardening; CI verified
 
 - [x] Replace per-asset linear pool-allowlist lookup with binary search on the
