@@ -306,6 +306,7 @@ static int g_packageCount=0, g_fileCount=0, g_movieCount=0, g_modCount=0;
 static int g_levelCommon=-1, g_listedMaps=0;
 static char g_customMapsLua[64]={}, g_mapsTableLua[96]={};
 static std::atomic<bool> g_modsLuaDirty{false};
+static bool g_scanCandidateActive = false;
 """
     transaction_main = r"""
 int main()
@@ -330,6 +331,7 @@ int main()
     g_levelCommon=95; g_listedMaps=94;
     std::strcpy(g_customMapsLua,"candidate-maps"); std::strcpy(g_mapsTableLua,"candidate-table");
     g_modsLuaDirty.store(true);
+    g_scanCandidateActive = true;
 
     RestoreCatalog(snapshot);
     assert(g_packageCount==1 && g_packages[0].marker==41);
@@ -342,13 +344,24 @@ int main()
     assert(std::strcmp(g_customMapsLua,"previous-maps")==0);
     assert(std::strcmp(g_mapsTableLua,"previous-table")==0);
     assert(!g_modsLuaDirty.load());
+    assert(!g_scanCandidateActive);
+
+    // A root-preflight failure occurs before candidate arrays are started.
+    snapshot=CaptureCatalog();
+    char* const stillPublishedDescription=g_mods[0].description;
+    g_scanCandidateActive=false;
+    RestoreCatalog(snapshot);
+    assert(g_mods[0].description==stillPublishedDescription);
+    assert(std::strcmp(g_mods[0].description,"previous-description")==0);
 
     snapshot=CaptureCatalog();
     assert(snapshot);
     char* const committedOldDescription=g_mods[0].description;
     std::memset(g_mods,0,sizeof(g_mods));
     g_modCount=1; g_mods[0].description=strdup("committed-description");
+    g_scanCandidateActive=true;
     CommitCatalog(snapshot);
+    assert(!g_scanCandidateActive);
     assert(g_mods[0].description && std::strcmp(g_mods[0].description,"committed-description")==0);
     free(g_mods[0].description);
     g_mods[0].description=nullptr;
@@ -381,10 +394,11 @@ int main()
     assert "if (!scanned)" in refresh or "if(!scanned)" in refresh
     assert "ScanAllInitial()" in install
     assert "ReleaseCandidateMods();" in initial and "g_packageCount = 0" in initial
-    assert "ReleaseCandidateMods();" in rollback
+    assert "if (g_scanCandidateActive)" in rollback and "ReleaseCandidateMods();" in rollback
     assert "memcpy(g_mods, snapshot->mods" in rollback
     assert "free(snapshot->mods[i].description)" in commit
     assert "memset(g_mods, 0, sizeof(g_mods))" in scan_all
+    assert "g_scanCandidateActive = true" in scan_all
     assert "!ScanUsermaps(" in scan_all
     assert "if (!BuildMapsTableLua())" in scan_all
     assert "if (!BuildCustomMapsLua())" in scan_all
