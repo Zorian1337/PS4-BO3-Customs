@@ -27,7 +27,7 @@ ANY_LOADING = extract_block(MAPS, "static bool AnyZoneLoading()")
 BUSY = extract_block(MAPS, "bool T7Maps_UiTransitionBusy()")
 
 for marker in (
-    "static void AddPcUtil()", "static void ShowShare()", "static void InjectScripts()",
+    "static void AddPcUtil()\\n{", "static void ShowShare()", "static void InjectScripts()",
     "static void CheckMenus()", "void T7Lua_Tick()"
 ):
     body = extract_block(LUA, marker)
