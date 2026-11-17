@@ -165,9 +165,9 @@ def main():
         temp = Path(temp)
         source = temp / "stream_guard.cpp"
         binary = temp / "stream_guard"
-        source.write_text(PREFIX + EVENT + "\n" + GLOBALS + "\n" + HOOK + "\n" + TRACE + "\n" + MAIN)
+        source.write_text(PREFIX + EVENT + ";\n" + GLOBALS + "\n" + HOOK + "\n" + TRACE + "\n" + MAIN)
         subprocess.run([
-            "g++", "-std=c++20", "-Wall", "-Wextra", "-Werror", "-O1",
+            "g++", "-std=c++20", "-D_DEBUG", "-Wall", "-Wextra", "-Werror", "-O1",
             "-pthread", "-fsanitize=address,undefined", "-I", str(ROOT),
             str(source), "-o", str(binary)
         ], check=True)
