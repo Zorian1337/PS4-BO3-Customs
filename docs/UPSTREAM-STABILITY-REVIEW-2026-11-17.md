@@ -289,6 +289,6 @@ its once-only per-type diagnostic. Concurrent read/write of that array was
 a data race. The latch is now std::atomic<bool> and uses exchange() after
 checking the pool state. A production-function stress fixture runs 32 workers
 against the same exhausted type and checks for exactly one diagnostic.
-The fixture is registered in the PR diagnostics workflow and full host suite.
+The fixture is registered in the PR diagnostics workflow and full host suite. The PR diagnostics workflow passed on final source commit `fdcc08e`, including the concurrent pool-out fixture.
 Do not confuse this diagnostic race with a native allocator race; the latter
 remains unproven and requires PS4 binary-level allocator analysis.
