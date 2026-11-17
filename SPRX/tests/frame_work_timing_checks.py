@@ -10,7 +10,8 @@ assert "T7FrameWorkPhase_Set(21);" in share
 assert "T7FrameWorkPhase_Set(22);" in share
 assert "T7FrameWorkPhase_Set(23);" in share
 assert share.index("T7FrameWorkPhase_Set(23);") < share.index("const bool refreshed = T7Maps_Refresh();")
-assert share.index("const bool refreshed = T7Maps_Refresh();") < share.index("T7FrameWorkPhase_Set(22);")
+refresh_at = share.index("const bool refreshed = T7Maps_Refresh();")
+assert refresh_at < share.index("T7FrameWorkPhase_Set(22);", refresh_at)
 assert 'phase == 20 ? "share/Evaluate"' in maps
 assert 'phase == 21 ? "share/hosted snapshot"' in maps
 assert 'phase == 22 ? "share/Finish"' in maps
