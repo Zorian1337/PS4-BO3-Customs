@@ -2193,6 +2193,12 @@ static void ShowShare()
     if ((!visible && !shown) || !UiUp() || !UiTryLock())
         return;
 
+    if (T7Maps_UiTransitionBusy())
+    {
+        UiUnlock();
+        return;
+    }
+
     if (UiUp())
     {
         if (DvarOn("bo3customs_share_cancel"))
@@ -2245,6 +2251,12 @@ static void InjectScripts()
 {
     if (!UiUp() || !UiTryLock())
         return;
+
+    if (T7Maps_UiTransitionBusy())
+    {
+        UiUnlock();
+        return;
+    }
 
     if (UiUp())
     {
@@ -3110,6 +3122,12 @@ static void CheckMenus()
     if (!UiUp() || !UiTryLock())
         return;
 
+    if (T7Maps_UiTransitionBusy())
+    {
+        UiUnlock();
+        return;
+    }
+
     bool broken = false;
 
     if (UiUp())
@@ -3318,6 +3336,12 @@ static void AddPcUtil()
     const uint32_t interval = T7Maps_InLevel() ? 30u : 6u;
     if (L == 0 || (!fresh && !g_forceInject && (g_ticks % interval) != 0) || !UiUp() || !UiTryLock())
         return;
+
+    if (T7Maps_UiTransitionBusy())
+    {
+        UiUnlock();
+        return;
+    }
 
     if (UiUp())
     {
