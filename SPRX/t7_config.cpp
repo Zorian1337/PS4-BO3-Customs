@@ -28,6 +28,7 @@ constexpr int32_t kKernelNotFound = (int32_t)0x80020002;
 // the game thread inside the mod-variable autosave path.
 static std::atomic<bool> g_asyncWorkerStarted{false};
 static std::atomic<bool> g_asyncPending{false};
+static std::atomic<bool> g_asyncFailed{false};
 static std::atomic_flag g_asyncQueueLock = ATOMIC_FLAG_INIT;
 static char g_asyncSection[96];
 static char g_asyncLines[kMaxText];
@@ -57,7 +58,10 @@ static void* AsyncSaveWorker(void*)
         bool (*owns)(const char* line) = g_asyncOwns;
         const bool saved = owns && T7Config_Save(g_asyncSection, owns, g_asyncLines);
         if (!saved)
-            T7Log_Write("[Config] background save of %s failed; a later change can retry", g_asyncSection);
+        {
+            g_asyncFailed.store(true, std::memory_order_release);
+            T7Log_Write("[Config] background save of %s failed; mod-variable autosave will retry", g_asyncSection);
+        }
 
         g_asyncQueueLock.clear(std::memory_order_release);
     }
@@ -395,4 +399,10 @@ bool T7Config_SaveAsync(const char* section, bool (*owns)(const char* line), con
     g_asyncPending.store(true, std::memory_order_release);
     g_asyncQueueLock.clear(std::memory_order_release);
     return true;
+}
+
+
+bool T7Config_SaveTakeFailure()
+{
+    return T7Config::g_asyncFailed.exchange(false, std::memory_order_acq_rel);
 }
