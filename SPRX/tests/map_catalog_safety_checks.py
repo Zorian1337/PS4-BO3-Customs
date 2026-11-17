@@ -34,12 +34,12 @@ def call_argument_count(source, opening):
         if quote:
             if escaped:
                 escaped = False
-            elif char == "\\\\":
+            elif char == chr(92):
                 escaped = True
             elif char == quote:
                 quote = None
             continue
-        if char in ("\\'", '\\"'):
+        if char in ("'", '"'):
             quote = char
         elif char == "(":
             depth += 1
