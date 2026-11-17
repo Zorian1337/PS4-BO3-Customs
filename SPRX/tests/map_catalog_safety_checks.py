@@ -111,7 +111,7 @@ int main()
     Reset(); openResult = kKernelErrorNoEntry;
     r = ListFolder("/optional", true, names, 2, true);
     assert(r.status == FolderScanStatus::Missing && r.Complete());
-    Reset(); openResult = ORBIS_KERNEL_ERROR_ENOENT;
+    Reset(); openResult = kKernelErrorNoEntry;
     r = ListFolder("/required", true, names, 2, false);
     assert(r.status == FolderScanStatus::OpenFailed && !r.Complete());
     Reset(); openResult = (int)0x8002000Du;
