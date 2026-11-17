@@ -1462,40 +1462,79 @@ static void AddStackFile(StackMod& entry, const char* rel, const char* folder)
     file.package = -1;
 }
 
-static void ScanStackFolder(StackMod& entry, const char* folder)
+static void ScanStackFolder(StackMod& entry, const char* folder, bool optional)
 {
     if (!folder[0])
         return;
 
     static char files[kMaxModListed][kListedNameMax];
     static char languages[24][kListedNameMax];
+    const int originalFileCount = entry.fileCount;
 
-    const int fileCount = ListFolder(folder, false, files, kMaxModListed);
+    FolderScanResult fileListing = ListFolder(folder, false, files, kMaxModListed, optional);
+    if (!fileListing.Complete())
+    {
+        T7Log_Write("[Mods] cannot scan %s (%s, error 0x%08X)", folder,
+                    FolderScanStatusName(fileListing.status), (unsigned)fileListing.error);
+        return;
+    }
 
-    for (int i = 0; i < fileCount; ++i)
+    for (int i = 0; i < fileListing.count; ++i)
     {
         if (IsZoneFile(files[i]))
             AddStackFile(entry, files[i], folder);
     }
 
     char sounds[224];
-    snprintf(sounds, sizeof(sounds), "%s/snd", folder);
+    const int soundsLength = snprintf(sounds, sizeof(sounds), "%s/snd", folder);
+    if (soundsLength < 0 || (size_t)soundsLength >= sizeof(sounds))
+    {
+        entry.fileCount = originalFileCount;
+        T7Log_Write("[Mods] sound path is too long under %s", folder);
+        return;
+    }
 
-    const int languageCount = ListFolder(sounds, true, languages, 24);
+    FolderScanResult languageListing = ListFolder(sounds, true, languages, 24, true);
+    if (!languageListing.Complete())
+    {
+        entry.fileCount = originalFileCount;
+        T7Log_Write("[Mods] cannot scan %s (%s, error 0x%08X)", sounds,
+                    FolderScanStatusName(languageListing.status), (unsigned)languageListing.error);
+        return;
+    }
 
-    for (int l = 0; l < languageCount; ++l)
+    for (int l = 0; l < languageListing.count; ++l)
     {
         char language[224];
-        snprintf(language, sizeof(language), "%s/%s", sounds, languages[l]);
+        const int languageLength = snprintf(language, sizeof(language), "%s/%s", sounds, languages[l]);
+        if (languageLength < 0 || (size_t)languageLength >= sizeof(language))
+        {
+            entry.fileCount = originalFileCount;
+            T7Log_Write("[Mods] sound language path is too long under %s", sounds);
+            return;
+        }
 
-        const int bankCount = ListFolder(language, false, files, kMaxModListed);
+        FolderScanResult bankListing = ListFolder(language, false, files, kMaxModListed, false);
+        if (!bankListing.Complete())
+        {
+            entry.fileCount = originalFileCount;
+            T7Log_Write("[Mods] cannot scan %s (%s, error 0x%08X)", language,
+                        FolderScanStatusName(bankListing.status), (unsigned)bankListing.error);
+            return;
+        }
 
-        for (int i = 0; i < bankCount; ++i)
+        for (int i = 0; i < bankListing.count; ++i)
         {
             if (IsZoneFile(files[i]))
             {
                 char rel[128];
-                snprintf(rel, sizeof(rel), "snd/%s/%s", languages[l], files[i]);
+                const int relLength = snprintf(rel, sizeof(rel), "snd/%s/%s", languages[l], files[i]);
+                if (relLength < 0 || (size_t)relLength >= sizeof(rel))
+                {
+                    entry.fileCount = originalFileCount;
+                    T7Log_Write("[Mods] sound-bank relative path is too long under %s", language);
+                    return;
+                }
                 AddStackFile(entry, rel, folder);
             }
         }
@@ -1526,8 +1565,8 @@ static void SetStack(const char (*names)[kNameMax], int count)
                 snprintf(entry.zones[k], sizeof(entry.zones[k]), "m%d_%s", g_stackCount + 1, k_modZones[k]);
         }
 
-        ScanStackFolder(entry, entry.mod.folder);
-        ScanStackFolder(entry, entry.mod.alternate);
+        ScanStackFolder(entry, entry.mod.folder, false);
+        ScanStackFolder(entry, entry.mod.alternate, true);
         T7Log_Write("[Mods] mod %d is %s from %s (%d files)", g_stackCount + 1, entry.mod.name, entry.mod.folder,
                     entry.fileCount);
         ++g_stackCount;
