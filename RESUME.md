@@ -12,6 +12,8 @@ passed, including both pool fixtures, and the focused mod-stack, frontend-reload
 script-priority and import-lifetime workflows passed. No native build or console
 test was requested or performed.
 
+Latest PR diagnostics run https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44170446291 passed on workflow commit `19adea1`, including host-runner inventory validation, pool-growth and pool-out concurrency tests, and Lua recovery checks.
+
 See [the pool lookup optimization note](docs/POOL-LOOKUP-HOTPATH-OPTIMIZATION-2026-11-17.md).
 
 # Current candidate: dev.60
