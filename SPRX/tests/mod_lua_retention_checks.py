@@ -22,17 +22,6 @@ def run(name, code):
 root = Path(__file__).resolve().parents[1]
 
 
-def run(name, code):
-    with tempfile.TemporaryDirectory(prefix=f"bo3-{name}-") as directory:
-        source_path = Path(directory) / "fixture.cpp"
-        binary = Path(directory) / "fixture"
-        source_path.write_text(code, encoding="utf-8")
-        subprocess.run([os.environ.get("CXX", "g++"), "-std=c++20", "-Wall", "-Wextra", "-Werror",
-                        "-fsanitize=address,undefined", "-pthread", "-I", str(root),
-                        str(source_path), "-o", str(binary)], check=True)
-        subprocess.run([str(binary)], check=True, timeout=30)
-
-
 source = (root / "t7_lua.cpp").read_text(encoding="utf-8")
 retention = source[source.index("struct RawFileAsset"):source.index("static const char* const k_graphicsDvars")]
 
