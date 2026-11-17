@@ -38,6 +38,8 @@ jobs:
         run: |
           mkdir -p build/diagnostics
           g++ -std=c++20 -Wall -Wextra -Werror -O1 -pthread SPRX/tests/script_error_budget_tests.cpp -o build/diagnostics/error-budget
+          g++ -std=c++20 -Wall -Wextra -Werror -O1 -pthread -fsanitize=address,undefined SPRX/tests/stream_guard_unit_tests.cpp -o build/diagnostics/stream-guard
+          build/diagnostics/stream-guard
           build/diagnostics/error-budget
           g++ -std=c++20 -Wall -Wextra -Werror -O1 -pthread -fsanitize=address,undefined SPRX/tests/diagnostic_ring_tests.cpp -o build/diagnostics/diagnostic-ring
           build/diagnostics/diagnostic-ring
