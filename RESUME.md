@@ -1,3 +1,17 @@
+# Current candidate: dev.60 (existing); next source-only review branch: stability/pool-lookup-hotpath
+
+## Asset-link hot-path lookup optimization (2026-11-17)
+
+The sorted asset-pool growth allowlist is now searched with binary search instead
+of a full linear scan for every linked asset. This preserves the same allowlist
+and capacity policy while reducing lookup comparisons from O(N) to O(log N).
+The host fixture now verifies strict table ordering, every entry's lookup, and
+missing types. This is an algorithmic hot-path reduction, not a measured
+console speed claim. It is isolated on stability/pool-lookup-hotpath; CI and
+review are pending, no native build or console test was requested or performed.
+
+See [the pool lookup optimization note](docs/POOL-LOOKUP-HOTPATH-OPTIMIZATION-2026-11-17.md).
+
 # Current candidate: dev.60
 
 ## Frame-stall hardening (2026-11-17)
