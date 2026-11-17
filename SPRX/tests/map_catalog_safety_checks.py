@@ -178,13 +178,15 @@ int main()
     rollback = extract_function(SOURCE, "static void RestoreCatalog(")
     commit = extract_function(SOURCE, "static void CommitCatalog(")
     scan_all = extract_function(SOURCE, "static bool ScanAll()")
+    initial = extract_function(SOURCE, "static bool ScanAllInitial()")
     scan_mods = extract_function(SOURCE, "static bool ScanMods(")
     add_file = extract_function(SOURCE, "static void AddFile(")
     add_package = extract_function(SOURCE, "static int AddPackage(")
 
     assert "CaptureCatalog()" in refresh and "RestoreCatalog(previous)" in refresh
     assert "if (!scanned)" in refresh or "if(!scanned)" in refresh
-    assert "CaptureCatalog()" in install and "RestoreCatalog(previous)" in install
+    assert "ScanAllInitial()" in install
+    assert "ReleaseCandidateMods();" in initial and "g_packageCount = 0" in initial
     assert "ReleaseCandidateMods();" in rollback
     assert "memcpy(g_mods,p->mods" in rollback
     assert "free(p->mods[i].description)" in commit
