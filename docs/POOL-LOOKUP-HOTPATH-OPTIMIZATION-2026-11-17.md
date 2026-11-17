@@ -39,6 +39,13 @@ ASan/UBSan in the diagnostics workflow.
 - No new native hook, detour, thread, or lock was added.
 - No converter, Lua, or gameplay behavior changed.
 
+## CI coverage correction
+
+The focused pull-request diagnostics workflow previously omitted the pool
+fixture. It now runs pool_growth_checks.py, so the production binary-search
+lookup and existing growth invariants are tested on pull requests. The new run
+is pending.
+
 ## Validation status
 
 - Source change and regression update: committed on
