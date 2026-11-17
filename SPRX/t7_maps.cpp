@@ -870,7 +870,7 @@ static FolderScanResult ListFolder(const char* folder, bool folders, char names[
         ~UnlockDirectoryBuffer() { flag.clear(std::memory_order_release); }
     } unlock{ directoryBufferLock };
 
-    static char buffer[0x10000];
+    alignas(SceKernelDirent) static char buffer[0x10000];
     int count = 0;
     int error = 0;
     FolderScanStatus status = capacity > 0 ? FolderScanStatus::Ok : FolderScanStatus::CapacityExceeded;
