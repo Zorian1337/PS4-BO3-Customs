@@ -330,9 +330,12 @@ static int                     g_unshownCount = 0;
 static bool                    g_frontendReloadReady = false;
 static bool                    g_quietReload = false;
 static bool                    g_reloadCheck = false;
-// Publish queued-zone UI readiness without exposing the worker-owned wait-zone array.
-static std::atomic<bool>        g_uiZoneWaitPending{false};
-static std::atomic<bool>        g_uiHeldZonesReady{false};
+// One atomic state publishes queued-zone readiness without exposing the
+// worker-owned wait-zone array or allowing a stale ready flag across requests.
+constexpr uint8_t kUiZoneWaitIdle = 0;
+constexpr uint8_t kUiZoneWaitPending = 1;
+constexpr uint8_t kUiZoneWaitHeldReady = 2;
+static std::atomic<uint8_t>     g_uiZoneWaitState{kUiZoneWaitIdle};
 static std::atomic<bool>        g_frontendApplyPending{false};
 static std::atomic<bool>        g_frontendApplying{false};
 static std::atomic<bool>        g_frontendApplyLoading{false};
@@ -4574,7 +4577,7 @@ static void WaitForModZones(const ZoneInfo* zones, int count, int from)
 {
     // Publish not-ready before mutating the wait list. The UI predicate reads
     // only these atomics and never races the worker-owned zone-name array.
-    g_uiHeldZonesReady.store(false, std::memory_order_release);
+    g_uiZoneWaitState.store(kUiZoneWaitPending, std::memory_order_release);
 
     if (!g_reloadCheck)
     {
@@ -4601,10 +4604,10 @@ static void WaitForModZones(const ZoneInfo* zones, int count, int from)
     {
         g_reloadCheck = true;
         g_reloadSince = sceKernelGetProcessTime();
-        g_uiZoneWaitPending.store(true, std::memory_order_release);
+        g_uiZoneWaitState.store(kUiZoneWaitPending, std::memory_order_release);
     }
     else
-        g_uiZoneWaitPending.store(false, std::memory_order_release);
+        g_uiZoneWaitState.store(kUiZoneWaitIdle, std::memory_order_release);
 }
 
 static void TraceModTransition(const char* when, const char* level);
@@ -7939,21 +7942,26 @@ void T7Maps_RequestApply()
         g_reloadSince = sceKernelGetProcessTime();
 
     g_reloadHeld = false;
-    g_uiHeldZonesReady.store(false, std::memory_order_release);
+    if (g_reloadCheck)
+        g_uiZoneWaitState.store(kUiZoneWaitPending, std::memory_order_release);
     g_applyWanted.store(true);
 }
 
 void T7Maps_RequestPrefetch()
 {
     T7Maps::g_reloadHeld = true;
-    T7Maps::g_uiHeldZonesReady.store(false, std::memory_order_release);
+    if (T7Maps::g_reloadCheck)
+        T7Maps::g_uiZoneWaitState.store(T7Maps::kUiZoneWaitPending, std::memory_order_release);
     T7Maps::g_prefetchWanted.store(true);
 }
 
 void T7Maps_MenusBuilt()
 {
     T7Maps::g_reloadHeld = false;
-    T7Maps::g_uiHeldZonesReady.store(false, std::memory_order_release);
+    if (T7Maps::g_reloadCheck)
+        T7Maps::g_uiZoneWaitState.store(T7Maps::kUiZoneWaitPending, std::memory_order_release);
+    else
+        T7Maps::g_uiZoneWaitState.store(T7Maps::kUiZoneWaitIdle, std::memory_order_release);
 }
 
 bool T7Maps_MenusBroken()
@@ -8045,7 +8053,7 @@ void T7Maps_FrameWork()
 
     if (!g_reloadCheck)
     {
-        g_uiHeldZonesReady.store(false, std::memory_order_release);
+        g_uiZoneWaitState.store(kUiZoneWaitIdle, std::memory_order_release);
         SetRefreshOnClose(false);
         return;
     }
@@ -8053,8 +8061,7 @@ void T7Maps_FrameWork()
     if (g_inLevel)
     {
         g_reloadCheck = false;
-        g_uiZoneWaitPending.store(false, std::memory_order_release);
-        g_uiHeldZonesReady.store(false, std::memory_order_release);
+        g_uiZoneWaitState.store(kUiZoneWaitIdle, std::memory_order_release);
         g_reloadForced = false;
         SetRefreshOnClose(false);
         return;
@@ -8073,12 +8080,12 @@ void T7Maps_FrameWork()
 
     if (ready < g_waitZoneCount || AnyZoneLoading())
     {
-        g_uiHeldZonesReady.store(false, std::memory_order_release);
+        g_uiZoneWaitState.store(kUiZoneWaitPending, std::memory_order_release);
         if (!g_reloadHeld && sceKernelGetProcessTime() - g_reloadSince > kModLoadWaitUs)
         {
             T7Log_Write("[Mods] the new mods are still loading after 60 s; their menus show after your next match");
             g_reloadCheck = false;
-            g_uiZoneWaitPending.store(false, std::memory_order_release);
+            g_uiZoneWaitState.store(kUiZoneWaitIdle, std::memory_order_release);
             g_reloadForced = false;
         }
 
@@ -8094,14 +8101,13 @@ void T7Maps_FrameWork()
 
     if (g_reloadHeld)
     {
-        g_uiHeldZonesReady.store(true, std::memory_order_release);
+        g_uiZoneWaitState.store(kUiZoneWaitHeldReady, std::memory_order_release);
         SetRefreshOnClose(ui);
         return;
     }
 
-    g_uiHeldZonesReady.store(false, std::memory_order_release);
+    g_uiZoneWaitState.store(kUiZoneWaitIdle, std::memory_order_release);
     g_reloadCheck = false;
-    g_uiZoneWaitPending.store(false, std::memory_order_release);
     g_reloadForced = false;
     g_frontendApplyLoading = false;
     SetRefreshOnClose(false);
@@ -8357,8 +8363,7 @@ bool T7Maps_UiTransitionBusy()
     // readiness atomics to UI callers; never inspect that mutable array here.
     // A held Mods overlay is released only after FrameWork observes every
     // recorded zone ready. Native loading/frontend handoffs still block.
-    const bool queuedZonesBusy = g_uiZoneWaitPending.load(std::memory_order_acquire) &&
-                                 !g_uiHeldZonesReady.load(std::memory_order_acquire);
+    const bool queuedZonesBusy = g_uiZoneWaitState.load(std::memory_order_acquire) == kUiZoneWaitPending;
     return queuedZonesBusy || g_frontendApplyPending ||
            g_frontendApplying || g_frontendApplyLoading || AnyZoneLoading();
 }
