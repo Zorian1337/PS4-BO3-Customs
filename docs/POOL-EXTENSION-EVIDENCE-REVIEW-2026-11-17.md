@@ -92,6 +92,14 @@ This is a provable reduction in comparisons (O(N) to O(log N)); it has not yet
 been benchmarked on console, so no frame-time percentage is claimed. Host CI
 is pending. No native build or console test has been performed for this branch.
 
+## CI coverage gap found and corrected
+
+The dedicated pull-request SPRX diagnostics workflow did not previously run
+pool_growth_checks.py, even though the test was included in the full main-branch
+host suite. The workflow now explicitly invokes the fixture so changes to the
+pool-growth lookup and free-list logic receive focused PR validation. The
+workflow run for this change is pending.
+
 ## Stability/performance work order
 
 1. Keep the bounded rawfile/script-name reads. They remove unsafe unbounded
