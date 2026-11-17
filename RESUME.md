@@ -1,5 +1,14 @@
 # Current candidate: dev.60
 
+## Frame-stall investigation (2026-11-17)
+
+See [the frame-stall investigation](docs/INVESTIGATION-2026-11-17-FRAME-STALL.md).
+The supplied October 15 log proves a 20-second no-progress interval with the
+main thread sampled inside SPRX code, but contains no explicit fatal crash
+record. Source now checks startup-thread lifecycle and adds Debug frame-phase
+reporting so a fresh capture can identify which callback is blocked. No build
+or console validation has been performed; do not claim the incident resolved.
+
 The DS4C dev.58 console session reports a stripped-code nil-index in the
 modded progression UI, followed by failed `main`/`Lobby` registrations. The
 exact nil operand is not recoverable from the protected fastfile payload, so
