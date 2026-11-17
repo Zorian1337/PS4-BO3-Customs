@@ -5662,15 +5662,26 @@ static bool JsonString(const char* json, const char* key, char* out, size_t size
     return true;
 }
 
-static void AppendLuaString(char* out, size_t size, size_t* used, const char* text)
+static bool AppendLuaString(char* out, size_t size, size_t* used, const char* text)
 {
-    if (*used + 3 >= size)
-        return;
+    if (!out || !used || !text || *used + 3 >= size)
+        return false;
 
     out[(*used)++] = '"';
-
-    for (const unsigned char* c = (const unsigned char*)text; *c && *used + 4 < size; ++c)
+    for (const unsigned char* c = (const unsigned char*)text; *c; ++c)
     {
+        size_t needed = 0;
+        if (*c == '"' || *c == '\\' || *c == '\n')
+            needed = 2;
+        else if (*c >= 0x20)
+            needed = 1;
+
+        if (*used + needed + 2 >= size)
+        {
+            out[*used] = 0;
+            return false;
+        }
+
         if (*c == '"' || *c == '\\')
         {
             out[(*used)++] = '\\';
@@ -5689,14 +5700,30 @@ static void AppendLuaString(char* out, size_t size, size_t* used, const char* te
 
     out[(*used)++] = '"';
     out[*used] = 0;
+    return true;
 }
 
-static void Append(char* out, size_t size, size_t* used, const char* text)
+static bool Append(char* out, size_t size, size_t* used, const char* text)
 {
-    const int n = snprintf(out + *used, size - *used, "%s", text);
+    if (!out || !used || !text || !size || *used >= size)
+        return false;
 
-    if (n > 0)
-        *used = *used + (size_t)n < size ? *used + (size_t)n : size - 1;
+    const size_t available = size - *used;
+    const int length = snprintf(out + *used, available, "%s", text);
+    if (length < 0)
+    {
+        out[*used] = 0;
+        return false;
+    }
+    if ((size_t)length >= available)
+    {
+        *used = size - 1;
+        out[*used] = 0;
+        return false;
+    }
+
+    *used += (size_t)length;
+    return true;
 }
 
 struct BbTag
@@ -6238,11 +6265,136 @@ static void FindPreview(Package& package, const char* json)
 
 static bool AllDigits(const char* text);
 
-static void BuildCustomMapsLua()
+static bool BuildCustomMapsLua()
 {
     char* const out = g_customMapsLua;
     const size_t size = sizeof(g_customMapsLua);
     static const char k_tail[] = "})\n";
+    static char entry[16384];
+    static char raw[kRawDescriptionMax];
+    static char description[kDescriptionMax];
+    size_t used = 0;
+
+    out[0] = 0;
+    if (!Append(out, size, &used, "rawset(_G, \"BO3CustomMaps\", {\n"))
+        return false;
+
+    for (int i = 0; i < g_packageCount; ++i)
+    {
+        Package& package = g_packages[i];
+        const bool zombies = strncmp(package.name, "zm_", 3) == 0;
+        const bool multiplayer = strncmp(package.name, "mp_", 3) == 0;
+        if (!package.map || (!zombies && !multiplayer))
+            continue;
+
+        char path[320];
+        FindPackageFile(package, "workshop.json", path, sizeof(path));
+        char title[160];
+        snprintf(title, sizeof(title), "%s", package.name);
+        char workshop[32] = {};
+        raw[0] = 0;
+
+        char* const json = ReadSmallFile(path, 64 * 1024);
+        if (json)
+        {
+            if (!JsonString(json, "Title", title, sizeof(title)) || !title[0])
+                snprintf(title, sizeof(title), "%s", package.name);
+            JsonString(json, "Description", raw, sizeof(raw));
+            if (!JsonString(json, "PublisherID", workshop, sizeof(workshop)) || !AllDigits(workshop))
+                workshop[0] = 0;
+        }
+
+        FormatDescription(raw, description, sizeof(description));
+        FindPreview(package, json);
+        free(json);
+
+        char picture[320];
+        char previewName[96];
+        char loadingName[96];
+        const bool preview = package.preview[0] != 0;
+        const bool loading = FindPackageFile(package, "loadingimage.png", picture, sizeof(picture));
+        const int previewLength = snprintf(previewName, sizeof(previewName),
+                                           T7_USERMAP_PREVIEW_PREFIX "%s", package.name);
+        const int loadingLength = snprintf(loadingName, sizeof(loadingName),
+                                           T7_USERMAP_LOADING_PREFIX "%s", package.name);
+        if (previewLength < 0 || (size_t)previewLength >= sizeof(previewName) ||
+            loadingLength < 0 || (size_t)loadingLength >= sizeof(loadingName))
+        {
+            T7Log_Write("[Maps] %s cannot be represented in the map UI list", package.name);
+            return false;
+        }
+
+        char movieName[kNameMax + 8];
+        const int movieNameLength = snprintf(movieName, sizeof(movieName), "%s_load", package.name);
+        if (movieNameLength < 0 || (size_t)movieNameLength >= sizeof(movieName))
+            return false;
+
+        bool movie = false;
+        for (int m = 0; m < g_movieCount && !movie; ++m)
+            movie = g_movies[m].package == i && EqualsNoCase(g_movies[m].name, movieName);
+
+        bool added = false;
+        for (int attempt = 0; attempt < 2; ++attempt)
+        {
+            if (attempt)
+            {
+                char shorter[256];
+                LimitText(description, shorter, sizeof(shorter));
+                snprintf(description, sizeof(description), "%s", shorter);
+            }
+
+            size_t length = 0;
+            bool complete = true;
+            entry[0] = 0;
+            if (!Append(entry, sizeof(entry), &length, "  { id = ")) complete = false;
+            if (!AppendLuaString(entry, sizeof(entry), &length, package.name)) complete = false;
+            if (!Append(entry, sizeof(entry), &length, zombies ? ", mode = \"zm\"" : ", mode = \"mp\"")) complete = false;
+            if (!Append(entry, sizeof(entry), &length, ", name = ")) complete = false;
+            if (!AppendLuaString(entry, sizeof(entry), &length, title)) complete = false;
+            if (!Append(entry, sizeof(entry), &length, ", desc = ")) complete = false;
+            if (!AppendLuaString(entry, sizeof(entry), &length, description)) complete = false;
+
+            if (workshop[0])
+            {
+                if (!Append(entry, sizeof(entry), &length, ", ugc = ")) complete = false;
+                if (!AppendLuaString(entry, sizeof(entry), &length, workshop)) complete = false;
+            }
+            if (preview)
+            {
+                if (!Append(entry, sizeof(entry), &length, ", preview = ")) complete = false;
+                if (!AppendLuaString(entry, sizeof(entry), &length, previewName)) complete = false;
+            }
+            if (loading)
+            {
+                if (!Append(entry, sizeof(entry), &length, ", loading = ")) complete = false;
+                if (!AppendLuaString(entry, sizeof(entry), &length, loadingName)) complete = false;
+            }
+            if (movie)
+            {
+                if (!Append(entry, sizeof(entry), &length, ", movie = ")) complete = false;
+                if (!AppendLuaString(entry, sizeof(entry), &length, movieName)) complete = false;
+            }
+            if (!Append(entry, sizeof(entry), &length, " },\n")) complete = false;
+
+            if (complete && used + length + sizeof(k_tail) < size)
+            {
+                memcpy(out + used, entry, length + 1);
+                used += length;
+                ++g_listedMaps;
+                added = true;
+                break;
+            }
+        }
+
+        if (!added)
+        {
+            T7Log_Write("[Maps] %s cannot fit in the generated map list", package.name);
+            return false;
+        }
+    }
+
+    return Append(out, size, &used, k_tail);
+})\n";
     static char entry[16384];
     static char raw[kRawDescriptionMax];
     static char description[kDescriptionMax];
@@ -7065,7 +7217,11 @@ static bool ScanAll()
 
     if (!ScanMovies() || g_scanFailed)
         return false;
-    BuildCustomMapsLua();
+    if (!BuildCustomMapsLua())
+    {
+        MarkScanFailure("custom map Lua catalog", FolderScanStatus::CapacityExceeded, 0);
+        return false;
+    }
     if (!BuildMapsTableLua())
     {
         MarkScanFailure("ui_scripts/maptable.lua", FolderScanStatus::ReadFailed, 0);
