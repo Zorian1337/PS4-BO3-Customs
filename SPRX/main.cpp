@@ -20,12 +20,29 @@ using Hook_t = uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, ui
 uint64_t Frame_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5, uint64_t a6,
                  double x0, double x1, double x2, double x3, double x4, double x5, double x6, double x7)
 {
+#ifdef _DEBUG
+    T7FrameWorkPhase_Set(1);
+#endif
     T7Maps_FrameWork();
+#ifdef _DEBUG
+    T7FrameWorkPhase_Set(2);
+#endif
     T7Share_Tick();
+#ifdef _DEBUG
+    T7FrameWorkPhase_Set(3);
+#endif
     T7Builtins_Tick();
-
+#ifdef _DEBUG
+    T7FrameWorkPhase_Set(4);
+#endif
     const uint64_t result = ((Hook_t)g_frameOriginal)(a1, a2, a3, a4, a5, a6, x0, x1, x2, x3, x4, x5, x6, x7);
+#ifdef _DEBUG
+    T7FrameWorkPhase_Set(5);
+#endif
     T7Lua_Tick();
+#ifdef _DEBUG
+    T7FrameWorkPhase_Set(0);
+#endif
     return result;
 }
 
@@ -49,6 +66,34 @@ uintptr_t WaitForBlackOps3()
     return 0;
 }
 }
+
+#ifdef _DEBUG
+namespace
+{
+std::atomic<uint32_t> g_frameWorkPhase{0};
+std::atomic<uint64_t> g_frameWorkPhaseStarted{0};
+}
+
+void T7FrameWorkPhase_Set(uint32_t phase)
+{
+    if (!phase)
+    {
+        g_frameWorkPhase.store(0, std::memory_order_release);
+        return;
+    }
+
+    g_frameWorkPhaseStarted.store(sceKernelGetProcessTime(), std::memory_order_relaxed);
+    g_frameWorkPhase.store(phase, std::memory_order_release);
+}
+
+uint32_t T7FrameWorkPhase_Get(uint64_t* startedAt)
+{
+    const uint32_t phase = g_frameWorkPhase.load(std::memory_order_acquire);
+    if (startedAt)
+        *startedAt = g_frameWorkPhaseStarted.load(std::memory_order_relaxed);
+    return phase;
+}
+#endif
 
 extern "C" const char* sceKernelGetFsSandboxRandomWord();
 
@@ -141,20 +186,40 @@ static void* start_thread(void*)
         Notify(buff);
     }
 
-    return nullptr;
+    return reinterpret_cast<void*>(1);
 }
 
 static std::atomic<bool> g_started{false};
 
 static int Start()
 {
-    if (g_started.exchange(true))
+    bool expected = false;
+    if (!g_started.compare_exchange_strong(expected, true, std::memory_order_acq_rel))
         return 0;
 
-    ScePthread thread;
+    ScePthread thread{};
+    const int created = scePthreadCreate(&thread, nullptr, start_thread, nullptr, "BO3-Customs Init");
+    if (created != 0)
+    {
+        g_started.store(false, std::memory_order_release);
+        return created;
+    }
 
-    scePthreadCreate(&thread, nullptr, start_thread, nullptr, "BO3-Customs Init");
-    scePthreadJoin(thread, nullptr);
+    void* result = nullptr;
+    const int joined = scePthreadJoin(thread, &result);
+    if (joined != 0)
+    {
+        // The worker's state is unknown after a failed join. Keep the startup
+        // latch set so a second entry cannot duplicate partial initialization.
+        return joined;
+    }
+
+    if (result != reinterpret_cast<void*>(1))
+    {
+        // BO3 was not ready within the probe window. Permit a later loader
+        // callback to retry instead of permanently latching a no-op startup.
+        g_started.store(false, std::memory_order_release);
+    }
 
     return 0;
 }
