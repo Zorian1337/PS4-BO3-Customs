@@ -11,10 +11,11 @@ and full catalog refresh. Rawfile UI filenames are now scanned only within
 their 96-byte destination bound, with every byte checked readable and a
 terminator required before ownership tracking.
 
-GitHub verification on commit `e905f5e`: the full committed host regression
-suite passed, the SPRX diagnostics workflow passed, and the automatic PS4
-GoldHEN Debug build plus native-artifact validation passed. No console test
-has been performed. The full catalog refresh remains synchronous intentionally:
+GitHub verification on commit `7e241f8`: all 38 host regression programs
+passed, including the unreadable-page-edge filename test; the SPRX diagnostics
+workflow passed; and the automatic PS4 GoldHEN Debug build plus native-artifact
+validation passed. No console test has been performed. The full catalog refresh
+remains synchronous intentionally:
 its writer lock currently makes readers wait, so a naive worker move would
 still block the main thread. A double-buffered catalog is the safe next design.
 Do not claim the historical stall/crash resolved without a matching console
