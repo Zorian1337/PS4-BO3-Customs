@@ -25,6 +25,7 @@ assert "IsLuaUiFileName(name, &n)" in note_ui_file
 filename_fixture = r'''
 #include <cassert>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <sys/mman.h>
 #include <unistd.h>
