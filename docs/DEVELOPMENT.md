@@ -1,6 +1,31 @@
 # Current development status
 
-Updated 2026-11-02. Reviewed source is consolidated on `main`.
+Updated 2026-11-17. The dated investigation sections below retain their
+original chronology; for the active branch and candidate status, see
+[RESUME.md](../RESUME.md) and the
+[PS4 stability roadmap](PS4-STABILITY-ROADMAP-2026-11-17.md).
+
+## Current review state (2026-11-17)
+
+PR [#36 — map-load diagnostics and transactional catalog refresh](https://github.com/Zorian1337/PS4-BO3-Customs/pull/36)
+is open against `main`. Its source changes add structured directory-scan
+results, rollback-safe catalog publication, storage-root presence checks,
+bounded generated Lua output, and DEBUG map-load timing. The supplied
+`zm_ccube` excerpt still does not establish the crash cause.
+
+Review found stale four-argument `ListFolder` calls in the mod-stack scanner
+after the scanner interface changed. Those call sites now use structured
+results, log failures, and discard additions from a failed folder scan. A
+regression checks the argument count of every production `ListFolder`
+invocation. CI must be rerun against the updated PR head before approval.
+
+The prior PR head had successful frontend-reload, mod-stack transaction,
+script-priority, project-session guard, and SPRX diagnostics workflows. Those
+runs predate the final scanner-call-site correction and are not evidence for
+the current head. No native SPRX build, upload, release, or PS4/PS5 runtime
+test has been performed for PR #36. Do not merge until the updated CI and
+full-diff review are complete; do not claim the reported map crash is fixed.
+
 
 ## DS4C UI failure and recovery (dev.60 candidate)
 
