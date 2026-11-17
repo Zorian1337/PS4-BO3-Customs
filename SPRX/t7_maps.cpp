@@ -493,6 +493,17 @@ static std::atomic<size_t>    g_reportUsed{0};
 static uint64_t               g_dvarReadKeys[kDvarReadsLogged];
 static std::atomic<uint32_t>  g_dvarReads{0};
 
+struct StreamBlockRejected
+{
+    uint32_t reason;
+    uint64_t ring;
+    uint64_t slot;
+    uint64_t data;
+    uint32_t unpacked;
+    uint32_t hashed;
+    uint32_t stored;
+};
+
 struct Dispatch
 {
     uintptr_t commands;
@@ -512,6 +523,11 @@ static Detour                 g_dispatchDetour{};
 static void*                  g_dispatchOriginal = nullptr;
 static DiagnosticRing<Dispatch, kDispatchesKept> g_dispatches;
 static std::atomic<uint32_t>  g_dispatchSkipped{0};
+static DiagnosticRing<StreamBlockRejected, 16> g_streamBlockRejected;
+static std::atomic<uint32_t> g_streamRejectAttempts{0};
+static std::atomic<uint32_t> g_streamRejectDropped{0};
+static std::atomic<uint32_t> g_streamRejectLogged{0};
+static std::atomic<bool> g_streamRejectFlush{false};
 static std::atomic<uint32_t>  g_spawnersDropped{0};
 struct GpuLevelContext
 {
@@ -5558,6 +5574,26 @@ static uint64_t BlockJob_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
 
         if (outside || odd)
         {
+#ifdef _DEBUG
+            // Capture the rejected values before preserving the original
+            // native guard mutation. The backend hook never waits for logging.
+            uint32_t attempts = g_streamRejectAttempts.load(std::memory_order_relaxed);
+            while (attempts < 16 &&
+                   !g_streamRejectAttempts.compare_exchange_weak(
+                       attempts, attempts + 1, std::memory_order_relaxed, std::memory_order_relaxed))
+            {
+            }
+
+            if (attempts < 16)
+            {
+                const StreamBlockRejected event{
+                    (outside ? 1u : 0u) | (odd ? 2u : 0u),
+                    ring, slot, data, unpacked, hashed, stored
+                };
+                if (!g_streamBlockRejected.TryPush(event))
+                    g_streamRejectDropped.fetch_add(1, std::memory_order_relaxed);
+            }
+#endif
             *(uint32_t*)(slot + 0x4002C) = 0;
             *(uint32_t*)(slot + 0x40028) = 0;
         }
@@ -5565,6 +5601,47 @@ static uint64_t BlockJob_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
 
     return ((Hook_t)g_blockOriginal)(a1, a2, a3, a4, a5, a6, x0, x1, x2, x3, x4, x5, x6, x7);
 }
+
+#ifdef _DEBUG
+static void TraceStreamBlockRejections()
+{
+    if (g_streamRejectFlush.exchange(true, std::memory_order_acquire))
+        return;
+
+    struct FlushRelease
+    {
+        std::atomic<bool>& busy;
+        ~FlushRelease() { busy.store(false, std::memory_order_release); }
+    } release{g_streamRejectFlush};
+
+    StreamBlockRejected records[16]{};
+    uint64_t count = 0;
+    if (!g_streamBlockRejected.TrySnapshot(records, count))
+        return;
+
+    const uint32_t logged = g_streamRejectLogged.load(std::memory_order_relaxed);
+    if (count > 16)
+        count = 16;
+
+    for (uint64_t i = count; i > logged; --i)
+    {
+        const StreamBlockRejected& event = records[i - 1];
+        const char* reason = event.reason == 3 ? "outside+odd" :
+                             event.reason == 1 ? "outside" : "odd";
+        T7Log_Write("[Trace] event=stream-block-rejected reason=%s ring=0x%llX slot=0x%llX data=0x%llX unpacked=%u hashed=%u stored=%u",
+                    reason,
+                    (unsigned long long)event.ring,
+                    (unsigned long long)event.slot,
+                    (unsigned long long)event.data,
+                    event.unpacked, event.hashed, event.stored);
+    }
+
+    g_streamRejectLogged.store((uint32_t)count, std::memory_order_relaxed);
+    const uint32_t dropped = g_streamRejectDropped.exchange(0, std::memory_order_relaxed);
+    if (dropped)
+        T7Log_Write("[Trace] event=stream-block-diagnostic-dropped count=%u", dropped);
+}
+#endif
 
 static bool CodeImageSet(uint64_t image)
 {
@@ -7987,6 +8064,10 @@ void T7Maps_FrameWork()
 
     if (!g_base)
         return;
+
+#ifdef _DEBUG
+    TraceStreamBlockRejections();
+#endif
 
     if (g_frontendApplyPending && sceKernelGetProcessTime() - g_frontendApplySince > kModLoadWaitUs)
     {
