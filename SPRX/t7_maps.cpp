@@ -6396,7 +6396,7 @@ static bool BuildCustomMapsLua()
     size_t used = 0;
 
     out[0] = 0;
-    if (!Append(out, size, &used, "rawset(_G, \"BO3CustomMaps\", {\n"))
+    if (!AppendChecked(out, size, &used, "rawset(_G, \"BO3CustomMaps\", {\n"))
         return false;
 
     for (int i = 0; i < g_packageCount; ++i)
@@ -6466,37 +6466,37 @@ static bool BuildCustomMapsLua()
             size_t length = 0;
             bool complete = true;
             entry[0] = 0;
-            if (!Append(entry, sizeof(entry), &length, "  { id = ")) complete = false;
-            if (!AppendLuaString(entry, sizeof(entry), &length, package.name)) complete = false;
-            if (!Append(entry, sizeof(entry), &length, zombies ? ", mode = \"zm\"" : ", mode = \"mp\"")) complete = false;
-            if (!Append(entry, sizeof(entry), &length, ", name = ")) complete = false;
-            if (!AppendLuaString(entry, sizeof(entry), &length, title)) complete = false;
-            if (!Append(entry, sizeof(entry), &length, ", desc = ")) complete = false;
-            if (!AppendLuaString(entry, sizeof(entry), &length, description)) complete = false;
+            if (!AppendChecked(entry, sizeof(entry), &length, "  { id = ")) complete = false;
+            if (!AppendLuaStringChecked(entry, sizeof(entry), &length, package.name)) complete = false;
+            if (!AppendChecked(entry, sizeof(entry), &length, zombies ? ", mode = \"zm\"" : ", mode = \"mp\"")) complete = false;
+            if (!AppendChecked(entry, sizeof(entry), &length, ", name = ")) complete = false;
+            if (!AppendLuaStringChecked(entry, sizeof(entry), &length, title)) complete = false;
+            if (!AppendChecked(entry, sizeof(entry), &length, ", desc = ")) complete = false;
+            if (!AppendLuaStringChecked(entry, sizeof(entry), &length, description)) complete = false;
 
             if (workshop[0])
             {
-                if (!Append(entry, sizeof(entry), &length, ", ugc = ")) complete = false;
-                if (!AppendLuaString(entry, sizeof(entry), &length, workshop)) complete = false;
+                if (!AppendChecked(entry, sizeof(entry), &length, ", ugc = ")) complete = false;
+                if (!AppendLuaStringChecked(entry, sizeof(entry), &length, workshop)) complete = false;
             }
             if (preview)
             {
-                if (!Append(entry, sizeof(entry), &length, ", preview = ")) complete = false;
-                if (!AppendLuaString(entry, sizeof(entry), &length, previewName)) complete = false;
+                if (!AppendChecked(entry, sizeof(entry), &length, ", preview = ")) complete = false;
+                if (!AppendLuaStringChecked(entry, sizeof(entry), &length, previewName)) complete = false;
             }
             if (loading)
             {
-                if (!Append(entry, sizeof(entry), &length, ", loading = ")) complete = false;
-                if (!AppendLuaString(entry, sizeof(entry), &length, loadingName)) complete = false;
+                if (!AppendChecked(entry, sizeof(entry), &length, ", loading = ")) complete = false;
+                if (!AppendLuaStringChecked(entry, sizeof(entry), &length, loadingName)) complete = false;
             }
             if (movie)
             {
-                if (!Append(entry, sizeof(entry), &length, ", movie = ")) complete = false;
-                if (!AppendLuaString(entry, sizeof(entry), &length, movieName)) complete = false;
+                if (!AppendChecked(entry, sizeof(entry), &length, ", movie = ")) complete = false;
+                if (!AppendLuaStringChecked(entry, sizeof(entry), &length, movieName)) complete = false;
             }
-            if (!Append(entry, sizeof(entry), &length, " },\n")) complete = false;
+            if (!AppendChecked(entry, sizeof(entry), &length, " },\n")) complete = false;
 
-            if (complete && used + length + sizeof(k_tail) < size)
+            if (complete && used + length + sizeof(k_tail) <= size)
             {
                 memcpy(out + used, entry, length + 1);
                 used += length;
@@ -6513,125 +6513,7 @@ static bool BuildCustomMapsLua()
         }
     }
 
-    return Append(out, size, &used, k_tail);
-})\n";
-    static char entry[16384];
-    static char raw[kRawDescriptionMax];
-    static char description[kDescriptionMax];
-    size_t used = 0;
-
-    out[0] = 0;
-    Append(out, size, &used, "rawset(_G, \"BO3CustomMaps\", {\n");
-
-    for (int i = 0; i < g_packageCount; ++i)
-    {
-        Package& package = g_packages[i];
-        const bool zombies = strncmp(package.name, "zm_", 3) == 0;
-        const bool multiplayer = strncmp(package.name, "mp_", 3) == 0;
-
-        if (!package.map || (!zombies && !multiplayer))
-            continue;
-
-        char path[320];
-        FindPackageFile(package, "workshop.json", path, sizeof(path));
-
-        char title[160];
-        snprintf(title, sizeof(title), "%s", package.name);
-        char workshop[32] = {};
-        raw[0] = 0;
-
-        char* const json = ReadSmallFile(path, 64 * 1024);
-
-        if (json)
-        {
-            if (!JsonString(json, "Title", title, sizeof(title)) || !title[0])
-                snprintf(title, sizeof(title), "%s", package.name);
-
-            JsonString(json, "Description", raw, sizeof(raw));
-
-            if (!JsonString(json, "PublisherID", workshop, sizeof(workshop)) || !AllDigits(workshop))
-                workshop[0] = 0;
-        }
-
-        FormatDescription(raw, description, sizeof(description));
-        FindPreview(package, json);
-        free(json);
-
-        char picture[320];
-        char previewName[96];
-        char loadingName[96];
-
-        const bool preview = package.preview[0] != 0;
-        const bool loading = FindPackageFile(package, "loadingimage.png", picture, sizeof(picture));
-        snprintf(previewName, sizeof(previewName), T7_USERMAP_PREVIEW_PREFIX "%s", package.name);
-        snprintf(loadingName, sizeof(loadingName), T7_USERMAP_LOADING_PREFIX "%s", package.name);
-
-        char movieName[kNameMax + 8];
-        snprintf(movieName, sizeof(movieName), "%s_load", package.name);
-        bool movie = false;
-
-        for (int m = 0; m < g_movieCount && !movie; ++m)
-            movie = g_movies[m].package == i && EqualsNoCase(g_movies[m].name, movieName);
-
-        for (int attempt = 0; attempt < 2; ++attempt)
-        {
-            if (attempt)
-            {
-                char shorter[256];
-                LimitText(description, shorter, sizeof(shorter));
-                snprintf(description, sizeof(description), "%s", shorter);
-            }
-
-            size_t length = 0;
-            entry[0] = 0;
-            Append(entry, sizeof(entry), &length, "  { id = ");
-            AppendLuaString(entry, sizeof(entry), &length, package.name);
-            Append(entry, sizeof(entry), &length, zombies ? ", mode = \"zm\"" : ", mode = \"mp\"");
-            Append(entry, sizeof(entry), &length, ", name = ");
-            AppendLuaString(entry, sizeof(entry), &length, title);
-            Append(entry, sizeof(entry), &length, ", desc = ");
-            AppendLuaString(entry, sizeof(entry), &length, description);
-
-            if (workshop[0])
-            {
-                Append(entry, sizeof(entry), &length, ", ugc = ");
-                AppendLuaString(entry, sizeof(entry), &length, workshop);
-            }
-
-            if (preview)
-            {
-                Append(entry, sizeof(entry), &length, ", preview = ");
-                AppendLuaString(entry, sizeof(entry), &length, previewName);
-            }
-
-            if (loading)
-            {
-                Append(entry, sizeof(entry), &length, ", loading = ");
-                AppendLuaString(entry, sizeof(entry), &length, loadingName);
-            }
-
-            if (movie)
-            {
-                Append(entry, sizeof(entry), &length, ", movie = ");
-                AppendLuaString(entry, sizeof(entry), &length, movieName);
-            }
-
-            Append(entry, sizeof(entry), &length, " },\n");
-
-            if (used + length + sizeof(k_tail) < size)
-            {
-                memcpy(out + used, entry, length + 1);
-                used += length;
-                ++g_listedMaps;
-                break;
-            }
-
-            if (attempt)
-                T7Log_Write("[Maps] %s left out of the map list: the list is full", package.name);
-        }
-    }
-
-    Append(out, size, &used, k_tail);
+    return AppendChecked(out, size, &used, k_tail);
 }
 
 static char g_mapsTableLua[sizeof(g_customMapsLua) + 64 * 1024 + 64];
