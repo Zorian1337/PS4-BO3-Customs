@@ -209,10 +209,13 @@ local-device patches or candidate binaries:
   forwarding a stale custom pointer. Source-level regression tests were added.
 
 The current PR head SHA is available on the linked PR page.
-GitHub's combined-status endpoint currently reports no checks for this head;
-do not describe CI as passed. No native SPRX build, console test, FTP upload or
-release was performed. Issues #29 and #33 remain open pending CI/review and
-console validation.
+GitHub Actions workflow records show all six PR checks passed: SPRX diagnostics
+#511, project session guard #284, frontend reload #289, mod-stack transaction
+#288, script priority #294 and in-game script log #85. The project guard ran 46
+host regression programs with no failures. The combined-status endpoint itself
+returned no status entries, so use the workflow-run records as the CI evidence.
+No native SPRX build, console test, FTP upload or release was performed. Issues
+#29 and #33 remain open pending source review and console validation.
 
 **#30 / dev.67 is intentionally not reconstructed yet.** The issue prose gives
 the allocator strategy and invariants but not independently verifiable native
