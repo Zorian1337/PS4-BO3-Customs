@@ -29,12 +29,14 @@ PREFIX = r"""
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdarg>
 #include <cstring>
 #include <string>
 #include <vector>
 #define SCE_KERNEL_O_RDONLY 1
 #define SCE_KERNEL_O_DIRECTORY 2
 #define SCE_KERNEL_DT_DIR 4
+constexpr int kListedNameMax = 96;
 #define ORBIS_KERNEL_ERROR_ENOENT ((int)0x80020002u)
 struct SceKernelDirent { uint64_t d_fileno; uint16_t d_reclen; uint8_t d_type; char d_name[1]; };
 static bool g_scanFailed = false;
