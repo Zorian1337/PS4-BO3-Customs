@@ -169,10 +169,10 @@ int main()
     assert "if (!scanned)" in refresh or "if(!scanned)" in refresh
     assert "CaptureCatalog()" in install and "RestoreCatalog(previous)" in install
     assert "ReleaseCandidateMods();" in rollback
-    assert "memcpy(g_mods, snapshot->mods" in rollback
-    assert "free(snapshot->mods[i].description)" in commit
+    assert "memcpy(g_mods,p->mods" in rollback
+    assert "free(p->mods[i].description)" in commit
     assert "memset(g_mods, 0, sizeof(g_mods))" in scan_all
-    assert "if (!ScanUsermaps(" in scan_all
+    assert "if(!ScanUsermaps(" in scan_all
     assert "if (!BuildMapsTableLua())" in scan_all
     assert "Mod candidate{}" in scan_mods and "free(mod.description)" not in scan_mods
     assert "FolderScanStatus::CapacityExceeded" in add_file
