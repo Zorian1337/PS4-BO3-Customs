@@ -27,7 +27,7 @@ ARGUMENTS = {name: LUA_ARGUMENTS.get(name, []) for name in (
     'mod_files_revision_checks.py mod_lua_retention_checks.py mod_stack_transaction_checks.py '
     'readable_range_checks.py rawfile_lua_name_checks.py pc_widget_child_fallback_checks.py pool_growth_checks.py script_priority_context_checks.py session_common_activation_checks.py '
     'session_mod_publish_checks.py session_mod_ready_checks.py session_mod_ui_checks.py frame_work_timing_checks.py '
-    'share_install_checks.py storage_safety_checks.py texture_readiness_checks.py ui_startup_unload_checks.py zone_load_context_checks.py'
+    'share_install_checks.py storage_safety_checks.py texture_readiness_checks.py ui_startup_unload_checks.py ui_transition_busy_checks.py zone_load_context_checks.py'
 ).split()}
 
 
