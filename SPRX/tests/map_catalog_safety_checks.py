@@ -218,6 +218,72 @@ int main()
                         str(cpp), "-o", str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
 
+    root_functions = (
+        extract_function(SOURCE, "static bool PathUsesDataRoot(")
+        + "\\n"
+        + extract_function(SOURCE, "static bool CatalogUsesDataRoot(")
+        + "\\n"
+        + extract_function(SOURCE, "static bool CheckDataRoot(")
+    )
+    root_prefix = r"""
+#include <cassert>
+#include <cstddef>
+#include <cstdio>
+#include <cstring>
+#define SCE_KERNEL_O_RDONLY 1
+#define SCE_KERNEL_O_DIRECTORY 2
+constexpr int kKernelErrorNoEntry = (int)0x80020002u;
+enum class FolderScanStatus { OpenFailed, CloseFailed };
+struct Package { char folder[64]; char alternate[64]; };
+struct Mod { char folder[64]; char alternate[64]; };
+static Package g_packages[4];
+static Mod g_mods[4];
+static int g_packageCount=0, g_modCount=0;
+static bool g_scanFailed=false;
+static int openResult=4, closeResult=0;
+static void MarkScanFailure(const char*, FolderScanStatus, int) { g_scanFailed=true; }
+static int sceKernelOpen(const char*, int, int) { return openResult; }
+static int sceKernelClose(int) { return closeResult; }
+"""
+    root_main = r"""
+int main()
+{
+    bool present=true;
+    openResult=kKernelErrorNoEntry;
+    assert(CheckDataRoot("/usb0/BO3-Customs",false,&present) && !present);
+
+    std::strcpy(g_packages[0].folder,"/usb0/BO3-Customs/usermaps/zm_test");
+    g_packageCount=1; g_scanFailed=false;
+    assert(!CheckDataRoot("/usb0/BO3-Customs",false,&present));
+    assert(g_scanFailed);
+
+    std::strcpy(g_packages[0].folder,"/usb01/BO3-Customs/usermaps/zm_other");
+    g_scanFailed=false;
+    assert(CheckDataRoot("/usb0/BO3-Customs",false,&present) && !present);
+    assert(!g_scanFailed);
+
+    std::strcpy(g_mods[0].folder,"/ext2/BO3-Customs/mods/test");
+    g_modCount=1; g_scanFailed=false; openResult=8; closeResult=0;
+    assert(CheckDataRoot("/ext2/BO3-Customs",false,&present) && present);
+
+    openResult=kKernelErrorNoEntry; present=true; g_scanFailed=false;
+    assert(!CheckDataRoot("/ext2/BO3-Customs",true,&present));
+    assert(g_scanFailed);
+
+    openResult=8; closeResult=(int)0x80020005u; g_scanFailed=false;
+    assert(!CheckDataRoot("/ext2/BO3-Customs",false,&present));
+    assert(g_scanFailed);
+    std::puts("PASS: missing populated storage roots and mid-scan unmounts reject refresh");
+}
+"""
+    with tempfile.TemporaryDirectory(prefix="bo3-map-root-presence-") as temp:
+        cpp = Path(temp) / "roots.cpp"
+        binary = Path(temp) / "roots"
+        cpp.write_text(root_prefix + root_functions + root_main)
+        subprocess.run([os.environ.get("CXX", "g++"), "-std=c++20", "-Wall", "-Wextra", "-Werror",
+                        str(cpp), "-o", str(binary)], check=True)
+        subprocess.run([str(binary)], check=True)
+
     transaction_start = SOURCE.index("struct CatalogSnapshot")
     transaction_end = SOURCE.index("static bool ScanAll()", transaction_start)
     transaction = SOURCE[transaction_start:transaction_end]
@@ -303,6 +369,8 @@ int main()
     rollback = extract_function(SOURCE, "static void RestoreCatalog(")
     commit = extract_function(SOURCE, "static void CommitCatalog(")
     scan_all = extract_function(SOURCE, "static bool ScanAll()")
+    check_root = extract_function(SOURCE, "static bool CheckDataRoot(")
+    uses_root = extract_function(SOURCE, "static bool CatalogUsesDataRoot(")
     custom_maps = SOURCE[SOURCE.index("static bool BuildCustomMapsLua()"):SOURCE.index("static char g_mapsTableLua")]
     initial = extract_function(SOURCE, "static bool ScanAllInitial()")
     scan_mods = extract_function(SOURCE, "static bool ScanMods(")
@@ -325,6 +393,8 @@ int main()
     assert "FolderScanStatus::CapacityExceeded" in add_file
     assert "FolderScanStatus::CapacityExceeded" in add_package
     assert "kKernelErrorNoEntry" in production
+    assert "CatalogUsesDataRoot(root)" in check_root and "PathUsesDataRoot" in uses_root
+    assert "CheckDataRoot(dataRoots[i], true" in scan_all
     print("PASS: failed refresh restores catalog arrays, Lua buffers, dirty state and mod-description ownership")
 
 
