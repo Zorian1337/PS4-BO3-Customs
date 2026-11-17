@@ -4,7 +4,7 @@
 
 A PC converter for custom *Call of Duty: Black Ops III* maps and mods, with an experimental console SPRX loader for supported HEN environments.
 
-> **Release vs. development:** Install console packages only from [GitHub Releases](https://github.com/Zorian1337/PS4-BO3-Customs/releases). The latest `main` branch contains experimental SPRX/Lua source; passing host checks does **not** establish PS4/PS5 runtime stability. For current status, see [RESUME.md](RESUME.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+> **Release vs. development:** Install console packages only from [GitHub Releases](https://github.com/Zorian1337/PS4-BO3-Customs/releases). The latest `main` branch contains experimental SPRX/Lua source; passing host checks does **not** establish PS4/PS5 runtime stability. For current status, see [RESUME.md](RESUME.md), [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md), and the [PS4 stability roadmap](docs/PS4-STABILITY-ROADMAP-2026-11-17.md).
 
 ## Requirements
 
