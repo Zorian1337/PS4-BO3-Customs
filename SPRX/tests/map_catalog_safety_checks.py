@@ -173,6 +173,44 @@ int main()
                         "-O1", "-pthread", str(cpp), "-o", str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
 
+    append_functions = (
+        extract_function(SOURCE, "static bool AppendChecked(")
+        + "\\n"
+        + extract_function(SOURCE, "static bool AppendLuaStringChecked(")
+    )
+    append_harness = r"""
+#include <cassert>
+#include <cstddef>
+#include <cstdio>
+#include <cstring>
+int main()
+{
+    char small[4] = {};
+    size_t used = 0;
+    assert(AppendChecked(small, sizeof(small), &used, "abc"));
+    assert(std::strcmp(small, "abc") == 0 && used == 3);
+    assert(!AppendChecked(small, sizeof(small), &used, "x"));
+
+    char exact[6] = {};
+    used = 0;
+    assert(AppendLuaStringChecked(exact, sizeof(exact), &used, "abc"));
+    assert(std::strcmp(exact, "\\"abc\\"") == 0 && used == 5);
+
+    char tooSmall[5] = {};
+    used = 0;
+    assert(!AppendLuaStringChecked(tooSmall, sizeof(tooSmall), &used, "abc"));
+    assert(tooSmall[used] == 0);
+    std::puts("PASS: custom-map Lua append helpers detect exact-fit and truncation boundaries");
+}
+"""
+    with tempfile.TemporaryDirectory(prefix="bo3-map-lua-bounds-") as temp:
+        cpp = Path(temp) / "append.cpp"
+        binary = Path(temp) / "append"
+        cpp.write_text(append_functions + append_harness)
+        subprocess.run([os.environ.get("CXX", "g++"), "-std=c++20", "-Wall", "-Wextra", "-Werror",
+                        str(cpp), "-o", str(binary)], check=True)
+        subprocess.run([str(binary)], check=True)
+
     transaction_start = SOURCE.index("struct CatalogSnapshot")
     transaction_end = SOURCE.index("static bool ScanAll()", transaction_start)
     transaction = SOURCE[transaction_start:transaction_end]
@@ -258,6 +296,7 @@ int main()
     rollback = extract_function(SOURCE, "static void RestoreCatalog(")
     commit = extract_function(SOURCE, "static void CommitCatalog(")
     scan_all = extract_function(SOURCE, "static bool ScanAll()")
+    custom_maps = extract_function(SOURCE, "static bool BuildCustomMapsLua()")
     initial = extract_function(SOURCE, "static bool ScanAllInitial()")
     scan_mods = extract_function(SOURCE, "static bool ScanMods(")
     add_file = extract_function(SOURCE, "static void AddFile(")
@@ -273,6 +312,8 @@ int main()
     assert "memset(g_mods, 0, sizeof(g_mods))" in scan_all
     assert "!ScanUsermaps(" in scan_all
     assert "if (!BuildMapsTableLua())" in scan_all
+    assert "if (!BuildCustomMapsLua())" in scan_all
+    assert "AppendChecked(" in custom_maps and "AppendLuaStringChecked(" in custom_maps
     assert "Mod candidate{}" in scan_mods and "free(mod.description)" not in scan_mods
     assert "FolderScanStatus::CapacityExceeded" in add_file
     assert "FolderScanStatus::CapacityExceeded" in add_package
