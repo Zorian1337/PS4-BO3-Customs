@@ -75,6 +75,23 @@ synchronous batch limit, per-pool growth caps, and an image-specific reserve.
 Those controls limit our allocations but do not prove synchronization with
 the native allocator.
 
+## Confirmed hot-path optimization (source branch)
+
+The pool allowlist is immutable and already strictly sorted by asset type, but
+GrowthFor() previously scanned the complete table for every LinkXAsset_h
+callback. Since the hook runs for every linked asset, this added an avoidable
+O(N) lookup to the database-worker hot path, including for asset types that
+are not eligible for growth.
+
+The stability/pool-lookup-hotpath branch replaces the scan with a lower-bound
+binary search. It preserves the exact allowlist and pool-growth policy; no
+pool capacities, allocations, locks, or engine calls change. The production
+host fixture now checks strict ordering, resolves every table entry to its
+exact record, and rejects absent types below, between, and above the table.
+This is a provable reduction in comparisons (O(N) to O(log N)); it has not yet
+been benchmarked on console, so no frame-time percentage is claimed. Host CI
+is pending. No native build or console test has been performed for this branch.
+
 ## Stability/performance work order
 
 1. Keep the bounded rawfile/script-name reads. They remove unsafe unbounded
