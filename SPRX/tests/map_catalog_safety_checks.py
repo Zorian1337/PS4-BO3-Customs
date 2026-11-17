@@ -201,7 +201,7 @@ int main()
     char exact[6] = {};
     used = 0;
     assert(AppendLuaStringChecked(exact, sizeof(exact), &used, "abc"));
-    assert(std::strcmp(exact, "\\"abc\\"") == 0 && used == 5);
+    assert(std::strcmp(exact, "\"abc\"") == 0 && used == 5);
 
     char tooSmall[5] = {};
     used = 0;
@@ -213,7 +213,7 @@ int main()
     with tempfile.TemporaryDirectory(prefix="bo3-map-lua-bounds-") as temp:
         cpp = Path(temp) / "append.cpp"
         binary = Path(temp) / "append"
-        cpp.write_text("#include <cstddef>\\n#include <cstdio>\\n" + append_functions + append_harness)
+        cpp.write_text("#include <cstddef>\n#include <cstdio>\n" + append_functions + append_harness)
         subprocess.run([os.environ.get("CXX", "g++"), "-std=c++20", "-Wall", "-Wextra", "-Werror",
                         str(cpp), "-o", str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
