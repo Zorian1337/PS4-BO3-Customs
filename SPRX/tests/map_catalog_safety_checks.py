@@ -36,13 +36,16 @@ PREFIX = r"""
 #define SCE_KERNEL_O_RDONLY 1
 #define SCE_KERNEL_O_DIRECTORY 2
 #define SCE_KERNEL_DT_DIR 4
+#define SCE_KERNEL_DT_UNKNOWN 0
 constexpr int kListedNameMax = 96;
 #define ORBIS_KERNEL_ERROR_ENOENT ((int)0x80020002u)
 struct SceKernelDirent { uint64_t d_fileno; uint16_t d_reclen; uint8_t d_type; char d_name[1]; };
+struct SceKernelStat { uint32_t st_mode; };
 static bool g_scanFailed = false;
 static char g_scanFailure[224] = {};
 static std::vector<std::string> logs;
-static int openResult = 7, readResult = 0, closeResult = 0;
+static int openResult = 7, readResult = 0, closeResult = 0, statResult = 0;
+static uint32_t statMode = 0040000;
 static bool delivered = false;
 static unsigned char bytes[1024];
 static int byteCount = 0;
@@ -63,11 +66,12 @@ static int sceKernelGetdents(int, void* out, size_t capacity)
     return byteCount;
 }
 static int sceKernelClose(int) { return closeResult; }
+static int sceKernelStat(const char*, SceKernelStat* st) { if (statResult < 0) return statResult; st->st_mode = statMode; return 0; }
 static int sceKernelUsleep(unsigned) { return 0; }
 static void Reset()
 {
     g_scanFailed = false; g_scanFailure[0] = 0; logs.clear();
-    openResult = 7; readResult = 0; closeResult = 0; delivered = false; byteCount = 0;
+    openResult = 7; readResult = 0; closeResult = 0; statResult = 0; statMode = 0040000; delivered = false; byteCount = 0;
     memset(bytes, 0, sizeof(bytes));
 }
 static size_t AddEntry(size_t at, const char* name, uint8_t type = 8)
@@ -143,12 +147,25 @@ int main()
     r = ListFolder("/close", false, names, 2, false);
     assert(r.status == FolderScanStatus::CloseFailed);
 
+    Reset(); AddEntry(0, "unknown-dir", SCE_KERNEL_DT_UNKNOWN);
+    statMode = 0040000;
+    r = ListFolder("/unknown-dir", true, names, 2, false);
+    assert(r.status == FolderScanStatus::Ok && r.count == 1);
+    Reset(); AddEntry(0, "unknown-file", SCE_KERNEL_DT_UNKNOWN);
+    statMode = 0100000;
+    r = ListFolder("/unknown-file", false, names, 2, false);
+    assert(r.status == FolderScanStatus::Ok && r.count == 1);
+    Reset(); AddEntry(0, "unknown-denied", SCE_KERNEL_DT_UNKNOWN);
+    statResult = (int)0x8002000Du;
+    r = ListFolder("/unknown-denied", true, names, 2, false);
+    assert(r.status == FolderScanStatus::StatFailed);
+
     Reset(); readResult = (int)0x80020005u;
     r = ListFolder("/failure", false, names, 2, false);
     assert(!AcceptFolderResult("/failure", r));
     assert(g_scanFailed && std::strstr(g_scanFailure, "read-failed"));
 
-    std::puts("PASS: directory scan distinguishes empty/missing/open/read/malformed/name/capacity/close outcomes");
+    std::puts("PASS: directory scan distinguishes empty/missing/open/read/stat/malformed/name/capacity/close outcomes");
 }
 """
         cpp.write_text(PREFIX + production + harness)
