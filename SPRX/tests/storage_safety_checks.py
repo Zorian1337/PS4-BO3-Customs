@@ -39,10 +39,10 @@ filesystem = r'''
 #include <vector>
 #include <pthread.h>
 using ScePthread = pthread_t;
-static int scePthreadCreate(ScePthread* thread, void*, void* (*entry)(void*), void* arg, const char*) {
+[[maybe_unused]] static int scePthreadCreate(ScePthread* thread, void*, void* (*entry)(void*), void* arg, const char*) {
     return pthread_create(thread, nullptr, entry, arg);
 }
-static int scePthreadDetach(ScePthread thread) { return pthread_detach(thread); }
+[[maybe_unused]] static int scePthreadDetach(ScePthread thread) { return pthread_detach(thread); }
 bool T7Config_Save(const char* section, bool (*owns)(const char*), const char* lines);
 constexpr int SCE_KERNEL_O_RDONLY=0, SCE_KERNEL_O_WRONLY=1, SCE_KERNEL_O_CREAT=512;
 constexpr int SCE_KERNEL_O_TRUNC=1024, SCE_KERNEL_O_APPEND=8;
