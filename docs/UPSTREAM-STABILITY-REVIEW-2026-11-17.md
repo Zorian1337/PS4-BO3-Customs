@@ -135,17 +135,20 @@ If thread creation fails, the handle is not valid for joining. The plugin can
 also report successful startup despite its initialization worker never
 running, and the one-shot `g_started` latch prevents a retry.
 
-Fix in our repo:
+Status in our repo (source committed 2026-11-17):
 
-1. Check `scePthreadCreate` and return its error without joining on failure.
-2. Check the join result.
-3. Have `start_thread` communicate whether BO3 was found and initialization
-   actually completed; a null thread return currently conflates success and
-   the `WaitForBlackOps3()` timeout.
-4. Reset the startup latch on a retryable failure, or store a terminal state
-   that accurately prevents unsafe duplicate initialization.
-5. Log/report the failure when logging is available; preserve the native
-   plugin entry-point return contract.
+- `scePthreadCreate` is checked; a failed create returns without joining an
+  invalid handle and releases the startup latch.
+- `scePthreadJoin` is checked. A failed join keeps the latch set because the
+  worker's state is unknown and a retry could duplicate partial initialization.
+- The worker returns a distinct success sentinel. A completed worker that
+  timed out waiting for BO3 releases the latch so a later loader callback can
+  retry; successful initialization remains latched.
+- No runtime/console validation has been performed yet.
+
+The startup failure is returned to the plugin loader; detailed logging before
+`T7Log_Install` is not available in this path. Preserve the native entry-point
+return contract when extending this handling.
 
 Upstream issue [#32](https://github.com/ItsJokerZz/PS4-BO3-Customs/issues/32)
 reported a plugin that did not initialize and produced no plugin log. The
@@ -162,11 +165,11 @@ both `StallWatch` and `StallMirror` creation. The second create overwrites
 the first handle. Neither worker's creation result is handled independently,
 and the combined status can say `NOT started` even if one worker is running.
 
-Fix by using distinct handles, checking and reporting each create result
-separately, and detaching each successfully created worker (or retaining its
-handle for a deliberate join/shutdown policy). Only report the watchdog as
-fully running when both required workers are available. Avoid retrying a
-partially started pair in a way that creates duplicate workers.
+Status in our repo (source committed 2026-11-17): the workers now use
+distinct handles, each create and detach result is reported independently,
+and each successful worker is detached. A partial start is reported as
+`partially running`; the two handles can no longer overwrite one another.
+Runtime behavior still needs target validation.
 
 ### P1 — Attribute time spent before the original game frame
 
@@ -187,17 +190,18 @@ In particular:
 - `T7Maps_FrameWork()` can process a pending mod/frontend transaction and
   reload-state bookkeeping.
 
-Add low-overhead Debug timing around each callback and its expensive
-sub-operations, with a bounded log threshold and a per-frame maximum so the
-instrumentation itself cannot flood logs. Record whether the slow path was
-filesystem, network/session, mod-zone transaction, or lock wait. If a callback
-shows a real spike, move file I/O/network work to an owned worker or split it
-into bounded steps; do not blindly move engine calls to another thread.
+Status in our repo (source committed 2026-11-17): Debug builds now mark
+the active phase before each callback and the original engine frame. When the
+watchdog samples a stall, it reports the phase and elapsed time. This is a
+low-volume, stall-triggered diagnostic rather than per-frame logging. It can
+distinguish map maintenance, sharing, builtins/config save, engine
+`Com_Frame`, and Lua tick. It does not yet identify an expensive sub-operation
+inside a callback; add narrower timing only after a fresh capture identifies
+the responsible phase. Keep filesystem/network work off the engine thread only
+after separating it from engine-affine state access.
 
-This is the best next investigation for the historical stall: the sampled
-main-thread stack includes SPRX frames, and these callbacks precede the game's
-normal frame. The old binary is still required to identify which callback
-actually occupied the stack at that time.
+This is the best next investigation for the historical stall: the old binary
+is still required to identify which callback occupied the stack at that time.
 
 ### P2 — Bound the rawfile-name read in Lua ownership tracking
 
@@ -232,13 +236,15 @@ faulted.
 
 ## Recommended order
 
-1. Fix `Start()` thread-create/join error handling and retry-state correctness.
-2. Fix the two-worker handle ownership/reporting in `StartStallWatch()`.
-3. Add bounded Debug timing to the three pre-frame callbacks and the mod
-   frontend transaction.
+1. Validate the new startup lifecycle and watchdog worker changes with
+   the supported host checks and target syntax/link validation.
+2. Capture a fresh Debug log if the stall recurs; inspect the reported frame
+   callback phase before changing scheduling or moving work across threads.
+3. Add bounded sub-operation timing for the identified phase only.
 4. Add the singleton-pool regression test.
 5. Harden the bounded rawfile-name scan in `NoteLevelLua()`.
 
-No SPRX source behavior was changed and no build or console test was run for
-this review. These findings are a review plan, not a claim that dev.60 fixes
-the October 15 stall.
+The source now contains targeted startup hardening and Debug stall attribution.
+No build, GitHub Actions run or console test was performed. These changes do
+not prove the October 15 stall or any fatal crash is resolved. See
+[the frame-stall investigation](INVESTIGATION-2026-11-17-FRAME-STALL.md).
