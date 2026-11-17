@@ -44,6 +44,8 @@ jobs:
           python3 .github/scripts/run_host_checks.py --list
           python3 SPRX/tests/diagnostic_hook_checks.py
           python3 SPRX/tests/map_image_lifetime_checks.py
+          python3 SPRX/tests/ui_transition_busy_checks.py
+          python3 SPRX/tests/map_image_lifetime_checks.py
           python3 SPRX/tests/bg_cache_snapshot_checks.py
           python3 SPRX/tests/missing_import_lifetime_checks.py
           python3 SPRX/tests/game_log_bridge_checks.py
