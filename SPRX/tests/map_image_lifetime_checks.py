@@ -23,6 +23,7 @@ def extract_block(source, marker):
 
 PICTURE_LOOKUP = extract_block(SOURCE, "static Picture* PictureByAddress(")
 STILL_OURS = extract_block(SOURCE, "static bool StillOurs(")
+RETIRE_PICTURE = extract_block(SOURCE, "static void RetirePicture(")
 ELEMENT_ARGUMENT = extract_block(SOURCE, "static uint64_t ElementArgument(")
 SET_IMAGE = extract_block(SOURCE, "static uint64_t SetImage_h(")
 
