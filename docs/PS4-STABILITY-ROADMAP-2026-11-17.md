@@ -41,6 +41,34 @@ The `zm_ccube` crash remains unconfirmed. Both FF and FD opened in the supplied
 excerpt; the first fatal record was not present. Do not treat catalog integrity
 or added timing as a fix for that crash.
 
+## P1 — Buried backend crash and dev.69 source provenance
+
+Issue #33 documents a dev.68 PS5 SIGSEGV on `2_Backend` while loading
+`zm_buried`, with RIP `0xFA2A98` and read address `0x27`. The kernel stack
+is incomplete; two GSC errors are confirmed but not proven causal.
+
+The issue describes a dev.69 DEBUG trace event named
+`stream-block-rejected`, but the inspected public `main` and PR #36 source
+do not contain that event. The candidate's FTP SIZE response matched the OELF
+container size rather than the local SPRX size, and remote bytes were not read
+back. The dev.69 artifact is therefore not verified as a build of the public
+source.
+
+- [ ] Recover and review the exact dev.69 source patch; publish it only after
+  production-body tests cover pass-through, both rejection branches and the
+  16-event cap.
+- [ ] Reproduce Buried in a fresh process without mods and preserve the raw
+  kernel report plus the preceding 30 seconds.
+- [ ] Correlate bounded stream-guard events with the first native fault. A
+  matching executable fingerprint or complete fault report is still needed
+  to resolve RIP `0xFA2A98`.
+- [ ] Verify the exact candidate artifact by reading it back before treating
+  an FTP transfer receipt or SIZE response as artifact identity.
+
+Do not infer causality from the GSC errors, missing-resource fallbacks, or
+absence of a trace event. Do not rebuild, upload, release, or claim the crash
+fixed without explicit approval and matching evidence.
+
 ## P0 — Landed source hardening; CI verified
 
 - [x] Replace per-asset linear pool-allowlist lookup with binary search on the
