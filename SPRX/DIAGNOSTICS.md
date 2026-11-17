@@ -4,6 +4,35 @@ These diagnostics address the logging gaps in issues #1 and #2. They are enabled
 in Debug builds. They do not suppress script exceptions, bypass clientfield
 validation, change zone priorities, unload mods or write player profiles.
 
+## Stream block rejection trace (issue #33)
+
+The existing `BlockJob_h` guard rejects stream jobs when their data range is
+outside the read ring or when the stored/hash/unpacked lengths are inconsistent.
+The rejection conditions, zeroing of the native length fields, original hook
+arguments and native return value are unchanged.
+
+Debug builds now capture the first 16 rejected jobs in a fixed-size,
+nonblocking diagnostic ring. The backend hook records only bounded scalar
+metadata: rejection reason (`outside`, `odd`, or both), ring base, slot,
+data pointer, unpacked length, hashed length and stored length. It does not
+format strings, allocate memory or wait for the diagnostic lock in the backend
+hook. The next frame-work/diagnostic drain emits
+`[Trace] event=stream-block-rejected` lines. Ring contention drops a sample
+and is counted explicitly; the lifetime cap remains 16 attempted events.
+
+This is instrumentation only. It does not change the stream guard, repair a
+malformed block, or establish the cause of the Buried backend crash. A missing
+event does not prove that the guard did not run if the process exits before the
+next drain or the diagnostic ring was contended.
+
+Run `python3 SPRX/tests/stream_guard_checks.py` to compile the actual
+production `BlockJob_h` and trace helper with host stubs under
+AddressSanitizer/UBSan. The fixture checks valid pass-through, both rejection
+branches, oversized unpacked length, original field mutation, native ABI
+passthrough and the 16-event cap. The SPRX diagnostics workflow runs this
+fixture. Host tests do not validate PS5 memory layout or prove runtime crash
+prevention; correlate the new trace with a fresh Buried capture.
+
 ## Distinct script errors
 
 The old shared 200-line limit could be exhausted by one repeated GSC failure,
