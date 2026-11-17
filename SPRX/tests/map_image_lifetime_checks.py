@@ -38,7 +38,7 @@ using FindAsset_t = uint64_t (*)(uint64_t,const char*,uint64_t,uint64_t);
 static constexpr size_t kSlotName=304, kSlotInUse=368;
 static constexpr size_t kStateTop=72, kStateBase=80;
 static constexpr uint32_t kTypeLightUserdata=2, kTypeUserdata=7;
-static constexpr uint32_t kMaxElements=0x4E20;
+static constexpr uint32_t kMaxElements=0x4E20;\nstatic constexpr int kRetiredPictureMax=256;
 static constexpr uintptr_t kGenerations=0x1000, kElements=0x2000, kStreamedDraw=0x7000, kFindAsset=0x8000;
 static constexpr int kImageType=9;
 static constexpr size_t kImageStreamed=250, kElementFlags=16, kElementImage=208;
@@ -52,7 +52,7 @@ static void* g_setImageOriginal=nullptr;
 static uint64_t SetImage_h(uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,
                            double,double,double,double,double,double,double,double);
 static bool RangeReadable(uintptr_t p,size_t) { return p != 0; }
-static unsigned nativeCalls=0, whiteLookups=0;
+static unsigned nativeCalls=0, whiteLookups=0;\nstatic bool whiteAvailable=true;
 static uint64_t expected[6];
 static uint64_t Native(uint64_t a,uint64_t b,uint64_t c,uint64_t d,uint64_t e,uint64_t f,
                        double x0,double x1,double x2,double x3,double x4,double x5,double x6,double x7)
@@ -70,7 +70,7 @@ static uint64_t FindAsset(uint64_t type,const char* name,uint64_t error,uint64_t
     assert(type==kImageType && error==1 && wait==0);
     assert(std::strcmp(name,"$white")==0);
     ++whiteLookups;
-    return (uintptr_t)whiteImage;
+    return whiteAvailable ? (uintptr_t)whiteImage : 0;
 }
 static void PrepareState(uint8_t* state,uint8_t* stack,uint8_t* handle,uint16_t generation)
 {
@@ -130,16 +130,38 @@ int main()
     assert(g_pictures[0].image==0 && g_pictures[0].retryAfter==0);
     assert(*(uint64_t*)(g_base+kElements+408*3+kElementImage)==(uintptr_t)whiteImage);
     assert(whiteLookups==1 && nativeCalls==0);
+    assert(g_retiredPictures[0].image==(uintptr_t)customImage);
+
+    // Repeated delayed callbacks keep matching the tombstone and never reach
+    // the native method after the active Picture record has been cleared.
+    for (unsigned i=0;i<100;++i)
+    {
+        assert(Invoke(state,stack,(uintptr_t)customImage)==0);
+        assert(*(uint64_t*)(g_base+kElements+408*3+kElementImage)==(uintptr_t)whiteImage);
+    }
+    assert(whiteLookups==101 && nativeCalls==0);
+
+    // A reused slot with another name is rejected even if the native white
+    // fallback is unavailable; no stale write or native forwarding occurs.
+    g_pictures[0].image=(uintptr_t)customImage;
+    *(uint8_t*)(customImage+kSlotInUse)=1;
+    std::strcpy((char*)(customImage+kSlotName),"other");
+    whiteAvailable=false;
+    *(uint64_t*)(g_base+kElements+408*3+kElementImage)=0x2AAA;
+    assert(Invoke(state,stack,(uintptr_t)customImage)==0);
+    assert(*(uint64_t*)(g_base+kElements+408*3+kElementImage)==0x2AAA);
+    assert(nativeCalls==0 && whiteLookups==102);
 
     // A stale element generation is rejected without writing or forwarding.
     g_pictures[0].image=(uintptr_t)customImage;
     *(uint8_t*)(customImage+kSlotInUse)=1;
     std::strcpy((char*)(customImage+kSlotName),"custom");
+    whiteAvailable=true;
     *(uint16_t*)(handle+2)=8; // The UI element was recycled after this callback was queued.
     *(uint64_t*)(g_base+kElements+408*3+kElementImage)=0x3333;
     assert(Invoke(state,stack,(uintptr_t)customImage)==0);
     assert(*(uint64_t*)(g_base+kElements+408*3+kElementImage)==0x3333);
-    assert(nativeCalls==0 && whiteLookups==1);
+    assert(nativeCalls==0 && whiteLookups==102);
 
     // Stock images retain the exact original arguments and native result.
     assert(Invoke(state,stack,(uintptr_t)stockImage)==0xC0FFEE);
