@@ -98,6 +98,7 @@ TRANSITION_PREFIX = r'''
 #include <vector>
 #define _DEBUG
 static std::vector<std::string> lines;
+static uint64_t sceKernelGetProcessTime() { static uint64_t now=1000; return ++now; }
 static void T7Log_Write(const char* format, ...)
 {
     char text[2048]; va_list args; va_start(args,format);

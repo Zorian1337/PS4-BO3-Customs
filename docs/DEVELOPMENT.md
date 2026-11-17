@@ -1,6 +1,45 @@
 # Current development status
 
-Updated 2026-11-02. Reviewed source is consolidated on `main`.
+Updated 2026-11-17. The dated investigation sections below retain their
+original chronology; for the active branch and candidate status, see
+[RESUME.md](../RESUME.md) and the
+[PS4 stability roadmap](PS4-STABILITY-ROADMAP-2026-11-17.md).
+
+## Current review state (2026-11-17)
+
+PR [#36 — map-load diagnostics and transactional catalog refresh](https://github.com/Zorian1337/PS4-BO3-Customs/pull/36)
+is open against `main`. Its source changes add structured directory-scan
+results, rollback-safe catalog publication, storage-root presence checks,
+bounded generated Lua output, and DEBUG map-load timing. The supplied
+`zm_ccube` excerpt still does not establish the crash cause.
+
+Review found stale four-argument `ListFolder` calls in the mod-stack scanner
+after the scanner interface changed. Those call sites now use structured
+results, log failures, and discard additions from a failed folder scan. A
+regression checks the argument count of every production `ListFolder`
+invocation.
+
+Final reviewed head before this documentation sync,
+`c48c5b54e8a6e8bce9fa64d8662cf94f3973067f`, passed all five required
+workflows: SPRX diagnostics, project-session guard, frontend reload,
+mod-stack transaction and script-priority. The project-session guard audited
+the complete `main`-to-PR diff, passed its publication-guard unit tests and
+the complete registered host regression inventory. No native SPRX build,
+upload, release or PS4/PS5 runtime test has been performed for PR #36. Do not
+merge without the user's explicit approval; do not claim the reported map
+crash is fixed.
+
+## dev.69 candidate provenance
+
+Issue #33 describes a dev.69 DEBUG candidate with a bounded
+`stream-block-rejected` trace, but direct inspection found no corresponding
+implementation in public `main` or PR #36's `SPRX/t7_maps.cpp`. The issue's
+local SPRX size (487,856 bytes) differs from the remote FTP SIZE response
+(576,352 bytes), which matches the OELF container; the remote bytes were not
+read back. Treat that artifact as an unverified local candidate until its
+exact source patch is recovered and reconciled with the public branch. The
+Buried backend crash remains unresolved.
+
 
 ## DS4C UI failure and recovery (dev.60 candidate)
 

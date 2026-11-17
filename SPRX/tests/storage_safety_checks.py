@@ -266,7 +266,7 @@ static int sceKernelUnlink(const char* path) {
     return -1; // Recovery must work even on a read-only or failing disk.
 }
 static void T7Log_Write(const char*, ...) {}
-static void ScanAll() { assert(g_chosenCount==0); ++scans; }
+static bool ScanAllInitial() { assert(g_chosenCount==0); ++scans; return true; }
 static void InstallHooks(uintptr_t base) {
     assert(base==g_base && g_chosenCount==0); ++hooks;
 }

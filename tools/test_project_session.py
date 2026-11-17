@@ -1,7 +1,8 @@
 """Publication policy: reject private artifacts without printing their contents."""
 import unittest
-from project_session import path_issue,text_issue
+from project_session import audit_diff_args,path_issue,text_issue
 class PublicationChecks(unittest.TestCase):
+ def test_range_audit_covers_full_pr_diff(self):self.assertEqual(audit_diff_args('base-sha','head-sha'),['diff','--no-renames','--name-status','base-sha...head-sha'])
  def test_source_allowed(self):
   for name in ('SPRX/t7_lua.cpp','Lua/ui_scripts/mods.lua','docs/DEVELOPMENT.md','tools/console_diagnostics/report.py','RESUME.md'):self.assertIsNone(path_issue(name))
  def test_artifacts_rejected(self):

@@ -37,15 +37,25 @@ def text_issue(data):
  return None
 
 
-def audit(commit=None):
- command=['diff-tree','--root','--no-commit-id','--name-status','-r',commit] if commit else ['diff','--cached','--name-status','--no-renames']
+def audit_diff_args(base,head):
+ return ['diff','--no-renames','--name-status',base+'...'+head]
+
+
+def audit(commit=None,base=None,head=None):
+ if base or head:
+  if not base or not head:raise ValueError('both base and head are required for a range audit')
+  command=audit_diff_args(base,head);source_ref=head
+ elif commit:
+  command=['diff-tree','--root','--no-commit-id','--name-status','-r',commit];source_ref=commit
+ else:
+  command=['diff','--cached','--name-status','--no-renames'];source_ref=None
  rows=git(*command).splitlines();errors=[];checked=0
  for row in rows:
   status,*names=row.split('\t');name=names[-1]
   if status.startswith('D'):continue
   issue=path_issue(name)
   if not issue:
-   ref=(commit+':'+name) if commit else ':'+name
+   ref=(source_ref+':'+name) if source_ref else ':'+name
    data=subprocess.check_output(['git','show',ref],cwd=ROOT)
    issue=text_issue(data)
   if issue:errors.append(dict(path=name,reason=issue))
@@ -76,8 +86,8 @@ def test():
 
 def main():
  parser=argparse.ArgumentParser(description=__doc__);sub=parser.add_subparsers(dest='action',required=True)
- sub.add_parser('status');p=sub.add_parser('audit');p.add_argument('--commit');sub.add_parser('test')
+ sub.add_parser('status');p=sub.add_parser('audit');p.add_argument('--commit');p.add_argument('--range',nargs=2,metavar=('BASE','HEAD'));sub.add_parser('test')
  args=parser.parse_args()
- return status() if args.action=='status' else audit(args.commit) if args.action=='audit' else test()
+ return status() if args.action=='status' else audit(args.commit,*(args.range or (None,None))) if args.action=='audit' else test()
 
 if __name__=='__main__':raise SystemExit(main())

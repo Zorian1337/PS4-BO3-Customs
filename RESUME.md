@@ -1,3 +1,131 @@
+# Current work: map-load diagnostics + transactional catalog refresh (PR #36)
+
+Branch: diagnostics/map-load-phase-timing; PR:
+https://github.com/Zorian1337/PS4-BO3-Customs/pull/36
+
+## Catalog refresh safety implementation
+
+The current branch now treats directory enumeration as a result, not just an
+entry count. It distinguishes optional ENOENT from open failures, getdents
+read errors, stat failures for DT_UNKNOWN entries, malformed/truncated records,
+overlong names, capacity exhaustion, and close failures. DT_UNKNOWN entries
+are stat-classified rather than silently omitted. Optional folders (user maps,
+shared zones, mod roots, alternate package folders, sound folders, and movie
+folders) may be absent; once present, scan failures abort publication.
+
+All catalog scanners propagate failures. Package/file/mod/movie limits, path truncation, and generated custom-map Lua
+buffer truncation now fail the candidate scan instead of silently producing a
+partial list. Every data root is preflighted and rechecked after scanning; if a
+root that supplied existing catalog entries disappears or becomes inaccessible,
+the candidate is rejected rather than silently dropping that storage's maps. Refresh takes a rollback snapshot of package/file/movie/mod
+arrays, counters, generated map Lua buffers, mod-description ownership, and the
+mod-Lua dirty flag while the existing reader/writer gate excludes readers.
+Only a fully completed scan commits; a failed scan frees candidate descriptions
+and restores the last known-good snapshot. Snapshot allocation failure leaves
+the current catalog untouched. Startup has no previous catalog, so a failed
+initial scan clears its candidate and publishes no partial entries.
+
+The scan remains synchronous. No worker-thread scan or double-buffered
+publication was introduced. T7Maps_MapCount() and T7Maps_ModCount() now
+participate in the reader gate. The Lua-string accessors retain their existing
+synchronous-consumption contract; callers run the returned source immediately
+on the frame/UI path rather than retaining it across a refresh.
+
+A new host regression exercises the actual production ListFolder() function
+against empty/missing directories, open/read/stat/close failures, malformed
+and unterminated records, truncated dirent headers, overlong names, capacity
+exhaustion, and unknown entry types. It also exercises checked Lua appends,
+storage-root loss detection, rollback, and description ownership invariants.
+It is registered in the full host inventory and focused SPRX diagnostics.
+
+**Validation:** implementation source head ba6f5a43d8e3dcf658278c085e9d585a3d9de31a passed
+the full-range source publication audit, publication-guard unit tests, all 42
+registered host regression programs (zero failures), focused SPRX diagnostics,
+and the related frontend/mod-stack/script-priority workflows. The new
+directory, storage-root, Lua-output builder, and catalog rollback tests all
+passed. No native SPRX build, upload, release, or PS4/PS5 console test was
+performed. The zm_ccube crash cause remains unknown; diagnostics and catalog
+safety are not a claim that the map crash is fixed.
+
+## Map-load diagnostics
+
+The Debug map preflight checks package-local .ff and .fd files separately
+and records the /app0/zone fallback state. Custom-map package file opens log
+elapsed time and returned fd, including failures. The native LoadLevelZones
+call logs its own duration separately from mod preparation. These remain
+observational diagnostics.
+
+## Candidate reconciliation — dev.69 / issue #33
+
+Issue #33 describes a dev.69 DEBUG candidate with a bounded
+`stream-block-rejected` event for the existing backend stream guard. A direct
+source check of both public `main` and PR #36's `SPRX/t7_maps.cpp` found no
+such event string or trace implementation. The issue therefore describes a
+candidate that is not reproducible from the currently published source refs.
+
+The issue records a local SPRX size of 487,856 bytes and a remote FTP SIZE
+response of 576,352 bytes (the OELF container size); the remote bytes were not
+read back. Remote artifact identity is unverified. Treat dev.69 as a local
+test candidate, not a verified public-source build or release.
+
+Next: recover and review the exact dev.69 source patch, reconcile it with the
+current branch, add a production-body regression for both guard branches and
+the 16-event cap, then rerun source CI. Reproduce Buried from a fresh process
+without mods and correlate the trace with the first kernel fault. The SIGSEGV
+at RIP `0xFA2A98` remains unexplained. Do not rebuild, upload, release, or
+claim a fix without explicit approval and matching evidence.
+
+## Review follow-up validation (2026-11-17)
+
+The full source review caught three stale mod-stack calls to the previous
+four-argument `ListFolder` API. They now consume structured scan results,
+log incomplete scans and roll back file additions from a failed folder scan.
+The host regression now checks the arity of every production scanner call.
+
+Final reviewed head before this documentation sync,
+`c48c5b54e8a6e8bce9fa64d8662cf94f3973067f`, passed all five required GitHub
+workflows: SPRX diagnostics, project-session guard, frontend reload,
+mod-stack transaction and script-priority. The project-session guard audited
+the complete `main`-to-PR diff, passed its own unit tests and the full
+registered host regression inventory. The directory scanner, storage-root,
+Lua-output, catalog rollback and map-load timing fixtures passed.
+
+No native SPRX build, upload, release or PS4/PS5 console test was performed.
+PR #36 remains open and must not be merged without the user's explicit
+approval. The `zm_ccube` crash remains unresolved.
+
+## Review boundary
+
+Keep PR #36 open for full-diff and final-check review. Do not merge without the
+user's explicit approval. Do not build/upload/release an SPRX unless separately
+requested.
+
+---
+
+
+Branch: `diagnostics/map-load-phase-timing`; PR:
+https://github.com/Zorian1337/PS4-BO3-Customs/pull/36
+
+The Debug map preflight now checks package-local `.ff` and `.fd` files
+separately and records the `/app0/zone` fallback state. Custom-map package
+file opens log elapsed time and the returned fd, including failures. The
+native `LoadLevelZones` call logs its own duration separately from mod
+preparation. These are observational diagnostics only; they do not change
+routing or claim to fix the `zm_ccube` crash.
+
+PR head `ca9fd4d5f8f901b5b35daeaa5807fc8a31317532`: focused SPRX diagnostics
+passed; full-range publication audit passed; publication guard unit tests
+passed; all 41 registered host regression programs passed. No native SPRX
+build or PS4/PS5 console test was performed. Keep PR #36 open for final
+diff/check review before merge.
+
+Next source task after PR #36: make directory enumeration report open/read/
+malformed-record/capacity outcomes distinctly, then make catalog refresh
+preserve the last known-good catalog when a required scan is incomplete.
+Do not move scanning to a worker until catalog pointer lifetime and reclamation
+are explicitly safe. Keep the current synchronous refresh behavior until the
+double-buffer design is proven.
+
 # Current candidate: dev.60 (existing); next source-only review branch: stability/pool-lookup-hotpath
 
 ## Asset-link hot-path lookup optimization (2026-11-17)
