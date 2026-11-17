@@ -23,6 +23,51 @@ constexpr int64_t kMissing = -1;
 constexpr int64_t kReadFailure = -2;
 constexpr int32_t kKernelNotFound = (int32_t)0x80020002;
 
+// The frame hook only publishes an immutable snapshot. Disk IO, fsync and
+// rename are performed by this worker so a slow storage device cannot hold
+// the game thread inside the mod-variable autosave path.
+static std::atomic<bool> g_asyncWorkerStarted{false};
+static std::atomic<bool> g_asyncPending{false};
+static std::atomic_flag g_asyncQueueLock = ATOMIC_FLAG_INIT;
+static char g_asyncSection[96];
+static char g_asyncLines[kMaxText];
+static bool (*g_asyncOwns)(const char* line) = nullptr;
+
+static void* AsyncSaveWorker(void*)
+{
+    char section[sizeof(g_asyncSection)];
+    char lines[sizeof(g_asyncLines)];
+    bool (*owns)(const char*) = nullptr;
+
+    for (;;)
+    {
+        if (!g_asyncPending.load(std::memory_order_acquire))
+        {
+            sceKernelUsleep(10000);
+            continue;
+        }
+
+        while (g_asyncQueueLock.test_and_set(std::memory_order_acquire))
+            sceKernelUsleep(100);
+
+        if (!g_asyncPending.exchange(false, std::memory_order_acq_rel))
+        {
+            g_asyncQueueLock.clear(std::memory_order_release);
+            continue;
+        }
+
+        memcpy(section, g_asyncSection, sizeof(section));
+        memcpy(lines, g_asyncLines, sizeof(lines));
+        owns = g_asyncOwns;
+        g_asyncQueueLock.clear(std::memory_order_release);
+
+        if (owns && !T7Config_Save(section, owns, lines))
+            T7Log_Write("[Config] background save of %s failed; a later change can retry", section);
+    }
+
+    return nullptr;
+}
+
 struct Lock
 {
     Lock()
@@ -311,4 +356,47 @@ bool T7Config_Save(const char* section, bool (*owns)(const char* line), const ch
         return false;
     }
     return WriteAll(g_text, used);
+}
+
+
+bool T7Config_SaveAsync(const char* section, bool (*owns)(const char* line), const char* lines)
+{
+    using namespace T7Config;
+
+    if (!section || !owns || !lines)
+        return false;
+
+    const size_t sectionLength = strlen(section);
+    const size_t linesLength = strlen(lines);
+    if (sectionLength >= sizeof(g_asyncSection) || linesLength >= sizeof(g_asyncLines))
+        return false;
+
+    bool expected = false;
+    if (g_asyncWorkerStarted.compare_exchange_strong(expected, true, std::memory_order_acq_rel))
+    {
+        ScePthread worker{};
+        const int created = scePthreadCreate(&worker, nullptr, AsyncSaveWorker, nullptr, "BO3-Customs Config");
+        if (created != 0)
+        {
+            g_asyncWorkerStarted.store(false, std::memory_order_release);
+            return false;
+        }
+
+        // A detach failure does not invalidate the running worker. Keep the
+        // started latch set to prevent a second worker from duplicating saves.
+        const int detached = scePthreadDetach(worker);
+        if (detached != 0)
+            T7Log_Write("[Config] background save worker detach returned %d", detached);
+    }
+
+    // Never spin the game thread behind a worker copying a previous snapshot.
+    if (g_asyncQueueLock.test_and_set(std::memory_order_acquire))
+        return false;
+
+    memcpy(g_asyncSection, section, sectionLength + 1);
+    memcpy(g_asyncLines, lines, linesLength + 1);
+    g_asyncOwns = owns;
+    g_asyncPending.store(true, std::memory_order_release);
+    g_asyncQueueLock.clear(std::memory_order_release);
+    return true;
 }
