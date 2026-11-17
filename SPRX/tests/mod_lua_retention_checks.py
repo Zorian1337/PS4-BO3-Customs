@@ -10,6 +10,16 @@ import tempfile
 root = Path(__file__).resolve().parents[1]
 source = (root / "t7_lua.cpp").read_text(encoding="utf-8")
 retention = source[source.index("struct RawFileAsset"):source.index("static const char* const k_graphicsDvars")]
+
+# Asset-link filename ownership must never call unbounded strlen on a
+# game-owned pointer after checking only its first four bytes.
+maps_source = (root / "t7_maps.cpp").read_text(encoding="utf-8")
+note_ui_file = maps_source[maps_source.index("static void NoteUiFile("):maps_source.index("static void RenameStackAsset(")]
+assert "strlen(name)" not in note_ui_file
+assert "nameAddress > UINTPTR_MAX - n" in note_ui_file
+assert "RangeReadable(nameAddress + n, 1)" in note_ui_file
+assert "n == sizeof(g_modUiFiles[0])" in note_ui_file
+assert note_ui_file.index("RangeReadable(nameAddress + n, 1)") < note_ui_file.index('EqualsNoCase(name + n - 4, ".lua")')
 hook = source[source.index("static uint64_t FindXAsset("):source.index("static void AddPcUtil();")]
 guard = source[source.index("bool T7Lua_PrepareModUiUnload()"):source.index("void T7Lua_RunShareVm(")]
 fixture = r'''
