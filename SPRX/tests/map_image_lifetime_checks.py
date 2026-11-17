@@ -49,6 +49,8 @@ static Picture g_pictures[1];
 static int g_pictureCount=1;
 static FindAsset_t g_findAsset=nullptr;
 static void* g_setImageOriginal=nullptr;
+static uint64_t SetImage_h(uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,
+                           double,double,double,double,double,double,double,double);
 static bool RangeReadable(uintptr_t p,size_t) { return p != 0; }
 static unsigned nativeCalls=0, whiteLookups=0;
 static uint64_t expected[6];
