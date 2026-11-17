@@ -74,11 +74,12 @@ unbounded retry behavior. The existing
 including bounded image growth, allocation failure under concurrency, budget
 exhaustion, free-list construction, and the non-exhausted fast path.
 
-**Test gap:** the pool test does not explicitly set `AssetPool::single` and
-assert that a singleton pool is never grown. Add a regression case using a
-synthetic 1/1 singleton (representative of `snddriverglobals`) and assert:
-no mmap, no change to `limit`, and no change to `free`. This will lock down
-the interpretation already present in the allocator and diagnostics.
+**Follow-up completed 2026-11-17:** the pool-growth fixture now marks an
+eligible synthetic pool as singleton and asserts no mmap, no free-list change,
+and no limit change. The growth allowlist also explicitly excludes COM World,
+Game World, and the one-entry sound-driver, bullet-penetration, and
+location-damage pools pending proof of safe multi-entry semantics. See
+[the BOIII memory/stability comparison](BOIII-MEMORY-STABILITY-REVIEW-2026-11-17.md).
 
 ### 4. Concurrent map-list access
 
@@ -215,17 +216,14 @@ This is a concrete reduction in main-thread IO risk, not proof of the
 historical stall's cause. The old binary is still required to identify which
 callback occupied the stack at that time.
 
-### P2 — Bound the rawfile-name read in Lua ownership tracking
+### P2 — Bound engine-owned rawfile and script-name reads
 
-Our `NoteLevelLua()` checks that the rawfile name pointer is readable for
-four bytes, then calls unbounded `strlen(name)`. For malformed or
-unexpected asset metadata, that does not prove a terminating NUL exists in
-the readable range.
-
-Harden this with a bounded scan that verifies the terminator is within a
-known readable span before testing the `.lua` suffix and marking ownership.
-This is defensive hardening; the supplied log does not show that this path
-faulted.
+**Implemented 2026-11-17:** `NoteLevelLua()` and `ScriptBase()` now copy
+engine-owned names byte-by-byte only after per-byte readability checks, stop
+at bounded local capacities, and reject unreadable or unterminated names.
+The regression fixture exercises valid names, invalid suffixes, an unreadable
+page boundary, and short output-buffer sizing. This is defensive hardening;
+the supplied log does not show that either path faulted.
 
 ## Upstream issue evidence relevant to stability
 
@@ -253,10 +251,32 @@ faulted.
 2. Capture a fresh Debug log if the stall recurs; inspect the reported frame
    callback phase before changing scheduling or moving work across threads.
 3. Add bounded sub-operation timing for the identified phase only.
-4. Add the singleton-pool regression test.
-5. Harden the bounded rawfile-name scan in `NoteLevelLua()`.
+4. Completed: add singleton-pool regression coverage and exclude fixed/special
+   pools from automatic growth.
+5. Completed: bound rawfile and script-name reads; see the regression fixture.
 
 The source now contains targeted startup hardening and Debug stall attribution.
 No build, GitHub Actions run or console test was performed. These changes do
 not prove the October 15 stall or any fatal crash is resolved. See
 [the frame-stall investigation](INVESTIGATION-2026-11-17-FRAME-STALL.md).
+
+
+## Addendum — BOIII comparison and low-memory corrections (2026-11-17)
+
+The follow-up review of Ezz-lol/boiii-free is recorded in
+[BOIII-MEMORY-STABILITY-REVIEW-2026-11-17.md](BOIII-MEMORY-STABILITY-REVIEW-2026-11-17.md).
+It identified that our prior minimum-extra-capacity policy could grow
+one-entry pools by up to 64 entries and that our growth table included COM
+World and Game World. Those entries have now been removed from automatic
+growth. The image, GFX World, and XModelMesh restrictions remain.
+
+The native allocator synchronization contract remains an open P1 research
+item: BOIII serializes its replacement allocator with pool reallocation, while
+our append-only growth lock does not establish synchronization with BO3's
+native allocator. No unverified allocator detour was introduced.
+
+The new source/tests were committed in
+`6193fe31d24009bda0c25833b5d60b09eccc750d`; documentation and roadmap were
+committed in `0c97ead415a2f2b117fb95bc1478a63c555fe357`. At the time of this
+addendum, the diagnostics workflow and main build were running. PS4 console
+validation and the exact cause of the reported crash remain unconfirmed.
