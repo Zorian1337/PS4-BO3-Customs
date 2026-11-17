@@ -8328,7 +8328,13 @@ bool T7Maps_NeedsLuaRetention(const char* name)
 bool T7Maps_UiTransitionBusy()
 {
     using namespace T7Maps;
-    return g_base && (g_frontendApplyPending || g_frontendApplying || g_frontendApplyLoading || AnyZoneLoading());
+
+    // A zone request is busy as soon as it is queued, not only after the
+    // engine publishes its loading state. Keep tick-driven UI work out of the
+    // gap between queueing the request and the native loading-slot update.
+    return g_base && (g_reloadCheck || g_waitZoneCount > 0 ||
+                      g_frontendApplyPending || g_frontendApplying ||
+                      g_frontendApplyLoading || AnyZoneLoading());
 }
 
 static_assert(T7Maps::kNameMax == kT7ShareName, "shared names use the map name size");
