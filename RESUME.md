@@ -354,3 +354,22 @@ claims each diagnostic. Added a production-function concurrency stress
 fixture and registered it in both PR diagnostics and the full host runner.
 CI for the updated test is pending; this is a diagnostic race fix, not proof
 of a pool allocator failure or of the reported map crash.
+
+## Issue-driven source recovery — 2026-11-17
+
+The latest recovery work is in draft PR
+[Zorian1337/PS4-BO3-Customs#39](https://github.com/Zorian1337/PS4-BO3-Customs/pull/39),
+branch `recovery/issue-driven-dev65-dev69` (base: `main`). It independently
+reconstructs the dev.65 UI transition/custom-image guards (#29) and dev.69
+bounded stream rejection diagnostics (#33) from public source plus issue
+records, not from local-device patches. The branch contains focused host/source
+regression tests and workflow wiring. Latest head:
+`2676c9e5f67a4584f091bbcab7a077cf5a48d5c5`.
+
+CI has not reported a status for that head yet. Do not mark the tests passed
+until the workflow results are visible. No native SPRX build, console test,
+upload, release, merge or issue closure was performed. Issues #29 and #33
+remain open. The dev.67 shared XAssetEntry reserve-page allocator (#30) was not
+guessed/recreated because the issue notes alone do not provide verified native
+table/free-list layout and allocator hook ABI. Continue reviewing PR #39 first,
+then pursue #30 only with validated native contracts.
