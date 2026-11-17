@@ -8,6 +8,11 @@ a reproducible exhaustion record and bounded by a measured budget.
 
 ## P0 — Landed source hardening; CI verified
 
+- [x] Replace per-asset linear pool-allowlist lookup with binary search on the
+  sorted immutable table (review branch; host CI pending).
+- [x] Test strict allowlist ordering, lookup of every registered type, and
+  misses below, between, and above registered types.
+
 - [x] Exclude COM World and Game World from automatic pool growth.
 - [x] Exclude the one-entry sound-driver, bullet-penetration, and
   location-damage pools from automatic growth pending proof of safe multi-entry
