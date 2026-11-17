@@ -2193,6 +2193,12 @@ static void ShowShare()
     if ((!visible && !shown) || !UiUp() || !UiTryLock())
         return;
 
+    if (T7Maps_UiTransitionBusy())
+    {
+        UiUnlock();
+        return;
+    }
+
     if (UiUp())
     {
         if (DvarOn("bo3customs_share_cancel"))
@@ -2245,6 +2251,12 @@ static void InjectScripts()
 {
     if (!UiUp() || !UiTryLock())
         return;
+
+    if (T7Maps_UiTransitionBusy())
+    {
+        UiUnlock();
+        return;
+    }
 
     if (UiUp())
     {
@@ -3110,6 +3122,12 @@ static void CheckMenus()
     if (!UiUp() || !UiTryLock())
         return;
 
+    if (T7Maps_UiTransitionBusy())
+    {
+        UiUnlock();
+        return;
+    }
+
     bool broken = false;
 
     if (UiUp())
@@ -3319,6 +3337,12 @@ static void AddPcUtil()
     if (L == 0 || (!fresh && !g_forceInject && (g_ticks % interval) != 0) || !UiUp() || !UiTryLock())
         return;
 
+    if (T7Maps_UiTransitionBusy())
+    {
+        UiUnlock();
+        return;
+    }
+
     if (UiUp())
     {
         if (fresh)
@@ -3508,6 +3532,12 @@ void T7Lua_Tick()
 
     if (g_menuInitPending && UiUp() && UiTryLock())
     {
+        if (T7Maps_UiTransitionBusy())
+        {
+            UiUnlock();
+            return;
+        }
+
         g_menuInitPending = false;
         g_forceInject = true;
         AddPcUtil();
@@ -3533,6 +3563,12 @@ void T7Lua_Tick()
     }
     else if (!T7Maps_InLevel() && UiTryLock())
     {
+        if (T7Maps_UiTransitionBusy())
+        {
+            UiUnlock();
+            return;
+        }
+
         // Lobby housekeeping does not need to run while the game is active.
         if (UiUp())
             RunLua(k_lobbyTickLua, "=bo3customs_lobbytick");
