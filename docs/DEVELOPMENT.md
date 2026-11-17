@@ -26,6 +26,17 @@ the current head. No native SPRX build, upload, release, or PS4/PS5 runtime
 test has been performed for PR #36. Do not merge until the updated CI and
 full-diff review are complete; do not claim the reported map crash is fixed.
 
+## dev.69 candidate provenance
+
+Issue #33 describes a dev.69 DEBUG candidate with a bounded
+`stream-block-rejected` trace, but direct inspection found no corresponding
+implementation in public `main` or PR #36's `SPRX/t7_maps.cpp`. The issue's
+local SPRX size (487,856 bytes) differs from the remote FTP SIZE response
+(576,352 bytes), which matches the OELF container; the remote bytes were not
+read back. Treat that artifact as an unverified local candidate until its
+exact source patch is recovered and reconciled with the public branch. The
+Buried backend crash remains unresolved.
+
 
 ## DS4C UI failure and recovery (dev.60 candidate)
 
