@@ -8,9 +8,12 @@ busy_end = maps.index("\n}", busy_start)
 busy = maps[busy_start:busy_end]
 assert "g_reloadCheck" in busy
 assert "g_reloadCheck && !HeldModZonesReadyForUi()" in busy
-assert "static bool HeldModZonesReadyForUi()" in maps
-assert "!g_reloadHeld || AnyZoneLoading()" in maps
-assert "ZoneStateOf(g_waitZones[i]) < 2" in maps
+assert "g_uiZoneWaitPending" in maps
+assert "g_uiHeldZonesReady" in maps
+assert "g_uiZoneWaitPending.load(std::memory_order_acquire)" in busy
+assert "g_uiHeldZonesReady.load(std::memory_order_acquire)" in busy
+assert "g_uiHeldZonesReady.store(true, std::memory_order_release)" in maps
+assert "ready += ZoneStateOf(g_waitZones[i]) >= 2 ? 1 : 0;" in maps
 assert "g_frontendApplyPending" in busy and "AnyZoneLoading()" in busy
 
 tick_start = lua.index("void T7Lua_Tick()")
