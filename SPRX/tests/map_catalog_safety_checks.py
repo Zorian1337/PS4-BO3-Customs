@@ -285,7 +285,7 @@ int main()
         subprocess.run([str(binary)], check=True)
 
     transaction_start = SOURCE.index("struct CatalogSnapshot")
-    transaction_end = SOURCE.index("static bool ScanAll()", transaction_start)
+    transaction_end = SOURCE.index("static bool PathUsesDataRoot(", transaction_start)
     transaction = SOURCE[transaction_start:transaction_end]
     transaction_prefix = r"""
 #include <atomic>
