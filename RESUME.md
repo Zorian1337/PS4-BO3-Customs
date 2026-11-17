@@ -200,7 +200,7 @@ version change notes with an approved GitHub release, not loose per-build files.
 The pool-growth fixture was not included in the focused SPRX diagnostics
 workflow used for pull requests. It is now explicitly run by that workflow,
 so the binary-search lookup contract and existing allocation regressions are
-checked before merge. The new workflow run is pending.
+checked before merge. The updated SPRX diagnostics workflow passed on final source commit `fdcc08e`; the pool-growth and pool-out concurrency fixtures ran successfully. Focused mod-stack, frontend-reload, script-priority and import-lifetime workflows also passed. No PS4 native build or console test was performed for this branch.
 ## Pool-out diagnostic concurrency fix (2026-11-17)
 
 Source review confirmed that T7Log_PoolOut() is called from LinkXAsset_h(),
