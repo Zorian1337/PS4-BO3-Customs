@@ -82,7 +82,9 @@ path during a map load.
 The correction copies zone and rawfile names into bounded local buffers,
 checking every source byte with `RangeReadable` before dereferencing it. It
 also validates the asset record before reading its type/header and passes the
-owned copy to the Lua-ownership index. It preserves the intended behavior:
+owned copy to the Lua-ownership index. The adjacent `ScriptBase()` helper now
+uses the same bounded-copy rule for GSC/CSC script names, protecting the
+stack-script ownership path as well. It preserves the intended behavior:
 only Lua rawfiles belonging to the current usermap package (or
 `zm_levelcommon`) are marked for retention.
 

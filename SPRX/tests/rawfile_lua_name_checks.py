@@ -57,7 +57,7 @@ static bool RangeReadable(uintptr_t address, size_t bytes)
 {
     if (!address || address > UINTPTR_MAX - bytes)
         return false;
-    return !guardStart || address < guardStart && bytes <= guardStart - address;
+    return !guardStart || (address < guardStart && bytes <= guardStart - address);
 }
 static uint64_t scePthreadSelf() { return 1; }
 struct ZoneContexts {
@@ -65,7 +65,7 @@ struct ZoneContexts {
     uintptr_t Current(uint64_t) const { return (uintptr_t)current; }
 };
 static ZoneContexts g_zoneLoadContexts;
-struct ListReader {};
+struct ListReader { ~ListReader() {} };
 static int MapPackageFile(const char*) { return 0; }
 static bool EqualsNoCase(const char* a, const char* b) { return strcasecmp(a, b) == 0; }
 static T7LuaOwnership::Index g_modLuaOwnership;
