@@ -6068,18 +6068,15 @@ static void BuildCustomMapsLua()
 
 static char g_mapsTableLua[sizeof(g_customMapsLua) + 64 * 1024 + 64];
 
-static void BuildMapsTableLua()
+static bool BuildMapsTableLua()
 {
     char* const source = T7LuaFiles::Read("ui_scripts/maptable.lua", 64 * 1024);
-
     if (!source)
-    {
-        g_mapsTableLua[0] = 0;
-        return;
-    }
+        return false;
 
-    snprintf(g_mapsTableLua, sizeof(g_mapsTableLua), "%s%s", g_customMapsLua, source);
+    const int length = snprintf(g_mapsTableLua, sizeof(g_mapsTableLua), "%s%s", g_customMapsLua, source);
     free(source);
+    return length >= 0 && (size_t)length < sizeof(g_mapsTableLua);
 }
 
 static bool ModNameValid(const char* name)
@@ -6635,7 +6632,16 @@ static bool ScanAll()
     memset(g_mods,0,sizeof(g_mods));
     if(!ScanUsermaps("/data/BO3-Customs")||!ScanSharedZones("/data/BO3-Customs")||!ScanMods("/data/BO3-Customs"))return false;
     for(const char* const drive:k_driveRoots){char data[64];int n=snprintf(data,sizeof(data),"/%s/BO3-Customs",drive);if(n<0||(size_t)n>=sizeof(data)){MarkScanFailure(drive,FolderScanStatus::NameTooLong,n);return false;}if(!ScanUsermaps(data)||!ScanSharedZones(data)||!ScanMods(data))return false;}
-    if(!ScanMovies()||g_scanFailed)return false;BuildCustomMapsLua();BuildMapsTableLua();g_modsLuaDirty.store(true);return !g_scanFailed;
+    if (!ScanMovies() || g_scanFailed)
+        return false;
+    BuildCustomMapsLua();
+    if (!BuildMapsTableLua())
+    {
+        MarkScanFailure("ui_scripts/maptable.lua", FolderScanStatus::ReadFailed, 0);
+        return false;
+    }
+    g_modsLuaDirty.store(true);
+    return !g_scanFailed;
 }
 
 static std::atomic<int> g_uninstallState{0};
