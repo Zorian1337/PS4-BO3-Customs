@@ -20,6 +20,10 @@ assert "if (!g_base || T7Maps_UiTransitionBusy())" in tick
 assert "if (T7Maps_UiTransitionBusy())" in tick
 assert tick.index("if (T7Maps_UiTransitionBusy())") < tick.index("g_menuInitPending = false")
 assert "if (!T7Maps_UiTransitionBusy() && UiUp())" in tick
+for helper in ("static void ShowShare()", "static void InjectScripts()", "static void CheckMenus()", "static void AddPcUtil()"):
+    start = lua.index(helper)
+    end = lua.find("\\n}", start)
+    assert "if (T7Maps_UiTransitionBusy())" in lua[start:end], helper
 
 trace_start = lua.index("void T7Lua_TraceState(")
 trace_end = lua.index("\nbool T7Lua_IsUiState", trace_start)
