@@ -100,10 +100,11 @@ actually implicated in a fresh stall.
   its original config migration, short-write, fsync, close, rename and
   preservation checks remain enabled.
 - The complete committed host regression suite passed on commit
-  `e905f5e` in the BO3 Auto Build workflow.
-- The SPRX diagnostics workflow passed on the same commit.
+  `7e241f8`: **38 regression programs, zero failures**. The isolated filename
+  fixture also passed its unreadable-page-edge test.
+- The SPRX diagnostics workflow passed on `7e241f8`.
 - The automatic PS4 GoldHEN Debug build, native module/container validation
-  and artifact upload all passed on that commit. This was the repository's
+  and artifact upload all passed on `7e241f8`. This was the repository's
   push-triggered CI workflow; no separate manual build was requested.
 - No PS4/PS5 console test has been performed. The old October log still cannot
   be symbolized against the dev.60 binary.
