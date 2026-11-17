@@ -75,6 +75,45 @@ synchronous batch limit, per-pool growth caps, and an image-specific reserve.
 Those controls limit our allocations but do not prove synchronization with
 the native allocator.
 
+## Confirmed hot-path optimization (source branch)
+
+The pool allowlist is immutable and already strictly sorted by asset type, but
+GrowthFor() previously scanned the complete table for every LinkXAsset_h
+callback. Since the hook runs for every linked asset, this added an avoidable
+O(N) lookup to the database-worker hot path, including for asset types that
+are not eligible for growth.
+
+The stability/pool-lookup-hotpath branch replaces the scan with a lower-bound
+binary search. It preserves the exact allowlist and pool-growth policy; no
+pool capacities, allocations, locks, or engine calls change. The production
+host fixture now checks strict ordering, resolves every table entry to its
+exact record, and rejects absent types below, between, and above the table.
+This is a provable reduction in comparisons (O(N) to O(log N)); it has not yet
+been benchmarked on console, so no frame-time percentage is claimed. Host CI
+is pending. No native build or console test has been performed for this branch.
+
+## Confirmed diagnostic data race corrected
+
+T7Log_PoolOut() is called from LinkXAsset_h(), which runs on database
+workers. Its static per-type told[] latch was a plain bool array read and
+written without synchronization. Concurrent calls therefore had a C++ data
+race and could emit duplicate pool-out snapshots. The latch now uses
+std::atomic<bool>::exchange() after confirming the pool is genuinely empty,
+so exactly one worker claims the once-only diagnostic. A host stress fixture
+extracts and compiles the production function, starts 32 concurrent workers,
+and verifies exactly one diagnostic/snapshot for an exhausted type while
+ignoring free, singleton, zero-limit and invalid types. This corrects the
+plugin-owned diagnostic race; it does not synchronize diagnostic reads with
+the engine's native allocator or establish a failed allocation.
+
+## CI coverage gap found and corrected
+
+The dedicated pull-request SPRX diagnostics workflow did not previously run
+pool_growth_checks.py, even though the test was included in the full main-branch
+host suite. The workflow now explicitly invokes the fixture so changes to the
+pool-growth lookup and free-list logic receive focused PR validation. The
+workflow run for this change is pending.
+
 ## Stability/performance work order
 
 1. Keep the bounded rawfile/script-name reads. They remove unsafe unbounded

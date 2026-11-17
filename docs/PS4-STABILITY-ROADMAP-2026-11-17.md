@@ -8,6 +8,17 @@ a reproducible exhaustion record and bounded by a measured budget.
 
 ## P0 — Landed source hardening; CI verified
 
+- [x] Replace per-asset linear pool-allowlist lookup with binary search on the
+  sorted immutable table (review branch; focused PR CI passed; not merged).
+- [x] Test strict allowlist ordering, lookup of every registered type, and
+  misses below, between, and above registered types.
+- [x] Add the pool-growth fixture to pull-request SPRX diagnostics.
+- [x] Make the per-type pool-out diagnostic latch atomic for concurrent asset-link workers.
+- [x] Add a concurrent production-function regression to PR diagnostics and the full host test inventory.
+- [x] Confirm the updated SPRX diagnostics workflow passed on final source commit `fdcc08e`, including both pool fixtures.
+- [x] Confirm the follow-up diagnostics run `44170446291` passed host-runner inventory validation and the same pool/Lua checks.
+- [x] Confirm focused mod-stack, frontend-reload, script-priority and import-lifetime workflows passed.
+
 - [x] Exclude COM World and Game World from automatic pool growth.
 - [x] Exclude the one-entry sound-driver, bullet-penetration, and
   location-damage pools from automatic growth pending proof of safe multi-entry

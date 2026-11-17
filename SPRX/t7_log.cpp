@@ -1622,9 +1622,11 @@ void T7Log_PoolOut(int32_t type)
 {
     using namespace T7Log;
 
-    static bool told[kTypeCount] = {};
+    // LinkXAsset_h may call this concurrently from database workers. The
+    // per-type once-only diagnostic latch must therefore be atomic.
+    static std::atomic<bool> told[kTypeCount] = {};
 
-    if (!g_base || type < 0 || (uint32_t)type >= kTypeCount || told[type])
+    if (!g_base || type < 0 || (uint32_t)type >= kTypeCount)
         return;
 
     const uintptr_t pool = g_base + kAssetPools + 32 * (uintptr_t)type;
@@ -1633,10 +1635,8 @@ void T7Log_PoolOut(int32_t type)
     const uint32_t used = *(const uint32_t*)(pool + 20);
     const uintptr_t free = *(const uintptr_t*)(pool + 24);
 
-    if (free || single || !limit)
+    if (free || single || !limit || told[type].exchange(true, std::memory_order_acq_rel))
         return;
-
-    told[type] = true;
     T7Log_Write("[Pools] the %s pool has no room left (%u of %u) as another %s links", k_typeNames[type], used,
                 limit, k_typeNames[type]);
     T7Log_Pools("when it ran out", 85);

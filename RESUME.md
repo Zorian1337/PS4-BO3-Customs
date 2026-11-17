@@ -1,4 +1,29 @@
+# Current candidate: dev.60 (existing); next source-only review branch: stability/pool-lookup-hotpath
+
+## Asset-link hot-path lookup optimization (2026-11-17)
+
+The sorted asset-pool growth allowlist is now searched with binary search instead
+of a full linear scan for every linked asset. This preserves the same allowlist
+and capacity policy while reducing lookup comparisons from O(N) to O(log N).
+The host fixture now verifies strict table ordering, every entry's lookup, and
+missing types. This is an algorithmic hot-path reduction, not a measured
+console speed claim. It is isolated on stability/pool-lookup-hotpath. The final PR diagnostics run
+passed, including both pool fixtures, and the focused mod-stack, frontend-reload,
+script-priority and import-lifetime workflows passed. No native build or console
+test was requested or performed.
+
+Latest PR diagnostics run https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44170446291 passed on workflow commit `19adea1`, including host-runner inventory validation, pool-growth and pool-out concurrency tests, and Lua recovery checks.
+
+See [the pool lookup optimization note](docs/POOL-LOOKUP-HOTPATH-OPTIMIZATION-2026-11-17.md).
+
 # Current candidate: dev.60
+
+## Pool-out diagnostic concurrency fix (2026-11-17)
+
+T7Log_PoolOut() runs from concurrent asset-link workers. Its process-lifetime
+once-only latch is now atomic, and a 32-worker production-function stress test
+verifies one diagnostic per exhausted type. The pool-growth and pool-out tests
+are both part of pull-request diagnostics and the full host test inventory.
 
 ## Frame-stall hardening (2026-11-17)
 
@@ -180,3 +205,20 @@ Local device/tool paths belong in ignored `.local/` settings, not this file.
 Update this file and the status record when evidence changes, including what was
 actually tested, remaining uncertainty and the single next useful task. Keep
 version change notes with an approved GitHub release, not loose per-build files.
+
+## CI coverage correction
+
+The pool-growth fixture was not included in the focused SPRX diagnostics
+workflow used for pull requests. It is now explicitly run by that workflow,
+so the binary-search lookup contract and existing allocation regressions are
+checked before merge. The updated SPRX diagnostics workflow passed on final source commit `fdcc08e`; the pool-growth and pool-out concurrency fixtures ran successfully. Focused mod-stack, frontend-reload, script-priority and import-lifetime workflows also passed. No PS4 native build or console test was performed for this branch.
+## Pool-out diagnostic concurrency fix (2026-11-17)
+
+Source review confirmed that T7Log_PoolOut() is called from LinkXAsset_h(),
+which can run concurrently on database workers, but its static per-type
+once-only told[] latch was a plain bool array. Concurrent check/set was a
+data race. It now uses std::atomic<bool> and exchange() so only one worker
+claims each diagnostic. Added a production-function concurrency stress
+fixture and registered it in both PR diagnostics and the full host runner.
+CI for the updated test is pending; this is a diagnostic race fix, not proof
+of a pool allocator failure or of the reported map crash.
