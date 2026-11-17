@@ -7249,9 +7249,19 @@ static bool BuildMatches(uintptr_t base)
 // (free candidate descriptions and restore the old pointer set).
 struct CatalogSnapshot
 {
-    Package packages[kMaxPackages];int packageCount;File files[kMaxFiles];int fileCount;Movie movies[64];int movieCount;
-    Mod mods[kMaxMods];int modCount;int levelCommon;int listedMaps;
-    char customMapsLua[sizeof(g_customMapsLua)];char mapsTableLua[sizeof(g_mapsTableLua)];bool modsLuaDirty;
+    Package packages[kMaxPackages];
+    int packageCount;
+    File files[kMaxFiles];
+    int fileCount;
+    Movie movies[64];
+    int movieCount;
+    Mod mods[kMaxMods];
+    int modCount;
+    int levelCommon;
+    int listedMaps;
+    char customMapsLua[sizeof(g_customMapsLua)];
+    char mapsTableLua[sizeof(g_mapsTableLua)];
+    bool modsLuaDirty;
 };
 static CatalogSnapshot* CaptureCatalog()
 {
