@@ -1,3 +1,28 @@
+# Current work: map-load diagnostics PR #36
+
+Branch: `diagnostics/map-load-phase-timing`; PR:
+https://github.com/Zorian1337/PS4-BO3-Customs/pull/36
+
+The Debug map preflight now checks package-local `.ff` and `.fd` files
+separately and records the `/app0/zone` fallback state. Custom-map package
+file opens log elapsed time and the returned fd, including failures. The
+native `LoadLevelZones` call logs its own duration separately from mod
+preparation. These are observational diagnostics only; they do not change
+routing or claim to fix the `zm_ccube` crash.
+
+PR head `ca9fd4d5f8f901b5b35daeaa5807fc8a31317532`: focused SPRX diagnostics
+passed; full-range publication audit passed; publication guard unit tests
+passed; all 41 registered host regression programs passed. No native SPRX
+build or PS4/PS5 console test was performed. Keep PR #36 open for final
+diff/check review before merge.
+
+Next source task after PR #36: make directory enumeration report open/read/
+malformed-record/capacity outcomes distinctly, then make catalog refresh
+preserve the last known-good catalog when a required scan is incomplete.
+Do not move scanning to a worker until catalog pointer lifetime and reclamation
+are explicitly safe. Keep the current synchronous refresh behavior until the
+double-buffer design is proven.
+
 # Current candidate: dev.60 (existing); next source-only review branch: stability/pool-lookup-hotpath
 
 ## Asset-link hot-path lookup optimization (2026-11-17)
