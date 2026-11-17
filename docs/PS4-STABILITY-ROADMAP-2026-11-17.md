@@ -14,7 +14,7 @@ a reproducible exhaustion record and bounded by a measured budget.
   misses below, between, and above registered types.
 - [x] Add the pool-growth fixture to pull-request SPRX diagnostics.
 - [x] Make the per-type pool-out diagnostic latch atomic for concurrent asset-link workers.
-- [x] Add a concurrent production-function regression to PR diagnostics and the full host test inventory (latest CI pending).
+- [x] Add a concurrent production-function regression to PR diagnostics and the full host test inventory The updated SPRX diagnostics workflow passed on final source commit `fdcc08e`; focused mod-stack, frontend-reload, script-priority and import-lifetime workflows also passed.
 
 - [x] Exclude COM World and Game World from automatic pool growth.
 - [x] Exclude the one-entry sound-driver, bullet-penetration, and
