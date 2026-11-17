@@ -8,3 +8,4 @@ bool T7Config_Save(const char* section, bool (*owns)(const char* line), const ch
 
 // Queue an immutable snapshot for background persistence; false means retry later.
 bool T7Config_SaveAsync(const char* section, bool (*owns)(const char* line), const char* lines);
+bool T7Config_SaveTakeFailure();
