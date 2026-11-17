@@ -119,7 +119,7 @@ static size_t AddEntry(size_t at, const char* name, uint8_t type = 8)
 
 def main():
     # Every production call must use the structured five-argument scanner API.
-    for match in re.finditer(r"\\bListFolder\\s*\\(", SOURCE):
+    for match in re.finditer(r"\bListFolder\s*\(", SOURCE):
         opening = SOURCE.index("(", match.start())
         assert call_argument_count(SOURCE, opening) == 5, (
             f"stale ListFolder call at source offset {match.start()}"
