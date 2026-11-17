@@ -1,6 +1,7 @@
 """Exercise real directory enumeration and guard catalog publication invariants."""
 from pathlib import Path
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -21,6 +22,34 @@ def extract_function(source, signature):
             if depth == 0:
                 return source[start:index + 1]
     raise AssertionError(f"unterminated function: {signature}")
+
+
+def call_argument_count(source, opening):
+    depth = 1
+    commas = 0
+    quote = None
+    escaped = False
+    for index in range(opening + 1, len(source)):
+        char = source[index]
+        if quote:
+            if escaped:
+                escaped = False
+            elif char == "\\\\":
+                escaped = True
+            elif char == quote:
+                quote = None
+            continue
+        if char in ("\\'", '\\"'):
+            quote = char
+        elif char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return commas + 1
+        elif char == "," and depth == 1:
+            commas += 1
+    raise AssertionError("unterminated ListFolder call")
 
 
 PREFIX = r"""
@@ -89,6 +118,20 @@ static size_t AddEntry(size_t at, const char* name, uint8_t type = 8)
 
 
 def main():
+    # Every production call must use the structured five-argument scanner API.
+    for match in re.finditer(r"\\bListFolder\\s*\\(", SOURCE):
+        opening = SOURCE.index("(", match.start())
+        assert call_argument_count(SOURCE, opening) == 5, (
+            f"stale ListFolder call at source offset {match.start()}"
+        )
+
+    stack_scan = extract_function(SOURCE, "static void ScanStackFolder(")
+    assert "FolderScanResult fileListing" in stack_scan
+    assert "FolderScanResult languageListing" in stack_scan
+    assert "FolderScanResult bankListing" in stack_scan
+    assert stack_scan.count(".Complete()") == 3
+    assert "entry.fileCount = originalFileCount" in stack_scan
+
     begin = SOURCE.index("enum class FolderScanStatus")
     end = SOURCE.index("static void AddFile(", begin)
     production = SOURCE[begin:end]
