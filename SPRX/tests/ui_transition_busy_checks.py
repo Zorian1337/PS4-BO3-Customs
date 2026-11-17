@@ -7,7 +7,10 @@ busy_start = maps.index("bool T7Maps_UiTransitionBusy()")
 busy_end = maps.index("\n}", busy_start)
 busy = maps[busy_start:busy_end]
 assert "g_reloadCheck" in busy
-assert "g_waitZoneCount > 0" in busy
+assert "g_reloadCheck && !HeldModZonesReadyForUi()" in busy
+assert "static bool HeldModZonesReadyForUi()" in maps
+assert "!g_reloadHeld || AnyZoneLoading()" in maps
+assert "ZoneStateOf(g_waitZones[i]) < 2" in maps
 assert "g_frontendApplyPending" in busy and "AnyZoneLoading()" in busy
 
 tick_start = lua.index("void T7Lua_Tick()")
