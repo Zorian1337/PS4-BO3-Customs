@@ -829,13 +829,22 @@ static const char* FolderScanStatusName(FolderScanStatus s)
 }
 static void MarkScanFailure(const char* path, FolderScanStatus status, int error)
 {
-    if(g_scanFailed)return; g_scanFailed=true;
-    snprintf(g_scanFailure,sizeof(g_scanFailure),"%s: %s (0x%08X)",path?path:"catalog",FolderScanStatusName(status),(unsigned)error);
-    T7Log_Write("[Maps] catalog scan aborted: %s",g_scanFailure);
+    if (g_scanFailed)
+        return;
+
+    g_scanFailed = true;
+    snprintf(g_scanFailure, sizeof(g_scanFailure), "%s: %s (0x%08X)",
+             path ? path : "catalog", FolderScanStatusName(status), (unsigned)error);
+    T7Log_Write("[Maps] catalog scan aborted: %s", g_scanFailure);
 }
-static bool AcceptFolderResult(const char* path,const FolderScanResult& r)
+
+static bool AcceptFolderResult(const char* path, const FolderScanResult& result)
 {
-    if(r.Complete())return true; MarkScanFailure(path,r.status,r.error); return false;
+    if (result.Complete())
+        return true;
+
+    MarkScanFailure(path, result.status, result.error);
+    return false;
 }
 static FolderScanResult ListFolder(const char* folder,bool folders,char names[][kListedNameMax],int capacity,bool optional)
 {
