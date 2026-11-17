@@ -88,6 +88,6 @@ def main():
  parser=argparse.ArgumentParser(description=__doc__);sub=parser.add_subparsers(dest='action',required=True)
  sub.add_parser('status');p=sub.add_parser('audit');p.add_argument('--commit');p.add_argument('--range',nargs=2,metavar=('BASE','HEAD'));sub.add_parser('test')
  args=parser.parse_args()
- return status() if args.action=='status' else audit(args.commit) if args.action=='audit' else test()
+ return status() if args.action=='status' else audit(args.commit,*(args.range or (None,None))) if args.action=='audit' else test()
 
 if __name__=='__main__':raise SystemExit(main())
