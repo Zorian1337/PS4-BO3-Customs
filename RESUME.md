@@ -521,8 +521,17 @@ The audit document was extended with this operation order and exact remaining ga
 
 ## Target-build workflow and current PR handoff — 2026-11-18
 
-The repository's .github/workflows/bo3-build.yml runs on pushes to main and supports workflow_dispatch. Its SPRX job installs clang-18/lld-18, invokes .github/scripts/build_sprx.py --package, validates the native module/container, and uploads the SPRX plus native build evidence. It is not configured as a pull_request build. The GitHub connector available in this session exposes workflow-run inspection but no workflow-dispatch action. Therefore the corrected target compile can be exercised either by an explicitly approved merge/push to main (which triggers the workflow) or by the repository owner manually dispatching BO3 Auto Build in GitHub Actions. No target build was started.
+The repository's .github/workflows/bo3-build.yml runs on pushes to main, supports workflow_dispatch, and now runs PR-time builds for SPRX changes. Its SPRX job installs clang-18/lld-18, invokes .github/scripts/build_sprx.py --package, validates the native module/container, and uploads the SPRX plus native build evidence. PR #61's exact-head target build passed; artifact ID 14442530769, ZIP SHA-256 2d3982b64d55afe3e53369b614c88d4b0135f3554b3db0a72df7e440c7182506, embedded SPRX SHA-256 e04143784dff72a24a00cb5f321594a7e0f4800aaa30414bc088eb2e4b2c9408. The manifest explicitly leaves console_validated and sony_signed false.
 
 The original PR #43 is now closed as superseded, not merged. Its clean replacement is PR #48, based on current main with 3 commits ahead and 0 behind; all five PR workflows passed on head 1144635efc6af64904efa1e27671598a179b26d9 (SPRX diagnostics 44237212529, project-session guard 44237212480, mod stack transaction 44237212537, script priority context 44237213746, frontend reload state 44237212518). PR #48 is ready for review and remains unmerged pending the target-build authorization.
 
 PR #40 remains draft research groundwork only. Its production reserve hook was removed; SPRX/t7_maps.cpp matches main byte-for-byte. Its latest safe head passed SPRX diagnostics and project-session guard, but the tests validate helper arithmetic and repository policy, not the native allocator. The private dev.67 candidate described in issue #30 remains separate and unreviewed from its local source archive.
+
+
+## Lua ownership status — 2026-11-18
+
+- PR #60 merged the first-mod ownership publication/load-context fix. The retention scope includes unprefixed first-mod zones (index zero), stacked zones, and concurrent/nested scopes while preserving stock passthrough when mods are disabled.
+- PR #61 merged as `9ba6ca4b592fd4fff16c9f683755894a7ac9c09d`. It adds an atomic source-read gate around `RetainModLua()`, drains readers before ordinary frontend mod-zone free, aborts safely on timeout, and reopens before replacement mod Lua loads. Failed frees reopen the gate and preserve the old stack for retry.
+- Host-session combined common-zone changes and no-common transitions are deferred while old mod source zones remain loaded; no mixed teardown/replacement load is performed while the gate is closed.
+- Validation: all 47 registered host regressions, SPRX diagnostics under ASan/UBSan and TSan, and PR-time PS4 target build/package validation passed. Build workflow 44336275249; artifact 14442530769. Embedded SPRX SHA-256: e04143784dff72a24a00cb5f321594a7e0f4800aaa30414bc088eb2e4b2c9408.
+- Not yet proven: real-console disable/re-enable/reload, HKS module-cache invalidation/closure destruction, or Sony signing. Manifest `console_validated:false`, `sony_signed:false`. Keep the append-only retained bytecode arena; do not reclaim it without a separate HKS lifetime proof.

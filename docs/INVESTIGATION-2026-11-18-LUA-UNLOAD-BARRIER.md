@@ -63,13 +63,13 @@ Use one atomic word with a high `closing` bit and low active-reader count. Entry
 Fail closed: on drain timeout, do not unload any zone. On a lookup while closed, return the immutable Lua error asset without dereferencing borrowed data. Never free/reset the retained arena. Keep the user's ability to disable mods by ensuring every aborted transition reopens the gate and every successful transition reopens before new UI scripts are loaded.
 
 
-## Validation result — PR #61 candidate (2026-11-18)
+## Validation result — PR #61 merged (2026-11-18)
 
-The current PR head `950af8a876708ccc43552b79df7119c1f73b6316` passed the exact-head verification set:
-- SPRX diagnostics workflow `44335553381`: success, including ASan/UBSan and TSan gate tests, production `RetainModLua()` rejection of an unmapped source pointer while closed, and held-reader timeout/reopen.
-- Project session guard `44335553366`: success; full registered host inventory and source-publication policy passed. The host fixture also verifies a failed `FreeModsFrom()` reopens the gate and preserves the old loaded stack for retry.
-- Frontend reload, mod-stack transaction, script-priority and script-log regression workflows: all success.
-- BO3 Auto Build `44335553497`: host checks, 14-unit PS4 cross-compile, GoldHEN SPRX inspection, malformed native module/container rejection controls, artifact upload and final completeness gate all succeeded.
-- SPRX artifact: `bo3-sprx-eb7af40227366c094c9e4ebd24ce0a5db4402451-1`, artifact ID `14441486738`, ZIP SHA-256 `2b666fc1299e3f0e97fe905d252ee095f864054cb2659ad48b4d725dc99ec4e6`. Embedded `BO3-Customs.sprx`: 487,216 bytes, SHA-256 `aed2bbedc3ee58cbee5c0f5aa20d3d805bf61021bc2a55af7b527de8664db396`.
+The merged PR head `f7db33a9e2c25daca8f79df8cbd6cf2c79062a3c` passed:
+- SPRX diagnostics `44336275169`: success, including ASan/UBSan and TSan gate tests, production `RetainModLua()` rejection of an unmapped source pointer while closed, nested/concurrent readers, and held-reader timeout/reopen.
+- Project session guard `44336275288`: success; all 47 registered host regressions and source-publication policy passed, including failed-`FreeModsFrom()` reopen/retry.
+- Frontend reload `44336275255`, mod-stack transaction `44336275144`, script priority `44336275813`, and script log `44336275279`: all passed.
+- BO3 Auto Build `44336275249`: host checks, 14-unit PS4 cross-compile, GoldHEN SPRX inspection, malformed native module/container rejection controls, artifact upload and final completeness gate all succeeded.
+- Artifact `bo3-sprx-f3546ae7d0a508c990a314705f228ea233ecd6d6-1`, ID `14442530769`, ZIP SHA-256 `2d3982b64d55afe3e53369b614c88d4b0135f3554b3db0a72df7e440c7182506`. Embedded `BO3-Customs.sprx`: 487,216 bytes, SHA-256 `e04143784dff72a24a00cb5f321594a7e0f4800aaa30414bc088eb2e4b2c9408`.
 
-The manifest explicitly records `console_validated: false` and `sony_signed: false`. This proves target buildability and package validation, not PS4 runtime behavior or HKS module-cache correctness. Console disable/re-enable/reload validation remains outstanding.
+PR #61 was squash-merged to `main` as `9ba6ca4b592fd4fff16c9f683755894a7ac9c09d`. The manifest explicitly records `console_validated: false` and `sony_signed: false`. This proves target buildability and package validation, not PS4 runtime behavior or HKS module-cache correctness. Console disable/re-enable/reload validation remains outstanding.
