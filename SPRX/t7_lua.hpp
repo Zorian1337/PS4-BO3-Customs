@@ -24,3 +24,5 @@ void T7Lua_TraceState(const char* reason);
 void T7Lua_RunShareVm(uintptr_t L);
 
 bool T7Lua_PrepareModUiUnload();
+
+void T7Lua_ResumeModUiRetention();

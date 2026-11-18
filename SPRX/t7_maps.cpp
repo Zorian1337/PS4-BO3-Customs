@@ -5322,10 +5322,6 @@ static void ApplyModsNow()
     // including the host-session common-zone path and count-publication window.
     ActiveModLuaRetentionScopes::Scope modStackTransition(g_activeModLuaRetentionScopes, true);
 
-    if (g_loadedCount > 0 && (keep < g_loadedCount || g_sessionModCount >= 0) &&
-        !T7Lua_PrepareModUiUnload())
-        return;
-
     if (g_sessionModCount < 0 && !g_frontendApplying)
     {
         if (!g_frontendReloadReady)
@@ -5339,6 +5335,16 @@ static void ApplyModsNow()
         return;
     }
 
+    // Close immediately before the native common-zone/free transaction. Do not
+    // block ordinary frontend teardown while waiting for core_frontend to reload.
+    bool luaRetentionClosed = false;
+    if (g_loadedCount > 0 && (keep < g_loadedCount || g_sessionModCount >= 0))
+    {
+        if (!T7Lua_PrepareModUiUnload())
+            return;
+        luaRetentionClosed = true;
+    }
+
     const int mode = LoadedModeCommon();
 
     if (mode < 0)
@@ -5346,12 +5352,14 @@ static void ApplyModsNow()
         if (wanted > 0)
             LoadModeCommonForMods();
 
+        if (luaRetentionClosed) T7Lua_ResumeModUiRetention();
         return;
     }
 
     if (!ModeCommonOnTop())
     {
         T7Log_Write("[Mods] another zone sits above the mods, so the changes apply when your next match starts");
+        if (luaRetentionClosed) T7Lua_ResumeModUiRetention();
         return;
     }
 
@@ -5373,6 +5381,7 @@ static void ApplyModsNow()
         common.allocFlags = kModeCommonFlags;
         common.freeFlags = kModeCommonFlags;
         LoadXAssets_h((uint64_t)&common, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        if (luaRetentionClosed) T7Lua_ResumeModUiRetention();
         return;
     }
 
@@ -5393,7 +5402,10 @@ static void ApplyModsNow()
         }
 
         if (!FreeModsFrom(keep))
+        {
+            if (luaRetentionClosed) T7Lua_ResumeModUiRetention();
             return;
+        }
 
         PruneWaitZones();
         g_loadedCount = keep;
@@ -5408,6 +5420,9 @@ static void ApplyModsNow()
 
     if (wanted > keep)
         AppendMods(names, wanted, mode);
+
+    // Replacement stack is established; reopen before new UI rawfile lookups.
+    if (luaRetentionClosed) T7Lua_ResumeModUiRetention();
 
     if (g_frontendApplying)
         return;
@@ -8026,6 +8041,7 @@ void T7Maps_FrameWork()
     {
         g_frontendApplyPending = false;
         g_applyWanted.store(false);
+        T7Lua_ResumeModUiRetention();
         T7Log_Write("[Mods] frontend handoff timed out; loaded zones stay intact, restart BO3 to apply the selection");
         return;
     }
