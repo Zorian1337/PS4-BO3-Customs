@@ -2404,6 +2404,7 @@ static_assert(sizeof(XAssetEntryReserveHeader) == 16, "reserve header stays in t
 static bool g_assetEntryReserveInitialized = false;
 static bool g_assetEntryReserveCapped = false;
 static bool g_assetEntryReserveWarned = false;
+static bool g_assetEntryReserveCapLogged = false;
 static bool g_assetEntryReserveSlots[kAssetEntryReserveSlotCount] = {};
 static size_t g_assetEntryReserveBytes = 0;
 static uint64_t g_assetEntryReserveEntries = 0;
@@ -2564,7 +2565,17 @@ static bool EnsureXAssetEntryReserve()
     if (g_assetEntryReserveCapped ||
         g_assetEntryReserveBytes > kAssetEntryReserveBudget ||
         kAssetEntryReserveMapBytes > kAssetEntryReserveBudget - g_assetEntryReserveBytes)
+    {
+        g_assetEntryReserveCapped = true;
+        if (!g_assetEntryReserveCapLogged)
+        {
+            g_assetEntryReserveCapLogged = true;
+            T7Log_Write("[XAsset] reserve capped at %llu/%llu bytes; native allocator exhaustion remains possible",
+                        (unsigned long long)g_assetEntryReserveBytes,
+                        (unsigned long long)kAssetEntryReserveBudget);
+        }
         return false;
+    }
 
     constexpr uint32_t expectedEntries = kAssetEntryReservePageBytes / kAssetEntrySize;
     for (uint32_t slot = 0; slot < kAssetEntryReserveSlotCount; ++slot)
@@ -2655,9 +2666,9 @@ static bool EnsureXAssetEntryReserve()
     }
 
     g_assetEntryReserveCapped = true;
-    if (!g_assetEntryReserveWarned)
+    if (!g_assetEntryReserveCapLogged)
     {
-        g_assetEntryReserveWarned = true;
+        g_assetEntryReserveCapLogged = true;
         T7Log_Write("[XAsset] reserve capped: no unused safe uint32-index mapping slot remains; "
                     "native allocator exhaustion remains possible");
     }
