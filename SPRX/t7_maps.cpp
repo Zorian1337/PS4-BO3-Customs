@@ -6,6 +6,7 @@
 #include "mod_load_context.hpp"
 #include "t7_mapimages.hpp"
 #include "t7_lua.hpp"
+#include "xasset_reserve_index.hpp"
 
 #include <atomic>
 
@@ -62,7 +63,19 @@ constexpr int       kAssetHashSize  = 152576;
 constexpr uintptr_t kAssetEntries   = 0x587E710;
 constexpr size_t    kAssetEntrySize = 32;
 constexpr size_t    kAssetEntryInUse = 17;
-constexpr size_t    kAssetEntryNext = 20;
+constexpr size_t    kAssetEntryNext   = 20;
+constexpr uintptr_t kAssetEntryFreeList = 0x5D26718;
+constexpr uintptr_t kAssetEntryRegistryLock = 0x0CF60BB4;
+constexpr size_t    kAssetEntryReserveMapBytes = 1u << 20;
+constexpr size_t    kAssetEntryReservePageBytes = kAssetEntryReserveMapBytes - kAssetEntrySize;
+constexpr uintptr_t kAssetEntryReservePageSize = 0x4000;
+constexpr size_t    kAssetEntryReserveBudget = 16u * 1024u * 1024u;
+constexpr uint32_t  kAssetEntryReserveLowWater = 8;
+constexpr uint32_t  kAssetEntryReserveFirstIndex = 0x10000000u;
+constexpr uint32_t  kAssetEntryReserveIndexStep = 0x08000000u;
+constexpr uint32_t  kAssetEntryReserveSlotCount = kAssetEntryReserveBudget / kAssetEntryReserveMapBytes;
+constexpr uint32_t  kAssetEntryReserveMagic = 0x52534158u; // "XASR"
+constexpr uint32_t  kAssetEntryReserveVersion = 1;
 constexpr uintptr_t kKillServer     = 0xF3FCB0;
 constexpr uintptr_t kFrontendMovies = 0x15C2E80;
 constexpr uintptr_t kPlayMovie      = 0x746640;
@@ -2378,6 +2391,300 @@ static void GrowPool(int32_t type)
     g_poolGrowthBytes += bytes;
 }
 
+struct XAssetEntryReserveHeader
+{
+    uint32_t magic;
+    uint32_t version;
+    uint32_t firstIndex;
+    uint32_t entryCount;
+};
+static_assert(sizeof(XAssetEntryReserveHeader) == 16, "reserve header stays in the mapping prefix");
+
+static bool g_assetEntryReserveInitialized = false;
+static bool g_assetEntryReserveCapped = false;
+static bool g_assetEntryReserveWarned = false;
+static bool g_assetEntryReserveSlots[kAssetEntryReserveSlotCount] = {};
+static size_t g_assetEntryReserveBytes = 0;
+static uint64_t g_assetEntryReserveEntries = 0;
+
+// The candidate mapping addresses are deterministic and separated by 4 GiB.
+// This lets a later SPRX reload rediscover process-lifetime pages from their
+// 16-byte header instead of losing track of capacity or mapping them twice.
+static bool XAssetEntryReserveSlotInfo(uint32_t slot, uintptr_t tableBase,
+                                       uintptr_t& hint, uint32_t& firstIndex,
+                                       uint32_t& lastIndex)
+{
+    if (slot >= kAssetEntryReserveSlotCount)
+        return false;
+
+    const uintptr_t residue = tableBase % kAssetEntrySize;
+    if (tableBase < residue)
+        return false;
+
+    const uintptr_t hintBase = tableBase - residue;
+    const uintptr_t pageResidue = hintBase % kAssetEntryReservePageSize;
+    if (pageResidue % kAssetEntrySize)
+        return false;
+
+    const uint64_t entriesPerPage = kAssetEntryReservePageSize / kAssetEntrySize;
+    const uint64_t wantedModulo =
+        (entriesPerPage - pageResidue / kAssetEntrySize) % entriesPerPage;
+    uint64_t index = kAssetEntryReserveFirstIndex;
+    index += (wantedModulo + entriesPerPage - index % entriesPerPage) % entriesPerPage;
+    index += static_cast<uint64_t>(slot) * kAssetEntryReserveIndexStep;
+
+    const uint64_t entryCount = kAssetEntryReservePageBytes / kAssetEntrySize;
+    if (!index || !entryCount ||
+        index + entryCount - 1 > UINT32_MAX ||
+        index > (UINTPTR_MAX - hintBase) / kAssetEntrySize)
+        return false;
+
+    const uintptr_t candidate = hintBase + static_cast<uintptr_t>(index) * kAssetEntrySize;
+    if (candidate % kAssetEntryReservePageSize)
+        return false;
+
+    hint = candidate;
+    firstIndex = static_cast<uint32_t>(index);
+    lastIndex = static_cast<uint32_t>(index + entryCount - 1);
+    return true;
+}
+
+static void DiscoverXAssetEntryReserve(uintptr_t tableBase)
+{
+    if (g_assetEntryReserveInitialized)
+        return;
+
+    g_assetEntryReserveInitialized = true;
+    constexpr uint32_t entryCount = kAssetEntryReservePageBytes / kAssetEntrySize;
+
+    for (uint32_t slot = 0; slot < kAssetEntryReserveSlotCount; ++slot)
+    {
+        uintptr_t hint = 0;
+        uint32_t firstIndex = 0;
+        uint32_t lastIndex = 0;
+        if (!XAssetEntryReserveSlotInfo(slot, tableBase, hint, firstIndex, lastIndex))
+        {
+            g_assetEntryReserveSlots[slot] = true;
+            continue;
+        }
+
+        if (!RangeReadable(hint, sizeof(XAssetEntryReserveHeader)))
+            continue;
+
+        // An unrelated or incomplete mapping at a reserved hint is never
+        // overwritten. A valid header is enough to recover our budget after a
+        // plugin reload; the full span and native index range are rechecked.
+        if (!RangeReadable(hint, kAssetEntryReserveMapBytes))
+        {
+            g_assetEntryReserveSlots[slot] = true;
+            continue;
+        }
+
+        const XAssetEntryReserveHeader header =
+            *(const XAssetEntryReserveHeader*)hint;
+        if (header.magic != kAssetEntryReserveMagic ||
+            header.version != kAssetEntryReserveVersion ||
+            header.firstIndex != firstIndex ||
+            header.entryCount != entryCount)
+        {
+            g_assetEntryReserveSlots[slot] = true;
+            continue;
+        }
+
+        uintptr_t pageBase = 0;
+        uint32_t actualFirst = 0;
+        uint32_t actualLast = 0;
+        if (!XAssetReserveIndex::TrySelectPage(tableBase, hint,
+                                                kAssetEntryReserveMapBytes,
+                                                kAssetEntryReservePageBytes,
+                                                kAssetEntrySize, pageBase,
+                                                actualFirst, actualLast) ||
+            actualFirst != firstIndex || actualLast != lastIndex)
+        {
+            g_assetEntryReserveSlots[slot] = true;
+            continue;
+        }
+
+        g_assetEntryReserveSlots[slot] = true;
+        g_assetEntryReserveBytes += kAssetEntryReserveMapBytes;
+        g_assetEntryReserveEntries += entryCount;
+    }
+}
+
+static bool CountFreeXAssetEntries(uintptr_t tableBase, uintptr_t head,
+                                   uint32_t& count)
+{
+    uintptr_t seen[kAssetEntryReserveLowWater + 1] = {};
+    count = 0;
+
+    uintptr_t cursor = head;
+    while (cursor && count <= kAssetEntryReserveLowWater)
+    {
+        uint32_t index = 0;
+        if (!RangeReadable(cursor, sizeof(uintptr_t)) ||
+            !XAssetReserveIndex::TryEncodeIndex(tableBase, cursor,
+                                                kAssetEntrySize, index))
+            return false;
+
+        for (uint32_t i = 0; i < count; ++i)
+            if (seen[i] == cursor)
+                return false; // A short cycle would make the native allocator loop.
+
+        seen[count] = cursor;
+        const uintptr_t next = *(const uintptr_t*)cursor;
+        if (next == cursor)
+            return false;
+
+        ++count;
+        cursor = next;
+    }
+
+    return true;
+}
+
+static bool EnsureXAssetEntryReserve()
+{
+    if (!g_base || !g_buildMatched)
+        return false;
+
+    const uintptr_t lockAddress = g_base + kAssetEntryRegistryLock;
+    const uintptr_t freeHeadAddress = g_base + kAssetEntryFreeList;
+    if (!RangeReadable(lockAddress, sizeof(uint32_t)) ||
+        !RangeReadable(freeHeadAddress, sizeof(uintptr_t)))
+        return false;
+
+    // All native LinkXAsset allocator callsites and the native entry-release
+    // paths acquire this registry lock. Growing only while it is held keeps
+    // the native pointer free-list pop/push operations serialized.
+    if (*(volatile const uint32_t*)lockAddress != 1)
+    {
+        if (!g_assetEntryReserveWarned)
+        {
+            g_assetEntryReserveWarned = true;
+            T7Log_Write("[XAsset] reserve skipped: native registry lock is not held at LinkXAsset");
+        }
+        return false;
+    }
+
+    const uintptr_t tableBase = g_base + kAssetEntries;
+    uintptr_t* const freeHead = (uintptr_t*)freeHeadAddress;
+    uint32_t freeCount = 0;
+    if (!CountFreeXAssetEntries(tableBase, *freeHead, freeCount))
+    {
+        if (!g_assetEntryReserveWarned)
+        {
+            g_assetEntryReserveWarned = true;
+            T7Log_Write("[XAsset] reserve skipped: native free-list head or chain failed validation");
+        }
+        return false;
+    }
+
+    if (freeCount > kAssetEntryReserveLowWater)
+        return true;
+
+    DiscoverXAssetEntryReserve(tableBase);
+    if (g_assetEntryReserveCapped ||
+        g_assetEntryReserveBytes > kAssetEntryReserveBudget ||
+        kAssetEntryReserveMapBytes > kAssetEntryReserveBudget - g_assetEntryReserveBytes)
+        return false;
+
+    constexpr uint32_t expectedEntries = kAssetEntryReservePageBytes / kAssetEntrySize;
+    for (uint32_t slot = 0; slot < kAssetEntryReserveSlotCount; ++slot)
+    {
+        if (g_assetEntryReserveSlots[slot])
+            continue;
+
+        uintptr_t hint = 0;
+        uint32_t expectedFirst = 0;
+        uint32_t expectedLast = 0;
+        if (!XAssetEntryReserveSlotInfo(slot, tableBase, hint,
+                                        expectedFirst, expectedLast))
+        {
+            g_assetEntryReserveSlots[slot] = true;
+            continue;
+        }
+
+        // No MAP_FIXED flag is used. We accept only the exact free hint so
+        // reserve pages remain discoverable after an SPRX reload and can never
+        // replace an existing game mapping.
+        void* mapping = nullptr;
+        const int mapped = sceKernelMmap((void*)hint, kAssetEntryReserveMapBytes,
+                                         1 | 2, 0x1000 | 0x2, -1, 0, &mapping);
+        if (mapped < 0 || !mapping)
+        {
+            if (mapping)
+                munmap(mapping, kAssetEntryReserveMapBytes);
+            continue;
+        }
+
+        if ((uintptr_t)mapping != hint)
+        {
+            munmap(mapping, kAssetEntryReserveMapBytes);
+            g_assetEntryReserveSlots[slot] = true;
+            continue;
+        }
+
+        uintptr_t pageBase = 0;
+        uint32_t firstIndex = 0;
+        uint32_t lastIndex = 0;
+        if (((uintptr_t)mapping % kAssetEntryReservePageSize) != 0 ||
+            !XAssetReserveIndex::TrySelectPage(tableBase, (uintptr_t)mapping,
+                                                kAssetEntryReserveMapBytes,
+                                                kAssetEntryReservePageBytes,
+                                                kAssetEntrySize, pageBase,
+                                                firstIndex, lastIndex) ||
+            firstIndex != expectedFirst || lastIndex != expectedLast)
+        {
+            munmap(mapping, kAssetEntryReserveMapBytes);
+            g_assetEntryReserveSlots[slot] = true;
+            continue;
+        }
+
+        const uintptr_t oldHead = *freeHead;
+        uintptr_t newHead = 0;
+        uint32_t builtEntries = 0;
+        if (!XAssetReserveIndex::TryBuildFreeList(pageBase,
+                                                   kAssetEntryReservePageBytes,
+                                                   kAssetEntrySize, oldHead,
+                                                   newHead, builtEntries) ||
+            builtEntries != expectedEntries)
+        {
+            munmap(mapping, kAssetEntryReserveMapBytes);
+            g_assetEntryReserveSlots[slot] = true;
+            continue;
+        }
+
+        const XAssetEntryReserveHeader header{
+            kAssetEntryReserveMagic, kAssetEntryReserveVersion,
+            firstIndex, builtEntries
+        };
+        memcpy(mapping, &header, sizeof(header));
+
+        // Publish the fully initialized page only after its header and every
+        // free-list link are ready. The native registry lock is still held.
+        *freeHead = newHead;
+        g_assetEntryReserveSlots[slot] = true;
+        g_assetEntryReserveBytes += kAssetEntryReserveMapBytes;
+        g_assetEntryReserveEntries += builtEntries;
+
+        T7Log_Write("[XAsset] reserve added: %u entries index %u..%u at %p; "
+                    "free-before=%u reserve=%llu/%llu bytes",
+                    builtEntries, firstIndex, lastIndex, mapping, freeCount,
+                    (unsigned long long)g_assetEntryReserveBytes,
+                    (unsigned long long)kAssetEntryReserveBudget);
+        return true;
+    }
+
+    g_assetEntryReserveCapped = true;
+    if (!g_assetEntryReserveWarned)
+    {
+        g_assetEntryReserveWarned = true;
+        T7Log_Write("[XAsset] reserve capped: no unused safe uint32-index mapping slot remains; "
+                    "native allocator exhaustion remains possible");
+    }
+    return false;
+}
+
 static void NoteLevelLua(uint64_t asset)
 {
     if (!g_usermapLevel.load(std::memory_order_acquire) || !asset ||
@@ -2448,6 +2755,7 @@ static uint64_t LinkXAsset_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4,
 
     if (a1 && g_buildMatched)
     {
+        EnsureXAssetEntryReserve();
         GrowPool(*(const int32_t*)a1);
         T7Log_PoolOut(*(const int32_t*)a1);
     }
