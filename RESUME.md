@@ -1,16 +1,19 @@
 # Current repository status (2026-11-17)
 
-- PR #36 is merged to `main` as `10169fc1100eb88813c28bffdf0f2ae32c5a6df6`.
-- Six PRs are open: #37, #38, #39, #40, #41 and #42. PRs #37/#38 are earlier standalone versions of #39 and must not be merged independently.
-- PR #39 (`recovery/issue-driven-dev65-dev69`) now includes the no-eviction retired-image registry and delayed-callback regression. All six workflows pass on `481d4d4952952f07a52c60e6605197b11474473d`; the project-session guard reports 47 host regression programs with zero failures. It remains draft because target build and console validation are still required.
-- PR #42 (`fix/lua-asset-name-bounds`) is ready for review. Its source-policy audit, publication guard, all 43 host regression programs, SPRX diagnostics and script-log checks pass on `bfc2673bd9e5acd816408fca4fc7681fe172380c`. It is not merged; no target build or console test was performed.
-- PR #40 is arithmetic groundwork only; native XAssetEntry signedness, allocator/free-list ABI and all consumers remain unverified. Keep draft.
-- PR #41 tests the existing absent-only `Mods_IsUsingUsermap` fallback; it does not repair Blood Run GSC errors or gameplay/pause stalls. Keep draft.
-- Ten issues remain open. #29/#33 still need native build/source review and console validation; #30 still needs verified native allocator contracts; #31 still needs matching GSC evidence and a clean-start console capture.
-- Lua bytecode retention behavior was not changed in these PRs. Preserve the 32 MiB budget, deduplication, old-version retention for cached closures, and the ability to disable mods and restore original included Lua without crashes/resets.
-- No native SPRX build, upload, release or PS4/PS5 console test was performed.
+- Active base: `main`; PR #36 is merged as `10169fc1100eb88813c28bffdf0f2ae32c5a6df6`.
+- Open issues: 10. None is closed; each still has a source, provenance, reproduction, complete-package, or console-validation requirement.
+- Open PRs: #37, #38, #39, #40, #41 and #42. PRs #37/#38 are earlier standalone versions of combined PR #39; do not merge them independently.
+- PR #39 (`recovery/issue-driven-dev65-dev69`) implements the dev.65 UI guards and dev.69 bounded stream diagnostics. Its source head `481d4d4952952f07a52c60e6605197b11474473d` passed all six workflows; the project-session guard reports 47 host regression programs with zero failures. The custom-image path now has a 1,024-entry process-lifetime no-eviction tombstone registry, fail-closed capacity handling, stock-slot reuse passthrough and ASan/UBSan callback-after-record-reuse coverage. A docs/workflow-summary-only follow-up head `2f03c992144aeb2f88f1364346b4ddbfe36d4ae6` is queued for its project-session guard. PR remains draft; no target build or console verification.
+- PR #42 (`fix/lua-asset-name-bounds`) is ready for review. Source-policy audit, publication guard, all 43 host regressions, SPRX diagnostics and script-log checks passed on `bfc2673bd9e5acd816408fca4fc7681fe172380c`. It bounds game-owned rawfile-name reads and routes missing-config logging through a safe copy. It is not merged; no target build or console test was performed.
+- PR #40 (`recovery/xasset-entry-index-safety`) is arithmetic groundwork only; native XAssetEntry allocator/free-list ABI, all index consumers and synchronization remain unverified. The public `ClearAssetsInUse()` consumer reads chain values as `uint32_t`; the proposed positive signed-32 subrange is conservative but does not prove every native consumer. Keep draft.
+- PR #41 (`investigation/blood-run-bootstrap-regression`) tests the existing absent-only `Mods_IsUsingUsermap` fallback; it does not repair Blood Run GSC errors or gameplay/pause stalls. Keep draft.
+- No native SPRX build, upload, release, or PS4/PS5 console test was performed. Do not build without explicit approval.
+- Lua retention remains a critical acceptance area: preserve original included Lua behavior and ensure users can disable mods and restore non-mod state without crashes, resets, or stale bytecode. Neither PR #39 nor #42 changes bytecode retention.
+
+Read `AGENTS.md`, then this file, the dated stability roadmap, and only the relevant issue/source sections. Current priorities and PR boundaries are recorded in the roadmap.
 
 ---
+
 
 
 ## Historical handoff: map-load diagnostics + transactional catalog refresh (PR #36; now merged)
@@ -359,37 +362,3 @@ claims each diagnostic. Added a production-function concurrency stress
 fixture and registered it in both PR diagnostics and the full host runner.
 CI for the updated test is pending; this is a diagnostic race fix, not proof
 of a pool allocator failure or of the reported map crash.
-
-## Issue-driven source recovery — 2026-11-17
-
-The latest recovery work is in draft PR
-[Zorian1337/PS4-BO3-Customs#39](https://github.com/Zorian1337/PS4-BO3-Customs/pull/39),
-branch `recovery/issue-driven-dev65-dev69` (base: `main`). It independently
-reconstructs the dev.65 UI transition/custom-image guards (#29) and dev.69
-bounded stream rejection diagnostics (#33) from public source plus issue
-records, not from local-device patches. The branch contains focused host/source
-regression tests and workflow wiring. The current head SHA is available on the PR page.
-
-All six GitHub Actions PR workflows passed: SPRX diagnostics, project session
-guard, frontend reload, mod-stack transaction, script priority and in-game
-script log. The project guard completed 46 host regression programs with no
-failures. No native SPRX build, console test, upload, release, merge or issue
-closure was performed. Issues #29 and #33 remain open. The dev.67 shared XAssetEntry reserve-page allocator (#30) was not
-guessed/recreated because the issue notes alone do not provide verified native
-table/free-list layout and allocator hook ABI. Continue reviewing PR #39 first,
-then pursue #30 only with validated native contracts.
-
-
-## Stream diagnostic concurrency stress coverage (2026-11-17)
-
-The PR #39 stream-guard tests now include a standalone C++ stress program that
-executes the production `StreamGuard::TryClaimDiagnostic` helper with 32
-simultaneous workers. Eight rounds each race 2,048 total claim attempts and
-assert that exactly 16 events are admitted, the counter remains saturated at
-16, and repeated post-cap calls never reopen the budget. The host runner
-already compiles every `*_tests.cpp` file, so this test is automatically part
-of the full regression inventory and PR diagnostics without a separate
-registration list.
-
-This validates the bounded diagnostic counter under contention only. It does
-not establish that the backend crash is fixed or validate console scheduling.
