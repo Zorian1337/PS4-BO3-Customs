@@ -15,6 +15,23 @@ class Index
     std::atomic<uint64_t> keys[kSlots]{};
     std::atomic<uint64_t> bits[kWords]{};
     std::atomic<bool> overflow{false};
+    std::atomic<uint32_t> activeMarks{0};
+    std::atomic<uint64_t> markGeneration{0};
+
+    class PublicationGuard
+    {
+        Index& owner;
+    public:
+        explicit PublicationGuard(Index& value) : owner(value)
+        {
+            owner.activeMarks.fetch_add(1, std::memory_order_acq_rel);
+        }
+        ~PublicationGuard()
+        {
+            owner.markGeneration.fetch_add(1, std::memory_order_release);
+            owner.activeMarks.fetch_sub(1, std::memory_order_release);
+        }
+    };
 
     static uint64_t Hash(const char* name)
     {
@@ -39,6 +56,7 @@ public:
     void Mark(const char* name)
     {
         if (!name || !*name) return;
+        PublicationGuard publication(*this);
         const uint64_t h = Hash(name);
         for (unsigned i = 0; i < 4; ++i)
         {
@@ -55,25 +73,46 @@ public:
         }
         overflow.store(true, std::memory_order_release);
     }
+    bool HasInFlightMarks() const
+    {
+        return activeMarks.load(std::memory_order_acquire) != 0;
+    }
+
     bool MayContain(const char* name) const
     {
         if (!name || !*name) return false;
+        // Fail closed during any ownership publication. This is intentionally
+        // conservative for the very short Mark() window and prevents a reader
+        // from treating an in-progress key/Bloom update as an unowned rawfile.
+        if (activeMarks.load(std::memory_order_acquire) != 0) return true;
+        const uint64_t beforeGeneration = markGeneration.load(std::memory_order_acquire);
         const uint64_t h = Hash(name);
+        bool found = false;
         for (size_t i = 0; i < 128; ++i)
         {
             const uint64_t key = keys[(h + i) & (kSlots - 1)].load(std::memory_order_acquire);
-            if (key == h) return true;
+            if (key == h) { found = true; break; }
             if (!key) break;
         }
-        if (!overflow.load(std::memory_order_acquire)) return false;
-        // On saturation, a possible collision means retain, never borrow.
-        // Display-list overflow never becomes a blanket retain-all decision.
-        for (unsigned i = 0; i < 4; ++i)
+        if (!found && overflow.load(std::memory_order_acquire))
         {
-            const size_t bit = Bit(h, i);
-            if (!(bits[bit / 64].load(std::memory_order_acquire) & (1ull << (bit % 64)))) return false;
+            // On saturation, a possible collision means retain, never borrow.
+            // Display-list overflow never becomes a blanket retain-all decision.
+            found = true;
+            for (unsigned i = 0; i < 4; ++i)
+            {
+                const size_t bit = Bit(h, i);
+                if (!(bits[bit / 64].load(std::memory_order_acquire) & (1ull << (bit % 64))))
+                {
+                    found = false;
+                    break;
+                }
+            }
         }
-        return true;
+        const uint64_t afterGeneration = markGeneration.load(std::memory_order_acquire);
+        if (activeMarks.load(std::memory_order_acquire) != 0 || beforeGeneration != afterGeneration)
+            return true;
+        return found;
     }
 };
 }
