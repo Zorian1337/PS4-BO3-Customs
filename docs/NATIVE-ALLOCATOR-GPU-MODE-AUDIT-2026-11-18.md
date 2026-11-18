@@ -185,3 +185,12 @@ This resolves the previously documented target-build blocker and establishes sou
 After the FolderScanStatus correction and bounded rawfile-name read, PR #52 added nonblocking optional Lua fallback lookup and atomic companion-Lua cache publication. Its production concurrency fixture passed both AddressSanitizer/UBSan and ThreadSanitizer. The merged source commit `532a6b682cba6120a9d6518a0a7ece592e776a66` passed BO3 Auto Build run #44248692943: all 14 native translation units compiled, GoldHEN linking/packaging succeeded, native module/container validation and malformed-container rejection passed, and the final workflow gate succeeded. The Debug SPRX artifact SHA-256 is `6f3cceaadc33d3a34f666c5c49d6bdf76c030942c61f665ccbc19c3034329453`.
 
 This verifies buildability for the exact PR #52 source commit. It does not resolve the open allocator ABI/index/lock questions, GPU ownership attribution, zone/clientfield lifecycle or third-party GSC/map-loading incidents. It is not console validation and does not claim those runtime issues are fixed.
+
+
+## Bytecode-retention lock and latest build — 2026-11-18
+
+PR #54 replaced the unbounded bytecode-retention lock loop with a finite 200-attempt acquisition policy, preserving normal concurrent same-asset requests and failing closed if a lock owner remains stalled. Budget/allocation failure logging now occurs after releasing the owned lock. The production retention fixture passed ASan/UBSan and ThreadSanitizer in the exact-head PR workflows.
+
+The merged source commit `46c72aba2738f66221f344e77f445d136c27f596` passed BO3 Auto Build #44249707280: all 14 native translation units compiled, GoldHEN linking/packaging succeeded, native module/container validation and malformed-container rejection passed, and the final workflow gate succeeded. The Debug SPRX SHA-256 is `7f33a320338eaa28ea6868b48d2a68e4ac428d9b1856b1f12b92e69f60bfef0d`.
+
+This verifies buildability for the exact PR #54 source commit. It does not resolve the separate Lua ownership mark-before-lookup ordering, full HKS disable/restore lifecycle, XAssetEntry allocator ABI/index/lock questions, GPU ownership attribution, zone/clientfield lifecycle or third-party GSC/map-loading incidents. No console test, FTP deployment or release was performed.
