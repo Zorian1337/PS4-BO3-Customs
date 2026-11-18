@@ -75,7 +75,7 @@ The source review confirms the allocator's head-only search defect and the error
 
 ## Candidate implementation status — 2026-11-18
 
-A source-only candidate is recorded on branch `fix/mod-enable-lua-arena-reuse` (six commits ahead of `main`, zero behind; not merged and no PR opened). It:
+A source-only candidate is recorded on branch `fix/mod-enable-lua-arena-reuse-main` (four commits ahead of `main`, zero behind; not merged and no PR opened). It:
 
 - Adds `T7LuaRetentionArena::FindBlockWithSpace()` and changes `AllocateRetainedLua()` to search every existing append-only block before calling `sceKernelMmap`. Stable block addresses and process-lifetime bytecode ownership are unchanged; no old block or HKS closure storage is reclaimed.
 - Adds checked size/alignment arithmetic and tracks aggregate reusable tail bytes. Failure diagnostics now distinguish requested allocation size from mmap block size and report retained bytes, mapped bytes, aggregate reusable bytes, largest reusable tail and retained header count.
