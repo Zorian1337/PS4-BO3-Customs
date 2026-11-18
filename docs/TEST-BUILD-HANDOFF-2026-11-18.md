@@ -9,21 +9,13 @@ Use the source currently on `main`. It contains the two Lua lifetime changes tha
 - PR #60, merge commit `715a9f28ed081eda588e9f52fa02c4d1dc762679`: tracks active mod-zone loads, including first-mod index-zero zones and nested/concurrent loads, so Lua rawfiles are retained even before ownership publication completes. Stock rawfile passthrough remains the intended behavior after mods are disabled.
 - PR #61, merge commit `9ba6ca4b592fd4fff16c9f683755894a7ac9c09d`: adds a single-atomic close/read-count gate around the complete borrowed-source read in `RetainModLua()`. New readers fail closed during teardown; existing readers drain for at most 100 ms; timeout or failed zone free aborts unload and reopens the gate; successful frontend teardown reopens before replacement Lua loads.
 
-Current `main` at the time of this handoff is `eb3e0fd2881bc0a74f565d9f6d90613daf347019`. It is one documentation-only commit after PR #61's merge commit; compare shows no source changes after the merged Lua work. The PR #61 target artifact below therefore represents the same SPRX source currently on `main`.
+Current `main` contains PR #60 and #61's merged SPRX source. The source merge is `9ba6ca4b592fd4fff16c9f683755894a7ac9c09d`; subsequent main commits in this handoff are documentation-only, with no SPRX source changes.
 
-## Existing verified artifact (fastest route)
+## Existing verified main-branch artifact (fastest route)
 
-The exact PR #61 head `f7db33a9e2c25daca8f79df8cbd6cf2c79062a3c` passed BO3 Auto Build run [#44336275249](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44336275249).
+Main-branch build [#44337307357](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44337307357), source commit `eb3e0fd2881bc0a74f565d9f6d90613daf347019`, completed successfully. Artifact `bo3-sprx-eb3e0fd2881bc0a74f565d9f6d90613daf347019-1`, ID `14442381395`; ZIP SHA-256 `36e84e726c518dc108cdf865324e19f7cd93dd273a77e975694e859f22da3b48`; embedded SPRX is 487,216 bytes with SHA-256 `242895ba2d269c771aefc2a566de91ab85e9b16d3916b0fea9cdabb430d2ae48`. The artifact was downloaded and both ZIP and embedded SPRX hashes were independently checked. Its manifest records Debug, 14 translation units, four verified payload segments, `console_validated:false`, and `sony_signed:false`.
 
-- Artifact: `bo3-sprx-f3546ae7d0a508c990a314705f228ea233ecd6d6-1`
-- Artifact ID: `14442530769`
-- ZIP SHA-256: `2d3982b64d55afe3e53369b614c88d4b0135f3554b3db0a72df7e440c7182506`
-- Embedded `BO3-Customs.sprx`: 487,216 bytes
-- SPRX SHA-256: `e04143784dff72a24a00cb5f321594a7e0f4800aaa30414bc088eb2e4b2c9408`
-- Workflow jobs: host = success; SPRX = success; final completeness = success; converter = skipped as expected on this fork.
-- Validation: all 47 registered host regressions; ASan/UBSan and TSan retention-gate checks; nested/concurrent reader, unmapped-pointer rejection, timeout/reopen and failed-free/retry coverage; all 14 PS4 native translation units; GoldHEN FSELF packaging/inspection; malformed module/container rejection controls.
-
-The manifest explicitly records `console_validated: false` and `sony_signed: false`. This proves target buildability and package validation, not actual PS4 runtime stability, HKS cache invalidation, or complete stock Lua restoration. Do not describe it as console-tested.
+The exact PR #61 build is an additional validated candidate, but use the main-branch artifact above to avoid confusing artifact hashes across separate build runs. This main artifact was built from the source tree containing both merged Lua fixes; only documentation has changed since.
 
 ## Preferred way to get the next main-branch build
 
