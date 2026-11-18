@@ -5,9 +5,9 @@
 
 namespace T7LuaOwnership
 {
-inline bool ShouldRetainLua(bool luaFile, bool activeModZoneLoad, bool modsActive, bool owned)
+inline bool ShouldRetainLua(bool luaFile, bool activeModRetentionScope, bool modsActive, bool owned)
 {
-    return luaFile && (activeModZoneLoad || (modsActive && owned));
+    return luaFile && (activeModRetentionScope || (modsActive && owned));
 }
 
 #ifdef T7_LUA_OWNERSHIP_TEST_HOOKS
