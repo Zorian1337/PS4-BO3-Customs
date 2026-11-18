@@ -5,12 +5,12 @@ Read `AGENTS.md`, this current handoff, and [the authoritative SPRX roadmap](doc
 ## Current candidate and repository state
 
 - **Repository:** `Zorian1337/PS4-BO3-Customs`, default branch `main`.
-- **Current main:** `dd7054a9dce3b759ac3d4d076c94a76c482227e3` (documentation-only handoff commit; the SPRX source is unchanged from the merged Lua candidate).
+- **Current SPRX source:** PR #60 and #61 are merged. PR #61 merge commit is `9ba6ca4b592fd4fff16c9f683755894a7ac9c09d`; subsequent main updates are documentation-only, with no SPRX source changes.
+- **Latest verified main artifact:** BO3 Auto Build [#44337307357](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44337307357), source commit `eb3e0fd2881bc0a74f565d9f6d90613daf347019`, artifact ID `14442381395`; ZIP SHA-256 `36e84e726c518dc108cdf865324e19f7cd93dd273a77e975694e859f22da3b48`; embedded SPRX SHA-256 `242895ba2d269c771aefc2a566de91ab85e9b16d3916b0fea9cdabb430d2ae48` (487,216 bytes). Both hashes were independently checked from the downloaded artifact.
 - **Merged Lua ownership work:** PR #60 (`715a9f28ed081eda588e9f52fa02c4d1dc762679`) and PR #61 (`9ba6ca4b592fd4fff16c9f683755894a7ac9c09d`). Do not treat PR #60/#61 as open.
-- **Latest verified target artifact:** BO3 Auto Build [#44336275249](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44336275249), PR #61 exact head `f7db33a9e2c25daca8f79df8cbd6cf2c79062a3c`; artifact ID `14442530769`; ZIP SHA-256 `2d3982b64d55afe3e53369b614c88d4b0135f3554b3db0a72df7e440c7182506`; embedded SPRX SHA-256 `e04143784dff72a24a00cb5f321594a7e0f4800aaa30414bc088eb2e4b2c9408`.
-- Validation: all 47 registered host regressions; ASan/UBSan + TSan source-read gate tests; nested/concurrent reader, timeout/reopen and failed-free/retry tests; all 14 native PS4 translation units; GoldHEN FSELF packaging/inspection; malformed module/container rejection controls. Workflow host, SPRX and final-completeness jobs succeeded.
+- **Validation:** all 47 registered host regressions; ASan/UBSan + TSan source-read gate tests; nested/concurrent reader, timeout/reopen and failed-free/retry tests; all 14 native PS4 translation units; GoldHEN FSELF packaging/inspection; malformed module/container rejection controls. Workflow host, SPRX and final-completeness jobs succeeded.
 - **Not proven:** manifest says `console_validated:false`, `sony_signed:false`. No PS4 gameplay test, HKS cache invalidation proof or complete disable/re-enable/reload proof exists yet.
-- **Fastest stable route:** use the existing verified artifact first. Do not merge unrelated draft PRs just to generate a new build. A fresh main build is available through the existing push/BO3 Auto Build workflow; see the test-build handoff.
+- **Fastest stable route:** use the verified main-branch artifact above. Do not merge unrelated draft PRs just to generate a new build. See [the stable test-build handoff](docs/TEST-BUILD-HANDOFF-2026-11-18.md) for install, rollback and staged testing steps.
 
 ## Open work — do not include in first candidate
 
