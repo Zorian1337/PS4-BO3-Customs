@@ -81,4 +81,35 @@ inline bool TryValidatePage(uintptr_t tableBase, uintptr_t pageBase,
     lastIndex = last;
     return true;
 }
+ // Select a fixed-stride page inside a returned mapping while preserving the
+ // table base's modulo-stride residue. mmap page alignment alone is not enough
+ // when the native table base has a non-zero residue. The caller still owns
+ // the original mapping base/size and must unmap that full span on failure.
+inline bool TrySelectPage(uintptr_t tableBase, uintptr_t mappingBase,
+                          uintptr_t mappingBytes, uintptr_t pageBytes,
+                          uint32_t entryStride, uintptr_t& pageBase,
+                          int32_t& firstIndex, int32_t& lastIndex)
+{
+    if (!entryStride || !mappingBytes || !pageBytes)
+        return false;
+
+    const uintptr_t tableResidue = tableBase % entryStride;
+    const uintptr_t mappingResidue = mappingBase % entryStride;
+    const uintptr_t offset = (tableResidue + entryStride - mappingResidue) % entryStride;
+    if (offset > mappingBytes || pageBytes > mappingBytes - offset ||
+        offset > std::numeric_limits<uintptr_t>::max() - mappingBase)
+        return false;
+
+    const uintptr_t selected = mappingBase + offset;
+    int32_t first = 0;
+    int32_t last = 0;
+    if (!TryValidatePage(tableBase, selected, pageBytes, entryStride, first, last))
+        return false;
+
+    pageBase = selected;
+    firstIndex = first;
+    lastIndex = last;
+    return true;
+}
+
 }
