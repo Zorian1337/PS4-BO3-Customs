@@ -19,6 +19,18 @@ For every issue or newly discovered defect:
 
 Work directly through connected GitHub tools in Chat mode when Work mode is unavailable. Keep private captures, executables, toolchains, credentials and reverse-engineered third-party plugin content out of the public repository.
 
+
+
+## New P0 — mod-enable Lua arena ENOMEM and frontend recovery (2026-11-18)
+
+Investigation: [mod-enable/UI failure analysis](INVESTIGATION-2026-11-18-MOD-ENABLE-UI-FAILURES.md). The 03:17 capture rejects `StartMenu_Media.lua` after 27,688,960 mapped retention bytes; the next 262,144-byte mapping returns `0x8002000C` (`SCE_KERNEL_ERROR_ENOMEM`). UI Error 81928 is our fail-closed retention error; the later missing-`main` error is a partial frontend-build consequence. The 00:47 `EXE_SERVERKILLED` with zero script errors is the expected queued frontend shutdown, not a crash. The separate DS4C stripped-code nil-index remains a third-party compatibility exception with an unknown nil operand.
+
+**Confirmed source defect:** `AllocateRetainedLua()` searches only the newest arena block. It can request another mapping while an older append-only block still has enough unused tail space. This strands reusable capacity. The capture does not include per-block usage, so the amount of stranded memory and its contribution to ENOMEM remain unmeasured. **Correction:** search all existing blocks before mapping; preserve stable block addresses and never reclaim old chunks. Add allocator production-body tests and bounded usage diagnostics. Keep the 32 MiB / 4,096-header limits; do not suppress errors or reclaim closure-owned bytecode.
+
+**UI recovery gate:** regression must prove the failed generation pauses only compatibility injection, keeps the selected stack and Mods removal path, and re-arms only after successful native `AddMenu("main")`. A non-main registration must not re-arm. DS4C cannot be repaired safely without matching bytecode/source evidence; no blanket nil filling or error swallowing.
+
+Status at documentation time: findings and correction plan recorded before implementation; source changes and validation pending. Required after source changes: full registered host checks, sanitizer tests, session/source audit and a fresh PS4 target build. Console validation remains separate.
+
 ## Current repository / PR state — verified 2026-11-18
 
 - **Merged PR #60:** first-mod/index-zero and concurrent/nested mod-zone Lua ownership publication/load-context protection. Merge commit `715a9f28ed081eda588e9f52fa02c4d1dc762679`.
