@@ -14,7 +14,7 @@ SOURCE = (ROOT / "t7_maps.cpp").read_text()
 # can still compile the token slice while the target translation unit fails.
 status_marker = "enum class FolderScanStatus"
 status_position = SOURCE.index(status_marker)
-status_line_start = SOURCE.rfind("\\n", 0, status_position) + 1
+status_line_start = SOURCE.rfind("\n", 0, status_position) + 1
 assert "//" not in SOURCE[status_line_start:status_position], (
     "FolderScanStatus declaration is commented out by a literal escaped newline"
 )
