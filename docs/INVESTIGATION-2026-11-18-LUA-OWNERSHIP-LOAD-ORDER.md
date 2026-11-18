@@ -36,3 +36,22 @@ While any mod zone is being loaded, a Lua rawfile lookup from another worker may
 - Full host regression inventory and PS4 target build.
 - Matching-build DEBUG capture with zone name, stack index, pthread ID, lookup decision and ownership mark order.
 - Console validation remains separate.
+
+
+## Follow-up source review — first-stack zone scope and fixture policy (2026-11-18)
+
+### Newly identified production boundary defect
+
+Reviewing PR #58 against the actual StackPrefix(), StackName() and ZoneKind() implementations found that StackPrefix() only recognizes m2_ through m24_ and returns a zero-based index (number - 1). The first selected mod's four zones are deliberately unprefixed (core_mod, zm_mod, mp_mod, cp_mod); ZoneKind() recognizes these names and StackIndexOfZone() returns index **0**. Later stacked mods return indices 1–23.
+
+PR #58 currently enables the per-zone retention scope only when zoneIndex > 0. That excludes every first-mod unprefixed zone. The full ApplyModsNow() transaction scope covers stack changes initiated through that function, but it does not cover later level loads of an already-selected first mod when no stack change is occurring. In that path, a rawfile lookup can still race ahead of the ownership mark.
+
+**Impact/confidence:** direct source-level control-flow finding; high confidence that index 0 is excluded. Whether a particular console lookup hits the window still needs a matching-build trace. This is a correctness gap in the proposed fix, not merely missing test coverage.
+
+**Required correction before merge:** enable the per-zone RAII scope for every recognized mod-zone kind (zoneIndex >= 0), including index 0. Keep unrelated zone names at -1 and do not enable the fallback for them. Extend the production LoadXFile_h() fixture to assert that unprefixed first-mod zones map to 0 and activate the scope, m2_/later zones map to positive indices and activate it, and unrelated/base game zones remain inactive. Cover nested and concurrent scopes under ASan/UBSan + TSan.
+
+### Retention fixture correction
+
+The failed PR #58 diagnostics run is caused by the obsolete extracted-fixture stub T7Maps_UsingMods(), which is no longer called by the production rawfile hook after retention policy was centralized in T7Maps_NeedsLuaRetention(). The fixture's active flag is still needed: make its T7Maps_NeedsLuaRetention() stub call the production T7LuaOwnership::ShouldRetainLua(true, false, active, owned && ownership.MayContain(name)), remove only the unused T7Maps_UsingMods() stub, and keep the existing disabled-mod assertion for the marked ui/test.lua asset. This preserves a meaningful test of stock passthrough after disable instead of deleting that coverage.
+
+Both corrections are required before treating PR #58 as review-ready. Re-run the full exact-head diagnostics, sanitizer tests, project-session guard and all other PR workflows afterward; then synchronize with current main, review the complete diff and obtain a fresh PS4 target build.
