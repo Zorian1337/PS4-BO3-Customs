@@ -62,7 +62,7 @@ constexpr int       kAssetHashSize  = 152576;
 constexpr uintptr_t kAssetEntries   = 0x587E710;
 constexpr size_t    kAssetEntrySize = 32;
 constexpr size_t    kAssetEntryInUse = 17;
-constexpr size_t    kAssetEntryNext   = 20;
+constexpr size_t    kAssetEntryNext = 20;
 constexpr uintptr_t kKillServer     = 0xF3FCB0;
 constexpr uintptr_t kFrontendMovies = 0x15C2E80;
 constexpr uintptr_t kPlayMovie      = 0x746640;
@@ -2378,27 +2378,27 @@ static void GrowPool(int32_t type)
     g_poolGrowthBytes += bytes;
 }
 
-struct XAssetEntryReserveHeader
+static void NoteLevelLua(uint64_t asset)
 {
-    uint32_t magic;
-    uint32_t version;
-    uint32_t firstIndex;
-    uint32_t entryCount;
-};
-static_assert(sizeof(XAssetEntryReserveHeader) == 16, "reserve header stays in the mapping prefix");
+    if (!g_usermapLevel.load(std::memory_order_acquire) || !asset ||
+        asset > UINTPTR_MAX - 16 || !RangeReadable((uintptr_t)asset, 16) ||
+        *(const int32_t*)asset != kRawFileAsset)
+        return;
 
-static bool g_assetEntryReserveInitialized = false;
-static bool g_assetEntryReserveCapped = false;
-static bool g_assetEntryReserveWarned = false;
-static bool g_assetEntryReserveCapLogged = false;
-static bool g_assetEntryReserveSlots[kAssetEntryReserveSlotCount] = {};
-static size_t g_assetEntryReserveBytes = 0;
-static uint64_t g_assetEntryReserveEntries = 0;
+    // Zone and rawfile names are engine-owned pointers. Copy each byte only
+    // after its exact address has passed the readable check; never scan beyond
+    // a bounded local buffer during asset linking.
+    const auto copyReadableText = [](const char* source, char* destination, size_t capacity, size_t* length) {
+        if (!source || !destination || capacity < 2)
+            return false;
 
-// The candidate mapping addresses are deterministic and separated by 4 GiB.
-// This lets a later SPRX reload rediscover process-lifetime pages from their
-// 16-byte header instead of losing track of capacity or mapping them twice.
-static bool XAssetEntryReserveSlotInfo(uint32_t slot, uintptr_tn[i] = source[i];
+        const uintptr_t start = (uintptr_t)source;
+        for (size_t i = 0; i < capacity; ++i)
+        {
+            if (start > UINTPTR_MAX - i || !RangeReadable(start + i, 1))
+                return false;
+
+            destination[i] = source[i];
             if (!destination[i])
             {
                 if (length)
