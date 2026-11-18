@@ -162,3 +162,12 @@ The allocator investigation is no longer blocked on finding the native allocator
 5. Only after those gates, test the exact allocator body and concurrent allocate/free/reuse behavior. A reserve hook must attach at the allocator boundary and preserve all native accounting and cleanup invariants.
 
 No production reserve publisher or allocator detour is justified by this evidence yet. PR #40 remains arithmetic/test groundwork only.
+
+
+## Target-build workflow and current PR handoff — 2026-11-18
+
+The repository's .github/workflows/bo3-build.yml runs on pushes to main and supports workflow_dispatch. Its SPRX job installs clang-18/lld-18, invokes .github/scripts/build_sprx.py --package, validates the native module/container, and uploads the SPRX plus native build evidence. It is not configured as a pull_request build. The GitHub connector available in this session exposes workflow-run inspection but no workflow-dispatch action. Therefore the corrected target compile can be exercised either by an explicitly approved merge/push to main (which triggers the workflow) or by the repository owner manually dispatching BO3 Auto Build in GitHub Actions. No target build was started.
+
+The original PR #43 is now closed as superseded, not merged. Its clean replacement is PR #48, based on current main with 3 commits ahead and 0 behind; all five PR workflows passed on head 1144635efc6af64904efa1e27671598a179b26d9 (SPRX diagnostics 44237212529, project-session guard 44237212480, mod stack transaction 44237212537, script priority context 44237213746, frontend reload state 44237212518). PR #48 is ready for review and remains unmerged pending the target-build authorization.
+
+PR #40 remains draft research groundwork only. Its production reserve hook was removed; SPRX/t7_maps.cpp matches main byte-for-byte. Its latest safe head passed SPRX diagnostics and project-session guard, but the tests validate helper arithmetic and repository policy, not the native allocator. The private dev.67 candidate described in issue #30 remains separate and unreviewed from its local source archive.
