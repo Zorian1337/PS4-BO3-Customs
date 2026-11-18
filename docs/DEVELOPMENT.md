@@ -304,3 +304,8 @@ console stability; GPU/native stall and repeated menu re-entry validation remain
 PR #39's source head `481d4d4952952f07a52c60e6605197b11474473d` passes all six workflows and 47 host regression programs. The delayed custom-image callback gap is addressed with a 1,024-entry process-lifetime no-eviction tombstone registry, fail-closed capacity behavior, stock-slot reuse passthrough and a production-hook ASan/UBSan regression. The later docs/workflow-summary-only head `2f03c992144aeb2f88f1364346b4ddbfe36d4ae6` is awaiting its project-session guard. PR remains draft; no target build or console test.
 
 PR #42 bounds rawfile asset-name reads and diagnostic formatting. All six workflows, source-policy audit, publication guard and 43 host regressions pass on `bfc2673bd9e5acd816408fca4fc7681fe172380c`. It is ready for review, not merged. Neither PR has a native target build or console result.
+
+
+## Target compile blocker — FolderScanStatus (2026-11-18)
+
+Automatic BO3 Auto Build run #75 was triggered by a documentation push to `main`, attempted the PS4 cross-compile and failed because a literal `\\n` after the `// libkernel ENOENT` comment left `FolderScanStatus` commented out in `t7_maps.cpp`. The compiler then reported an expected-unqualified-id and undeclared enum references. Artifact upload and native-module inspection were skipped. PR #43 restores the real newline and adds a source-line regression guard; checks are pending. The compiler stopped at its error limit, so more target errors may remain. No second build or console test was performed.
