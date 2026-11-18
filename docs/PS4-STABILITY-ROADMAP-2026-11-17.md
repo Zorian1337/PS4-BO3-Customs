@@ -35,7 +35,7 @@ Status at documentation time: findings and correction plan recorded before imple
 
 ### Mod-enable Lua retention / UI recovery candidate — branch only
 
-Investigation and implementation are recorded in [the mod-enable/UI failure note](INVESTIGATION-2026-11-18-MOD-ENABLE-UI-FAILURES.md). Branch `fix/mod-enable-lua-arena-reuse-main` is four commits ahead of `main`, zero behind, and is not merged. It searches all append-only Lua arena blocks for reusable tails before mapping, adds overflow checks and memory diagnostics, and adds production-helper/UI-recovery regression coverage. Local C++20 + UBSan helper validation passed. The full host inventory, PS4 target build and console tests remain pending; do not treat the branch as build-verified. No build was started pending explicit approval. The expected frontend shutdown and third-party DS4C nil-index are not suppressed or misrepresented as fixed.
+Investigation and implementation are recorded in [the mod-enable/UI failure note](INVESTIGATION-2026-11-18-MOD-ENABLE-UI-FAILURES.md). Branch `fix/mod-enable-lua-arena-reuse-final-final` is based on the latest main head and is not merged. It searches all append-only Lua arena blocks for reusable tails before mapping, adds overflow checks and memory diagnostics, and adds production-helper/UI-recovery regression coverage. Local C++20 + UBSan helper validation passed. The full host inventory, PS4 target build and console tests remain pending; do not treat the branch as build-verified. No build was started pending explicit approval. The expected frontend shutdown and third-party DS4C nil-index are not suppressed or misrepresented as fixed.
 
 ## Current repository / PR state — verified 2026-11-18
 
