@@ -183,11 +183,11 @@ int main()
     std::strcpy(level,"core_frontend");
     assert(LoadLevelZones_h((uintptr_t)level,2,3,4,5,6,0,1,2,3,4,5,6,7)==999);
     assert(originals==2 && applies==1 && mapPreflights==1);
-    found=false;
+    bool retentionTraceFound=false;
     for (const auto& line:lines)
         if (line.find("[LuaRetention] transition fallback lookups=0")!=std::string::npos)
-            found=true;
-    assert(found);
+            retentionTraceFound=true;
+    assert(retentionTraceFound);
     assert(T7Lua::locks==T7Lua::unlocks);
     bool found=false;
     for (const auto& line:lines)
