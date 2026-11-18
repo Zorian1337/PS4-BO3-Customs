@@ -82,7 +82,7 @@ int main()
         assert(!XAssetReserveIndex::TryValidatePage(base, base + 32, 64, 0, first, last));
         assert(first == 41 && last == 42);
 
-        const uintptr_t page = base + (static_cast<uintptr_t>(std::numeric_limits<int32_t>::max()) - 1) * stride;
+        const uintptr_t page = base + (static_cast<uintptr_t>(std::numeric_limits<int32_t>::max())) * stride;
         assert(!XAssetReserveIndex::TryValidatePage(base, page, 64, stride, first, last));
         assert(first == 41 && last == 42);
 
