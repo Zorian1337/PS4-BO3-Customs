@@ -6,7 +6,7 @@
 - `LinkXAsset_h()` calls `NoteLevelLua()` after the native asset-link operation. For rawfile assets, `NoteLevelLua()` calls `NoteUiFile()`, which marks a bounded `.lua` name in `g_modLuaOwnership`.
 - `T7Maps_NeedsLuaRetention()` currently consults only `g_modLuaOwnership.MayContain(name)`.
 - The rawfile hook in `t7_lua.cpp` additionally gates retention on `T7Maps_UsingMods()`.
-- `ApplyModsNow()` updates `g_loadedCount` after the mod-zone load operation returns. During the initial load, the mod zone can therefore be in flight while the loaded-mod count still reflects the previous (possibly empty) stack.
+- In the normal menu path, `AppendMods()` calls `SetLoaded(through)` before `LoadXAssets_h()`, so `g_loadedCount` is published before those mod-zone loads. The host-session `g_sessionModCount >= 0` path uses a separate common-zone transaction and must not be assumed to have identical publication timing. Therefore the outer `T7Maps_UsingMods()` gate is not a reliable way to decide whether a mod-zone load is currently in progress.
 
 The per-thread load context and ownership index make attribution possible, but the current retention decision does not use the active zone context. A lookup that occurs during the mod-zone load before `NoteUiFile()` publishes the name can miss the index. The outer `T7Maps_UsingMods()` gate can also suppress retention during initial mod loading while `g_loadedCount` has not yet been updated.
 
@@ -51,3 +51,7 @@ The source-only candidate adds:
 The host candidate extends the production `LoadXFile_h()` fixture with nested, concurrent and base-zone cases under ASan/UBSan + TSan, tests the retention policy truth table, and asserts the rawfile hook no longer short-circuits on `T7Maps_UsingMods()`.
 
 The fallback intentionally may retain a stock Lua dependency requested by another worker during a mod-zone load. Its counter is included in transition diagnostics so this memory cost can be measured against the existing retention budget. Exact-head workflow and target-build results are pending; no runtime claim is made.
+
+## Additional transition-scope refinement — 2026-11-18
+
+Reviewing `ApplyModsNow()` and `AppendMods()` corrected the initial-load timing assumption: the ordinary menu path publishes `g_loadedCount` via `SetLoaded()` before the native mod-zone load. The host-session path is different and delegates to a fresh common-zone transaction. To cover both without depending on the exact `g_loadedCount` update point, the implementation will keep a retention scope active for the entire changed-stack transaction in `ApplyModsNow()`, in addition to the narrower per-zone `LoadXFile_h()` scope. The counter is nested/atomic, so the zone scopes remain valid inside the transaction. This can conservatively retain a stock Lua dependency during a stack transition; the fallback counter measures the cost.
