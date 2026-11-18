@@ -9,7 +9,7 @@ def function(name,kind='uint64_t'):
     while depth:
         depth+=(source[end]=='{')-(source[end]=='}');end+=1
     return source[a:end]
-state='static ModLoadContexts<> g_zoneLoadContexts;' if 'g_zoneLoadContexts' in source else 'static std::atomic<uintptr_t> g_loadingZone{0}; static std::atomic<uint64_t> g_loadingThread{0};'
+state='static ModLoadContexts<> g_zoneLoadContexts; static ActiveModLuaRetentionScopes g_activeModLuaRetentionScopes;' if 'g_zoneLoadContexts' in source else 'static std::atomic<uintptr_t> g_loadingZone{0}; static std::atomic<uint64_t> g_loadingThread{0};'
 fixture=r'''
 #include "mod_load_context.hpp"
 #include <cassert>
@@ -37,8 +37,8 @@ constexpr int kKeyValuePairs=1,kBgCache=2,kScriptParseTree=54,kRawFileAsset=47;
 static thread_local int noted=-1;
 static void NoteUiFile(uintptr_t,int index){noted=index;}
 static void ClaimStackScript(uintptr_t,int index){noted=index;}
-static int StackIndexOfZone(const char*zone){int index=-1;char inner[56];StackName(zone,&index,inner,sizeof(inner));return index;}
-static int ZoneKind(const char*,bool*){return 1;}
+static int ZoneKind(const char*zone,bool*localized){if(localized)*localized=false;return (!strcmp(zone,"core_mod")||!strcmp(zone,"zm_mod")||!strcmp(zone,"mp_mod")||!strcmp(zone,"cp_mod"))?0:-1;}
+static int StackIndexOfZone(const char*zone){int index=-1;char inner[56];if(StackName(zone,&index,inner,sizeof(inner)))return index;bool localized=false;return ZoneKind(zone,&localized)>=0?0:-1;}
 static bool EqualsNoCase(const char*a,const char*b){return strcmp(a,b)==0;}
 static const char* InternName(const char*){return "unused";}
 struct ClaimLock{};
@@ -57,21 +57,43 @@ static uint64_t Load(const char*zone,uint64_t flag=2){return LoadXFile_h(1,flag,
 static std::atomic<int> phase{0};
 static uint64_t NativeLoad(uint64_t a,uint64_t flag,uint64_t zone,uint64_t d,uint64_t e,uint64_t f,uint64_t g,uint64_t h,double x0,double x1,double x2,double x3,double x4,double x5,double x6,double x7){
  assert(a==1&&d==4&&e==5&&f==6&&g==7&&h==8&&x0==1&&x1==2&&x2==3&&x3==4&&x4==5&&x5==6&&x6==7&&x7==8);
- if(identity==1){phase=1;while(phase<2)std::this_thread::yield();Open();assert(noted==1&&opened=="m2_zm_mod");phase=3;}
- else if(identity==2){phase=2;while(phase<3)std::this_thread::yield();Open();assert(noted==2&&opened=="m3_zm_mod");}
- else if(identity==9){Open();assert(opened==(const char*)zone);if(flag==2){assert(Load("m3_zm_mod",3)==0x9876);Open();assert(opened=="m2_zm_mod");}}
+ if(flag==4) assert(!g_activeModLuaRetentionScopes.Any()); else assert(g_activeModLuaRetentionScopes.Any());
+ if(identity==1){phase=1;while(phase<2)std::this_thread::yield();Open();assert(noted==1&&strcmp(opened.c_str(),"m2_zm_mod")==0);phase=3;}
+ else if(identity==2){phase=2;while(phase<3)std::this_thread::yield();Open();assert(noted==2&&strcmp(opened.c_str(),"m3_zm_mod")==0);}
+ else if(identity==9){if(flag==4){assert(g_activeModLuaRetentionScopes.Count()==0);}else if(flag==5){assert(g_activeModLuaRetentionScopes.Count()==1);Open();assert(noted==0&&strcmp(opened.c_str(),"zm_mod")==0);}else{Open();assert(strcmp(opened.c_str(),(const char*)zone)==0);if(flag==2){assert(g_activeModLuaRetentionScopes.Count()==1);assert(Load("m3_zm_mod",3)==0x9876);assert(g_activeModLuaRetentionScopes.Count()==1);Open();assert(strcmp(opened.c_str(),"m2_zm_mod")==0);}else assert(g_activeModLuaRetentionScopes.Count()==2);}}
  return 0x9876;
 }
 int main(){
- identity=9;assert(Load("m2_zm_mod")==0x9876);Open();assert(opened=="zm_mod");
- std::thread a([]{identity=1;assert(Load("m2_zm_mod")==0x9876);Open();assert(opened=="zm_mod");});
+ identity=9;assert(Load("m2_zm_mod")==0x9876);assert(!g_activeModLuaRetentionScopes.Any());Open();assert(strcmp(opened.c_str(),"zm_mod")==0);assert(Load("core_frontend",4)==0x9876);assert(!g_activeModLuaRetentionScopes.Any());const char* firstModZones[]={"core_mod","zm_mod","mp_mod","cp_mod"};for(const char* zone:firstModZones){assert(Load(zone,5)==0x9876);assert(!g_activeModLuaRetentionScopes.Any());}
+ std::thread a([]{identity=1;assert(Load("m2_zm_mod")==0x9876);Open();assert(strcmp(opened.c_str(),"zm_mod")==0);});
  while(phase<1)std::this_thread::yield();
- std::thread b([]{identity=2;assert(Load("m3_zm_mod")==0x9876);Open();assert(opened=="zm_mod");});a.join();b.join();
+ std::thread b([]{identity=2;assert(Load("m3_zm_mod")==0x9876);Open();assert(opened=="zm_mod");});a.join();b.join();assert(!g_activeModLuaRetentionScopes.Any());
  identity=9;Open();assert(opened=="zm_mod");
 }
-'''.replace('STATE',state).replace('HOOKS',function('RenameStackAsset','void')+'\n'+function('LoadXFile_h')+'\n'+function('XPakOpen_h'))
+'''.replace('STATE',state).replace('HOOKS',function('CopyZoneName','bool')+'\n'+function('RenameStackAsset','void')+'\n'+function('LoadXFile_h')+'\n'+function('XPakOpen_h'))
 with tempfile.TemporaryDirectory(prefix='zone-context-',dir=root.parent/'build') as tmp:
     cpp=Path(tmp)/'check.cpp';exe=Path(tmp)/'check';cpp.write_text(fixture)
-    subprocess.run([os.environ.get('CXX','g++'),'-std=c++20','-pthread','-fsanitize=address,undefined','-I',str(root),str(cpp),'-o',str(exe)],check=True)
-    subprocess.run([str(exe)],check=True,timeout=30)
-print('PASS: concurrent/nested asset ownership and XPAK isolation, native calls/arguments/results, restored context after exit')
+    for sanitizer in ('address,undefined','thread'):
+        exe=Path(tmp)/('check-'+sanitizer.replace(',','-'))
+        subprocess.run([os.environ.get('CXX','g++'),'-std=c++20','-pthread',f'-fsanitize={sanitizer}','-I',str(root),str(cpp),'-o',str(exe)],check=True)
+        subprocess.run([str(exe)],check=True,timeout=60)
+# The production policy must allow initial-load retention before g_loadedCount
+# is published, and the rawfile hook must not gate it on T7Maps_UsingMods().
+policy_start=source.index('bool T7Maps_NeedsLuaRetention(')
+policy_end=source.index('\n}',policy_start)+2
+policy=source[policy_start:policy_end]
+assert 'g_activeModLuaRetentionScopes.Any()' in policy
+load_start=source.index('static uint64_t LoadXFile_h')
+load_end=source.index('\n}',load_start)+2
+load_policy=source[load_start:load_end]
+assert 'zoneIndex >= 0' in load_policy
+assert 'zoneIndex > 0' not in load_policy
+apply_start=source.index('static void ApplyModsNow()')
+apply_end=source.index('\n}',apply_start)+2
+apply_policy=source[apply_start:apply_end]
+assert 'ActiveModLuaRetentionScopes::Scope modStackTransition' in apply_policy
+assert 'T7LuaOwnership::ShouldRetainLua' in policy
+lua_source=(root/'t7_lua.cpp').read_text()
+assert 'if (lua && !LuaMissing(result) && T7Maps_NeedsLuaRetention(asset))' in lua_source
+assert 'T7Maps_UsingMods() && T7Maps_NeedsLuaRetention' not in lua_source
+print('PASS: concurrent/nested asset ownership, active mod-zone lifetime and XPAK isolation under ASan/UBSan + TSan')

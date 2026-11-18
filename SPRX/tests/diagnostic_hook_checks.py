@@ -121,6 +121,7 @@ constexpr int kMaxStack=24, kNameMax=192, kModZoneKinds=4;
 static const char* const k_modZones[]={"core_mod","zm_mod","mp_mod","cp_mod"};
 static const char* const k_modeCommons[]={"","zm_common","mp_common","cp_common"};
 static int g_loadedCount=1, g_waitZoneCount=0;
+static std::atomic<uint32_t> g_modLuaFallbackRetains{0};
 static bool g_reloadCheck=false;
 alignas(uintptr_t) static unsigned char mapsMemory[64] = {};
 static uintptr_t g_base=(uintptr_t)mapsMemory;
@@ -182,6 +183,11 @@ int main()
     std::strcpy(level,"core_frontend");
     assert(LoadLevelZones_h((uintptr_t)level,2,3,4,5,6,0,1,2,3,4,5,6,7)==999);
     assert(originals==2 && applies==1 && mapPreflights==1);
+    bool retentionTraceFound=false;
+    for (const auto& line:lines)
+        if (line.find("[LuaRetention] transition fallback lookups=0")!=std::string::npos)
+            retentionTraceFound=true;
+    assert(retentionTraceFound);
     assert(T7Lua::locks==T7Lua::unlocks);
     bool found=false;
     for (const auto& line:lines)

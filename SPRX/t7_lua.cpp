@@ -3134,7 +3134,10 @@ static uint64_t FindXAsset(uint64_t type, uint64_t name, uint64_t a3, uint64_t a
     {
         haveAssetName = CopyAssetName(name, asset, sizeof(asset), &assetLength);
 
-        if (haveAssetName && assetLength > 4 && memcmp(asset + assetLength - 4, ".lua", 4) == 0)
+        if (haveAssetName && assetLength > 4 && asset[assetLength - 4] == '.' &&
+            (asset[assetLength - 3] == 'l' || asset[assetLength - 3] == 'L') &&
+            (asset[assetLength - 2] == 'u' || asset[assetLength - 2] == 'U') &&
+            (asset[assetLength - 1] == 'a' || asset[assetLength - 1] == 'A'))
         {
             lua = true;
             T7Log_LuiFile(asset);
@@ -3172,7 +3175,7 @@ static uint64_t FindXAsset(uint64_t type, uint64_t name, uint64_t a3, uint64_t a
         }
     }
 
-    if (lua && !LuaMissing(result) && T7Maps_UsingMods() && T7Maps_NeedsLuaRetention(asset))
+    if (lua && !LuaMissing(result) && T7Maps_NeedsLuaRetention(asset))
         result = RetainModLua(asset, result);
 
     if (lua)

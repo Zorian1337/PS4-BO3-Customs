@@ -14,6 +14,8 @@ fixture = r'''
 #include <cstdint>
 #include <cstring>
 #include <cstdio>
+#include "mod_load_context.hpp"
+static ActiveModLuaRetentionScopes g_activeModLuaRetentionScopes;
 #include <strings.h>
 constexpr int kMaxStack=4, kNameMax=56, kModeCommonFlags=0x40;
 struct ZoneInfo { const char* name; int allocFlags; int freeFlags; };
@@ -43,11 +45,12 @@ static int ChosenForLoad(char names[][56]) {
 }
 static bool EqualsNoCase(const char* a,const char* b) { return strcasecmp(a,b)==0; }
 static int LoadedModeCommon() { return mode; }
-static void LoadModeCommonForMods() { ++reloads; }
+static void LoadModeCommonForMods() { assert(g_activeModLuaRetentionScopes.Any()); ++reloads; }
 static bool ModeCommonOnTop() { return onTop; }
 static void T7Log_Write(const char*,...) {}
 static void ClearAssetsInUse() { ++clears; }
 template<class... Args> static void LoadXAssets_h(uint64_t pointer,Args...) {
+    assert(g_activeModLuaRetentionScopes.Any());
     auto common=(const ZoneInfo*)pointer;
     assert(std::strcmp(common->name,"zm_common")==0);
     assert(common->allocFlags==kModeCommonFlags && common->freeFlags==kModeCommonFlags);
@@ -68,6 +71,7 @@ FUNCTION
 int main() {
     ApplyModsNow(); // Fresh host stack: whole common transaction, no partial append/restart.
     assert(reloads==1 && appends==0 && frees==0 && syncs==1 && clears==1 && frontend==0);
+    assert(!g_activeModLuaRetentionScopes.Any());
     loading=true; ApplyModsNow(); assert(reloads==1 && g_applyWanted.load()); loading=false;
     onTop=false; ApplyModsNow(); assert(reloads==1); onTop=true;
     g_inLevel=true; ApplyModsNow(); assert(reloads==1); g_inLevel=false;
@@ -94,6 +98,7 @@ int main() {
     loading=false;
     ApplyModsAtFrontend(&frontendZone,1); assert(appends==1);
     g_sessionModCount=2; mode=-1; ApplyModsNow(); assert(reloads==4); // No common loaded yet.
+    assert(!g_activeModLuaRetentionScopes.Any());
     assert(frontend==1);
     std::puts("PASS: host common transaction, exact-order no-op, empty host, zone/memory guards and personal activation");
 }
@@ -103,5 +108,5 @@ with tempfile.TemporaryDirectory(prefix="bo3-common-activation-") as directory:
     exe = Path(directory) / "activation"
     cpp.write_text(fixture)
     subprocess.run([os.environ.get("CXX", "g++"), "-std=c++20", "-Wall", "-Wextra", "-Werror",
-                    "-fsanitize=address,undefined", str(cpp), "-o", str(exe)], check=True)
+                    "-fsanitize=address,undefined", "-I", str(Path(__file__).resolve().parents[1]), str(cpp), "-o", str(exe)], check=True)
     subprocess.run([str(exe)], check=True)
