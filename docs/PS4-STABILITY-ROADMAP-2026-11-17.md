@@ -359,3 +359,12 @@ The saved Ghidra analysis now exposes the full operation order of FUN_008583b0 (
 This narrows the XAssetEntry investigation, but exact target executable identity, all direct/indirect index consumers, all free-list mutation paths, index/sentinel interpretation and lock ownership still need proof. No production reserve hook was added; PR #40 remains arithmetic/test groundwork only. The audit document now records the operation order and next gates. Issue comments were refreshed for #30, #28, #1, #2, #20, #23 and #31.
 
 No speculative GPU resource-lifetime, zone ownership, clientfield registration, or third-party GSC behavior changes were made. Their missing evidence remains as recorded in the audit. PR #43's FolderScanStatus correction remains host-validated only; no PS4 target build has been run after it. A target build must be explicitly authorized. FFPorter remains excluded.
+
+
+## Target-build workflow and current PR handoff — 2026-11-18
+
+The repository's .github/workflows/bo3-build.yml runs on pushes to main and supports workflow_dispatch. Its SPRX job installs clang-18/lld-18, invokes .github/scripts/build_sprx.py --package, validates the native module/container, and uploads the SPRX plus native build evidence. It is not configured as a pull_request build. The GitHub connector available in this session exposes workflow-run inspection but no workflow-dispatch action. Therefore the corrected target compile can be exercised either by an explicitly approved merge/push to main (which triggers the workflow) or by the repository owner manually dispatching BO3 Auto Build in GitHub Actions. No target build was started.
+
+The original PR #43 is now closed as superseded, not merged. Its clean replacement is PR #48, based on current main with 3 commits ahead and 0 behind; all five PR workflows passed on head 1144635efc6af64904efa1e27671598a179b26d9 (SPRX diagnostics 44237212529, project-session guard 44237212480, mod stack transaction 44237212537, script priority context 44237213746, frontend reload state 44237212518). PR #48 is ready for review and remains unmerged pending the target-build authorization.
+
+PR #40 remains draft research groundwork only. Its production reserve hook was removed; SPRX/t7_maps.cpp matches main byte-for-byte. Its latest safe head passed SPRX diagnostics and project-session guard, but the tests validate helper arithmetic and repository policy, not the native allocator. The private dev.67 candidate described in issue #30 remains separate and unreviewed from its local source archive.
