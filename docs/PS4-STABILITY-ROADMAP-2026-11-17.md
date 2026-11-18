@@ -37,9 +37,10 @@ Work directly through connected GitHub tools in Chat mode when Work mode is unav
 - The host regression inventory and release/package-policy tests passed.
 - All 14 native translation units compiled with the pinned LLVM 18/OpenOrbis target toolchain; GoldHEN ELF/SPRX link and packaging passed.
 - Native module/container validation and malformed-container rejection checks passed.
-- Uploaded SPRX artifact: `bo3-sprx-db015da32383c1f6196e78e04585b00d18f94e03-1` (artifact ID `14402750921`, 562,196 bytes).
+- Uploaded Debug SPRX artifact: `bo3-sprx-db015da32383c1f6196e78e04585b00d18f94e03-1` (artifact ID `14402750921`, ZIP 562,196 bytes; contained `BO3-Customs.sprx` 487,120 bytes).
+- Verified SPRX SHA-256: `5da25a9b39bb1df80cb9df37e0e8c72ea3f2e1341a4a71e50f409cc08b9b6e3f` (matches both the downloaded artifact and `target-validation.json`).
 - Native evidence artifact: `bo3-native-evidence-db015da32383c1f6196e78e04585b00d18f94e03-1` (artifact ID `14401604991`, 32,410 bytes).
-- **Buildability is now demonstrated for this exact commit.** This does not establish PS4/PS5 runtime stability, mod lifecycle correctness or console validation. No release, FTP upload or deployment was performed.
+- **Buildability is now demonstrated for this exact commit.** The artifact is a Debug GoldHEN FSELF, not Sony-signed; its manifest explicitly records `console_validated: false`. This does not establish PS4/PS5 runtime stability, mod lifecycle correctness or console validation. No release, FTP upload or deployment was performed.
 
 ## SPRX issue inventory — document first, then implement
 
