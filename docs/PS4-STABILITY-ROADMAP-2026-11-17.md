@@ -212,6 +212,7 @@ This is arithmetic groundwork only. It does not map or publish reserve memory, v
 
 - [x] Verify the arithmetic helper and whole-page index bounds with host tests.
 - [x] Add checked index decoding and rejection tests for zero/negative indices and pointer overflow.
+- [x] Add residue-preserving selection of a full reserve page inside an mmap span, including insufficient-span rejection.
 - [x] Audit published t7_maps.cpp: LinkXAsset_h is a link-stage hook, not the shared XAssetEntry allocator.
 - [x] Record ClearAssetsInUse() as the explicit public SPRX chain consumer; it reads bucket/next values as uint32_t and uses a 32-byte entry stride.
 - [ ] Verify whether the dev.67 positive signed-32 index rule is enforced by every native consumer; current public source does not prove it.
