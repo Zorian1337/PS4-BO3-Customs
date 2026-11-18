@@ -98,6 +98,8 @@ TRANSITION_PREFIX = r'''
 #include <vector>
 #define _DEBUG
 static std::vector<std::string> lines;
+static bool transitionBusy = false;
+static bool T7Maps_UiTransitionBusy() { return transitionBusy; }
 static uint64_t sceKernelGetProcessTime() { static uint64_t now=1000; return ++now; }
 static void T7Log_Write(const char* format, ...)
 {
@@ -173,6 +175,11 @@ int main()
     assert(T7Lua::locks==T7Lua::unlocks);
     T7Lua_TraceState("same state");
     assert(lines.back().find("observed-generation=1")!=std::string::npos);
+    transitionBusy=true;
+    T7Lua_TraceState("transition started after lock");
+    assert(T7Lua::locks==4 && T7Lua::unlocks==4);
+    assert(lines.back().find("transition began after lock")!=std::string::npos);
+    transitionBusy=false;
     *(uintptr_t*)T7Lua::g_base=0;
     T7Lua_TraceState("destroyed state");
     assert(lines.back().find("observed-generation=2")!=std::string::npos);
