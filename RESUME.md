@@ -1,12 +1,17 @@
 # Current repository status (2026-11-17)
 
-- Open PRs: none. PR #36 was the only open PR and was squash-merged to `main` as `10169fc1100eb88813c28bffdf0f2ae32c5a6df6`.
-- Open issues: 10 reviewed; none closed because each still has an unresolved fix, provenance, reproduction, complete-package, or console-validation requirement.
-- All five required PR workflows passed on head `6c757633504d048183a119328872b96e058741c2`: SPRX diagnostics (417), project-session guard (160), frontend reload (236), mod-stack transaction (235), and script-priority (241).
-- No native SPRX build, upload, release, or PS4/PS5 console test was performed.
-- Issue #32 has a new comment explaining why complete package conversion and console validation are still required. Issue #29's rapid X/back symptom was reported fixed on dev.65, but its source changes remain local/uncommitted.
+- PR #36 is merged to `main` as `10169fc1100eb88813c28bffdf0f2ae32c5a6df6`.
+- Six PRs are open: #37, #38, #39, #40, #41 and #42. PRs #37/#38 are earlier standalone versions of #39 and must not be merged independently.
+- PR #39 (`recovery/issue-driven-dev65-dev69`) now includes the no-eviction retired-image registry and delayed-callback regression. All six workflows pass on `481d4d4952952f07a52c60e6605197b11474473d`; the project-session guard reports 47 host regression programs with zero failures. It remains draft because target build and console validation are still required.
+- PR #42 (`fix/lua-asset-name-bounds`) is ready for review. Its source-policy audit, publication guard, all 43 host regression programs, SPRX diagnostics and script-log checks pass on `bfc2673bd9e5acd816408fca4fc7681fe172380c`. It is not merged; no target build or console test was performed.
+- PR #40 is arithmetic groundwork only; native XAssetEntry signedness, allocator/free-list ABI and all consumers remain unverified. Keep draft.
+- PR #41 tests the existing absent-only `Mods_IsUsingUsermap` fallback; it does not repair Blood Run GSC errors or gameplay/pause stalls. Keep draft.
+- Ten issues remain open. #29/#33 still need native build/source review and console validation; #30 still needs verified native allocator contracts; #31 still needs matching GSC evidence and a clean-start console capture.
+- Lua bytecode retention behavior was not changed in these PRs. Preserve the 32 MiB budget, deduplication, old-version retention for cached closures, and the ability to disable mods and restore original included Lua without crashes/resets.
+- No native SPRX build, upload, release or PS4/PS5 console test was performed.
 
 ---
+
 
 ## Historical handoff: map-load diagnostics + transactional catalog refresh (PR #36; now merged)
 
