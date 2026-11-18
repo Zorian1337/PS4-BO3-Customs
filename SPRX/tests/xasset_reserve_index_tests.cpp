@@ -56,4 +56,39 @@ int main()
         assert(!XAssetReserveIndex::TryEncodePositiveIndex(0x1000, 0x1020, 0, encoded));
         assert(encoded == 77);
     }
+    // Validate a complete reserve page, not just one selected entry. The
+    // first and last indices bound every fixed-stride entry in between.
+    for (uintptr_t residue = 0; residue < stride; ++residue)
+    {
+        const uintptr_t base = 0x300000 + residue;
+        const uintptr_t page = base + 4096 * stride;
+        constexpr uintptr_t pageBytes = 1u << 20;
+        int32_t first = -1;
+        int32_t last = -1;
+        assert(XAssetReserveIndex::TryValidatePage(base, page, pageBytes, stride, first, last));
+        assert(first == 4096);
+        assert(last == first + static_cast<int32_t>(pageBytes / stride) - 1);
+    }
+
+    // Reject malformed or partially representable pages without publishing
+    // partial index outputs.
+    {
+        const uintptr_t base = 0x400000;
+        int32_t first = 41;
+        int32_t last = 42;
+        assert(!XAssetReserveIndex::TryValidatePage(base, base + 32, 0, stride, first, last));
+        assert(!XAssetReserveIndex::TryValidatePage(base, base + 32, 31, stride, first, last));
+        assert(!XAssetReserveIndex::TryValidatePage(base, base + 33, 64, stride, first, last));
+        assert(!XAssetReserveIndex::TryValidatePage(base, base + 32, 64, 0, first, last));
+        assert(first == 41 && last == 42);
+
+        const uintptr_t page = base + (static_cast<uintptr_t>(std::numeric_limits<int32_t>::max()) - 1) * stride;
+        assert(!XAssetReserveIndex::TryValidatePage(base, page, 64, stride, first, last));
+        assert(first == 41 && last == 42);
+
+        const uintptr_t nearEnd = std::numeric_limits<uintptr_t>::max() - 31;
+        assert(!XAssetReserveIndex::TryValidatePage(nearEnd - 32, nearEnd, 64, stride, first, last));
+        assert(first == 41 && last == 42);
+    }
+
 }
