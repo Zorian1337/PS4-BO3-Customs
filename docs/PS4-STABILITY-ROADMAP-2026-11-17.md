@@ -186,3 +186,13 @@ For each P0/P1 change require:
 6. no regressions to disabling mods or restoring original Lua content.
 
 Console tests remain pending until a tester supplies the corresponding logs.
+
+
+## Blood Run bootstrap regression (2026-11-18)
+
+- [x] Add a production-Lua regression for Mods_IsUsingUsermap absent-only fallback, usermap/frontend classification, failed map probe, and provider preservation.
+- [x] Register the test in the full host regression inventory so new checks cannot silently be skipped.
+- [ ] Recover the matching Blood Run GSC source for the logged offsets before changing the repeated invalid-value polling.
+- [ ] Compare a clean BO3 launch with the mod selected before the first map load; capture the first GSC errors, server transition, frozen-controls state, and an actual pause open/close attempt.
+
+This test covers only the existing missing-global compatibility mitigation; it does not fix GSC runtime errors or prove the gameplay/pause stall is resolved. See [Blood Run bootstrap regression](INVESTIGATION-2026-11-18-BLOOD-RUN-BOOTSTRAP.md).
