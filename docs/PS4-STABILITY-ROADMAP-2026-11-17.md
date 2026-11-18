@@ -26,7 +26,7 @@ Work directly through connected GitHub tools in Chat mode when Work mode is unav
 - PR #52 source commit `532a6b682cba6120a9d6518a0a7ece592e776a66` passed BO3 Auto Build #44248692943. This is the last verified buildable source.
 - PR #53 (nonblocking bytecode retention lock) is open on a current-main branch; exact-head host/diagnostics checks are running. It is not merged or target-built.
 - PR #49 was closed unmerged as superseded by #50. PRs #43/#48 were also superseded and closed.
-- Other open PRs: #39 (UI transition/image lifetime + bounded stream diagnostics; draft and blocked on wait-zone publication review), #40 (XAssetEntry arithmetic research only; draft), #41 (Blood Run bootstrap regression only; draft), #47 (native GPU/clientfield/zone evidence; draft). PRs #42, #45, #46, #53, #55 and #56 were closed unmerged as superseded by #51/#52/#54/#57.
+- Other open PRs: #39 (UI transition/image lifetime + bounded stream diagnostics; draft and blocked on wait-zone publication review), #40 (XAssetEntry arithmetic research only; draft), #41 (Blood Run bootstrap regression only; draft), #47 (native GPU/clientfield/zone evidence; draft), #58 (mod Lua mark-before-lookup protection; exact-head checks running). PRs #42, #45, #46, #53, #55 and #56 were closed unmerged as superseded by #51/#52/#54/#57.
 - PR #37/#38 were earlier standalone work superseded by #39. Do not merge them independently.
 - PR #40's unsafe production reserve publisher was removed. Its helper/tests are arithmetic groundwork only; it does not fix XAssetEntry exhaustion.
 - PR #51 and #52 are merged and target-build validated. PR #52's three PR workflows passed, including ThreadSanitizer for companion-cache publication. They do not change bytecode retention, full mod disable/restore semantics or establish a console loader-stall fix.
@@ -81,7 +81,8 @@ Only SPRX/runtime issues are in scope. The open FFPorter issue #32 is deliberate
 3. [x] Make optional Lua fallback nonblocking and companion cache publication atomic; merge PR #52 and verify its target build.
 4. [x] Replace unbounded bytecode-retention lock waiting with a bounded 200-attempt policy in PR #54; verify its fresh PS4 target build.
 5. [x] Merge PR #57 ownership-publication protection after exact-head ASan/UBSan + TSan checks; verify post-merge PS4 target build #44250403844.
-6. Continue the full Lua disable/restore and ownership-order audit, mod-stack capacity work, and native XAssetEntry/GPU/zone/clientfield evidence tracks without speculative native mutation.
+6. Review PR #58's active mod-zone/stack-transition retention fallback after exact-head checks; if clean, merge and require a fresh PS4 target build.
+7. Continue the full Lua disable/restore audit, mod-stack capacity work, and native XAssetEntry/GPU/zone/clientfield evidence tracks without speculative native mutation.
 7. Any source changes after the buildable commit must rerun host checks and the PS4 target workflow; preserve the last known buildable SHA until the next one passes.
 
 ## Buildability definition
