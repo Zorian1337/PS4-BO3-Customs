@@ -2298,8 +2298,6 @@ struct LuiFile
 {
     const char* asset;
     char*       data;
-    int32_t     length;
-    bool        tried;
 };
 
 struct RawFileAsset
@@ -2903,13 +2901,18 @@ static char* ReadLuiCopy(const char* asset, size_t* length)
 
 static LuiFile g_luiFiles[] =
 {
-    { "ui/t7/utility/pcutility.lua", nullptr, 0, false },
-    { "ui/uieditor/menus/mods/menumodsload.lua", nullptr, 0, false },
-    { "ui/uieditor/widgets/mods/widgetmodsload.lua", nullptr, 0, false },
-    { "ui/uieditor/widgets/mods/entrymodsload.lua", nullptr, 0, false },
+    { "ui/t7/utility/pcutility.lua", nullptr },
+    { "ui/uieditor/menus/mods/menumodsload.lua", nullptr },
+    { "ui/uieditor/widgets/mods/widgetmodsload.lua", nullptr },
+    { "ui/uieditor/widgets/mods/entrymodsload.lua", nullptr },
 };
 
 static RawFileAsset g_luiAssets[sizeof(g_luiFiles) / sizeof(g_luiFiles[0])] = {};
+static std::atomic<uint8_t> g_luiFileStates[sizeof(g_luiFiles) / sizeof(g_luiFiles[0])] = {};
+constexpr uint8_t kLuiFileUninitialized = 0;
+constexpr uint8_t kLuiFileLoading = 1;
+constexpr uint8_t kLuiFileReady = 2;
+constexpr uint8_t kLuiFileFailed = 3;
 
 constexpr size_t kLuiFileCount = sizeof(g_luiFiles) / sizeof(g_luiFiles[0]);
 
@@ -2927,24 +2930,32 @@ static const RawFileAsset* LuiFileFor(const char* name)
         if (name[at] != 0 || file.asset[at] != 0)
             continue;
 
-        if (!file.tried)
+        uint8_t state = g_luiFileStates[i].load(std::memory_order_acquire);
+        if (state == kLuiFileReady)
+            return &g_luiAssets[i];
+        if (state != kLuiFileUninitialized)
+            return nullptr; // Another worker is loading it, or a previous read failed.
+
+        uint8_t expected = kLuiFileUninitialized;
+        if (!g_luiFileStates[i].compare_exchange_strong(expected, kLuiFileLoading,
+                                                        std::memory_order_acq_rel, std::memory_order_acquire))
+            return expected == kLuiFileReady ? &g_luiAssets[i] : nullptr;
+
+        size_t used = 0;
+        char* const body = ReadLuiCopy(file.asset, &used);
+        if (!body)
         {
-            file.tried = true;
-
-            size_t used = 0;
-            char* const body = ReadLuiCopy(file.asset, &used);
-            if (!body)
-                return nullptr;
-
-            file.data = body;
-            file.length = (int32_t)used;
-            g_luiAssets[i].name = file.asset;
-            g_luiAssets[i].length = (int32_t)used;
-            g_luiAssets[i].padding = 0;
-            g_luiAssets[i].buffer = body;
+            g_luiFileStates[i].store(kLuiFileFailed, std::memory_order_release);
+            return nullptr;
         }
 
-        return file.data != nullptr ? &g_luiAssets[i] : nullptr;
+        file.data = body;
+        g_luiAssets[i].name = file.asset;
+        g_luiAssets[i].length = (int32_t)used;
+        g_luiAssets[i].padding = 0;
+        g_luiAssets[i].buffer = body;
+        g_luiFileStates[i].store(kLuiFileReady, std::memory_order_release);
+        return &g_luiAssets[i];
     }
 
     return nullptr;
