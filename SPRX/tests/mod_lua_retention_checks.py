@@ -117,7 +117,6 @@ static int sceKernelMmap(int,size_t bytes,int,int,int,int,void** output) {
     if(*output==MAP_FAILED) { *output=nullptr; return -1; }
     return 0;
 }
-static void sceKernelUsleep(int) { std::this_thread::yield(); }
 static void T7Log_Write(const char*,...) {}
 
 #include "t7_lua_failure.hpp"
