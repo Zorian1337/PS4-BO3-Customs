@@ -31,7 +31,7 @@ or substitute versions silently.
 
 ## Mandatory test SPRX filename
 
-Every user-facing test SPRX must be named exactly `BO3-Customs-dev<N>-DEBUG.sprx` (for example, `BO3-Customs-dev70-DEBUG.sprx` for dev.70). Preserve capitalization, hyphens and extension. Apply this name to the actual `.sprx` file inside the delivered artifact and any standalone SPRX download; do not leave the user with the builder's generic `BO3-Customs.sprx` name or a versioned alternate. Keep run/commit IDs and SHA-256 values in the manifest/handoff rather than in the filename. Inspect the archive contents before sharing it.
+Every user-facing test SPRX must be named exactly `BO3-Customs-dev<N>-DEBUG.sprx` (for example, `BO3-Customs-dev70-DEBUG.sprx` for dev.70 and `BO3-Customs-dev71-DEBUG.sprx` for the next build). Build numbering clarification: dev.69 was the build before last, dev.70 is the current build, and the next build must be dev.71; do not skip or reuse a number. Preserve capitalization, hyphens and extension. Apply this name to the actual `.sprx` file inside the delivered artifact and any standalone SPRX download; do not leave the user with the builder's generic `BO3-Customs.sprx` name or a versioned alternate. Keep run/commit IDs and SHA-256 values in the manifest/handoff rather than in the filename. Inspect the archive contents before sharing it.
 
 ## Native candidate, only after approval
 
