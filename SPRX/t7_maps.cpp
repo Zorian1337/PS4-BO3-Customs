@@ -8053,7 +8053,10 @@ void T7Maps_FrameWork()
 
     if (!g_reloadCheck)
     {
-        g_uiZoneWaitState.store(kUiZoneWaitIdle, std::memory_order_release);
+        // WaitForModZones publishes Pending before it mutates the worker-owned
+        // wait list. Do not clear that publication here: this frame may have
+        // observed the old false reload flag while the loader is still
+        // constructing the new list.
         SetRefreshOnClose(false);
         return;
     }
