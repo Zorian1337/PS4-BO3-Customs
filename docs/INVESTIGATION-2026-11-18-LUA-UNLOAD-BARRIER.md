@@ -65,11 +65,11 @@ Fail closed: on drain timeout, do not unload any zone. On a lookup while closed,
 
 ## Validation result — PR #61 candidate (2026-11-18)
 
-The current PR head `62df60beb8e205a42e45b36f081e11f95cb30151` passed the exact-head verification set:
-- SPRX diagnostics workflow `44334452911`: success, including ASan/UBSan and TSan gate tests, production `RetainModLua()` rejection of an unmapped source pointer while closed, and held-reader timeout/reopen.
-- Project session guard `44334452592`: success; full registered host inventory and source-publication policy passed.
+The current PR head `950af8a876708ccc43552b79df7119c1f73b6316` passed the exact-head verification set:
+- SPRX diagnostics workflow `44335553381`: success, including ASan/UBSan and TSan gate tests, production `RetainModLua()` rejection of an unmapped source pointer while closed, and held-reader timeout/reopen.
+- Project session guard `44335553366`: success; full registered host inventory and source-publication policy passed. The host fixture also verifies a failed `FreeModsFrom()` reopens the gate and preserves the old loaded stack for retry.
 - Frontend reload, mod-stack transaction, script-priority and script-log regression workflows: all success.
-- BO3 Auto Build `44334452539`: host checks, 14-unit PS4 cross-compile, GoldHEN SPRX inspection, malformed native module/container rejection controls, artifact upload and final completeness gate all succeeded.
-- SPRX artifact: `bo3-sprx-bc32d7d3f98b9550959d669e9dacc7011dd8c47a-1`, artifact ID `14440233593`, ZIP SHA-256 `d4f93947b38b0cbcd2ba0b38f5e62d1117af6e9530d3ca6c635c67349010d34e`. Embedded `BO3-Customs.sprx`: 487,216 bytes, SHA-256 `7d6a7a65b55a82e1bbcc61b95ff88cf67f930a6385e023b6aee4353e7f1cf247`.
+- BO3 Auto Build `44335553497`: host checks, 14-unit PS4 cross-compile, GoldHEN SPRX inspection, malformed native module/container rejection controls, artifact upload and final completeness gate all succeeded.
+- SPRX artifact: `bo3-sprx-eb7af40227366c094c9e4ebd24ce0a5db4402451-1`, artifact ID `14441486738`, ZIP SHA-256 `2b666fc1299e3f0e97fe905d252ee095f864054cb2659ad48b4d725dc99ec4e6`. Embedded `BO3-Customs.sprx`: 487,216 bytes, SHA-256 `aed2bbedc3ee58cbee5c0f5aa20d3d805bf61021bc2a55af7b527de8664db396`.
 
 The manifest explicitly records `console_validated: false` and `sony_signed: false`. This proves target buildability and package validation, not PS4 runtime behavior or HKS module-cache correctness. Console disable/re-enable/reload validation remains outstanding.
