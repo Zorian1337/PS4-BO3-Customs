@@ -297,3 +297,8 @@ executables. The separate diagnostic reader and publication guard have 13 unit
 tests. The SDK header and native artifact comparisons require explicit matching
 inputs and are not silently replaced by host stubs. These checks do not establish
 console stability; GPU/native stall and repeated menu re-entry validation remain open.
+
+
+## Lua rawfile asset-name bounds (2026-11-17)
+
+A source review found that `FindXAsset()` validated only 16 bytes of a game-owned rawfile name before scanning up to 191 bytes, and its missing-config log formatted the original pointer after checking only four bytes. The `fix/lua-asset-name-bounds` branch adds `CopyAssetName()` with validated chunk reads and routes the diagnostic through the bounded copy. A focused ASan/UBSan regression covers page-edge and unterminated inputs. Native lookup arguments/results and Lua retention semantics are unchanged. CI, full-diff audit and console validation remain pending; see [the investigation](INVESTIGATION-2026-11-17-LUA-ASSET-NAME-BOUNDS.md).
