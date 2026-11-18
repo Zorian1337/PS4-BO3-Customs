@@ -217,7 +217,7 @@ Console tests remain pending until a tester supplies the corresponding logs.
 - [x] Replace the 16-byte-only pointer check followed by a longer filename scan with validated chunked copying that stops at the first NUL and fails closed on unreadable ranges.
 - [x] Route missing-config diagnostics through the bounded copy rather than formatting a game-owned pointer directly.
 - [x] Add production-helper ASan/UBSan coverage for maximum length, unterminated names, overflow, and a valid name at an unreadable-page boundary.
-- [ ] Pass the complete PR source-policy audit and host inventory; review the full diff.
+- [x] Pass the complete PR source-policy audit, publication-guard tests and all 43 registered host regression programs; review the full diff.
 - [ ] Perform the PS4 target build and console validation only after explicit approval.
 
 See [the Lua asset-name bounds investigation](INVESTIGATION-2026-11-17-LUA-ASSET-NAME-BOUNDS.md). This change preserves the native lookup path for invalid names and does not alter Lua retention or mod-disable behavior.
