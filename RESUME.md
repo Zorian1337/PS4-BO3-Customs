@@ -2,16 +2,18 @@
 
 - Active base: `main`; PR #36 is merged as `10169fc1100eb88813c28bffdf0f2ae32c5a6df6`.
 - Open issues: 10. None is closed; each still has a source, provenance, reproduction, complete-package, or console-validation requirement.
-- Open PRs: #37, #38, #39, #40 and #41. PRs #37/#38 are earlier standalone versions of the combined #39 work; do not merge them independently.
-- PR #39 (`recovery/issue-driven-dev65-dev69`) has six passing GitHub Actions workflows and a 46-program host inventory with zero failures. Source review found a remaining delayed-image-callback lifetime hole: after a retired address is cleared/replaced in `PictureFor()`, `FindPicture()` can miss it and `SetImage_h()` forwards it to native code. A review comment is recorded on PR #39. Keep it draft/unmerged until retired-address handling and a regression cover callbacks after record reuse.
-- PR #40 (`recovery/xasset-entry-index-safety`) has passing source-policy and diagnostics workflows on head `02e710f85a25d04ccad3f54fd07deffe1d4f2561`. It adds checked arithmetic and whole-page range tests only. The positive signed-32 index assumption is not established: the inspected public consumer reads chain indices as `uint32_t`. No native allocator hook or reserve mapping is implemented. Keep draft/unmerged pending complete native allocator/free-list/index-consumer and synchronization evidence.
-- PR #41 (`investigation/blood-run-bootstrap-regression`) has passing diagnostics and project-session checks on head `eb7344720765748a8bad335ccb2eb09cdbfc41b2`. It tests the existing absent-only `Mods_IsUsingUsermap` fallback; it does not repair Blood Run GSC errors or gameplay/pause stalls.
-- No native SPRX build, upload, release, or PS4/PS5 console test was performed in this review. Do not build without explicit approval.
-- Lua retention remains a critical acceptance area: preserve original included Lua behavior and ensure users can disable mods and restore non-mod state without crashes, resets, or stale bytecode. No new runtime retention change is claimed in this review.
+- Open PRs: #37, #38, #39, #40, #41 and #42. PRs #37/#38 are earlier standalone versions of combined PR #39; do not merge them independently.
+- PR #39 (`recovery/issue-driven-dev65-dev69`) implements the dev.65 UI guards and dev.69 bounded stream diagnostics. Its source head `481d4d4952952f07a52c60e6605197b11474473d` passed all six workflows; the project-session guard reports 47 host regression programs with zero failures. The custom-image path now has a 1,024-entry process-lifetime no-eviction tombstone registry, fail-closed capacity handling, stock-slot reuse passthrough and ASan/UBSan callback-after-record-reuse coverage. A docs/workflow-summary-only follow-up head `2f03c992144aeb2f88f1364346b4ddbfe36d4ae6` is queued for its project-session guard. PR remains draft; no target build or console verification.
+- PR #42 (`fix/lua-asset-name-bounds`) is ready for review. Source-policy audit, publication guard, all 43 host regressions, SPRX diagnostics and script-log checks passed on `bfc2673bd9e5acd816408fca4fc7681fe172380c`. It bounds game-owned rawfile-name reads and routes missing-config logging through a safe copy. It is not merged; no target build or console test was performed.
+- PR #40 (`recovery/xasset-entry-index-safety`) is arithmetic groundwork only; native XAssetEntry allocator/free-list ABI, all index consumers and synchronization remain unverified. The public `ClearAssetsInUse()` consumer reads chain values as `uint32_t`; the proposed positive signed-32 subrange is conservative but does not prove every native consumer. Keep draft.
+- PR #41 (`investigation/blood-run-bootstrap-regression`) tests the existing absent-only `Mods_IsUsingUsermap` fallback; it does not repair Blood Run GSC errors or gameplay/pause stalls. Keep draft.
+- No native SPRX build, upload, release, or PS4/PS5 console test was performed. Do not build without explicit approval.
+- Lua retention remains a critical acceptance area: preserve original included Lua behavior and ensure users can disable mods and restore non-mod state without crashes, resets, or stale bytecode. Neither PR #39 nor #42 changes bytecode retention.
 
 Read `AGENTS.md`, then this file, the dated stability roadmap, and only the relevant issue/source sections. Current priorities and PR boundaries are recorded in the roadmap.
 
 ---
+
 
 
 ## Historical handoff: map-load diagnostics + transactional catalog refresh (PR #36; now merged)
