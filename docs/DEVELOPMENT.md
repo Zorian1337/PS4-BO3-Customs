@@ -304,3 +304,8 @@ console stability; GPU/native stall and repeated menu re-entry validation remain
 PR #39's source head `481d4d4952952f07a52c60e6605197b11474473d` passes all six workflows and 47 host regression programs. The delayed custom-image callback gap is addressed with a 1,024-entry process-lifetime no-eviction tombstone registry, fail-closed capacity behavior, stock-slot reuse passthrough and a production-hook ASan/UBSan regression. The later docs/workflow-summary-only head `2f03c992144aeb2f88f1364346b4ddbfe36d4ae6` is awaiting its project-session guard. PR remains draft; no target build or console test.
 
 PR #42 bounds rawfile asset-name reads and diagnostic formatting. All six workflows, source-policy audit, publication guard and 43 host regressions pass on `bfc2673bd9e5acd816408fca4fc7681fe172380c`. It is ready for review, not merged. Neither PR has a native target build or console result.
+
+
+## Target compile blocker — FolderScanStatus (2026-11-18)
+
+The automatic main-branch BO3 Auto Build run #75 exposed a pre-existing source formatting error: a literal `\\n` after the `// libkernel ENOENT` comment left `FolderScanStatus` commented out in `t7_maps.cpp`. PR #43 restores the actual newline and adds a source guard to `map_catalog_safety_checks.py`, preventing the host fixture from extracting a declaration that is still commented in the real translation unit. The run stopped at this error; more target errors may remain. No second target build or console test was performed. See [the investigation](INVESTIGATION-2026-11-18-FOLDER-SCAN-STATUS-COMPILE.md).
