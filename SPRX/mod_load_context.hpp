@@ -100,3 +100,40 @@ public:
         return 0;
     }
 };
+
+
+// Tracks all active mod-zone LoadXFile scopes, including lookups performed
+// by another worker while the zone-owning worker is inside the native loader.
+class ActiveModZoneLoads
+{
+    std::atomic<uint32_t> count_{0};
+
+public:
+    ActiveModZoneLoads() = default;
+    ActiveModZoneLoads(const ActiveModZoneLoads&) = delete;
+    ActiveModZoneLoads& operator=(const ActiveModZoneLoads&) = delete;
+
+    class Scope
+    {
+        ActiveModZoneLoads* owner_ = nullptr;
+
+    public:
+        Scope(ActiveModZoneLoads& counter, bool enabled) : owner_(enabled ? &counter : nullptr)
+        {
+            if (owner_)
+                owner_->count_.fetch_add(1, std::memory_order_acq_rel);
+        }
+
+        ~Scope()
+        {
+            if (owner_)
+                owner_->count_.fetch_sub(1, std::memory_order_release);
+        }
+
+        Scope(const Scope&) = delete;
+        Scope& operator=(const Scope&) = delete;
+    };
+
+    uint32_t Count() const { return count_.load(std::memory_order_acquire); }
+    bool Any() const { return Count() != 0; }
+};
