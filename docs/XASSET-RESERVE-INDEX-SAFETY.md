@@ -46,3 +46,61 @@ repository. It does **not** identify the native allocator boundary, free-list
 head/return path, all native index consumers, complete entry ABI, or matching
 executable fingerprints. The values are relative to the supported module base
 and must not be treated as universally valid across BO3 builds.
+
+
+## Source-call-path audit (2026-11-18)
+
+A second pass over the full published `SPRX/t7_maps.cpp` source narrowed
+what can be stated safely:
+
+- `LinkXAsset_h` is a link-stage hook at the build-relative site
+`kLinkXAsset = 0x857A10`. It calls `GrowPool(assetType)` and
+`T7Log_PoolOut(assetType)` before forwarding the original link call.
+It does **not** receive an XAssetEntry allocation request/result and is not
+the shared XAssetEntry allocator boundary. Reusing it for reserve-page
+publication would therefore be an unproven timing/ABI assumption.
+- The hook is installed only after the existing LinkXAsset and ZonePriority
+byte signatures match. Those signatures validate the link hook's supported
+build shape; they do not fingerprint or validate a different allocator
+function.
+- `ClearAssetsInUse()` is the one explicit XAssetEntry-table consumer
+found in the published SPRX source. It reads bucket heads from
+`g_base + 0x57E9710` and walks the table at
+`g_base + 0x587E710` using a 32-byte stride, reading the next-chain
+field at offset 20 and clearing the in-use byte at offset 17. Its bucket and
+next fields are loaded as `uint32_t`.
+- That unsigned load is an important qualification: the dev.67 design notes
+specify positive signed-32-bit indices, and the helper now tests that proposed
+rule in both encode and decode directions. The public SPRX consumer alone does
+not prove that every native consumer treats the high bit as invalid. The
+signed-positive rule remains a native-contract requirement to verify, not a
+fact established solely by this source.
+- No published SPRX function found in this pass exposes the native XAssetEntry
+free-list head, allocation failure return, free/recycle path, or all native
+index consumers. The source has no `DB_AssetPoolAlloc` implementation;
+the existing pool allocator and the XAssetEntry registry are separate systems.
+
+### Updated implementation gate
+
+Do not add an allocator detour based only on the LinkXAsset signature. Before
+runtime code can be considered safe, the supported executable analysis must
+supply all of the following as one coherent build-specific evidence set:
+
+1. Allocator entry address, complete prologue/instruction fingerprint, exact
+   argument and return ABI, and every call site that can allocate entries.
+2. Free-list head representation, empty sentinel, index signedness, index
+   base/stride, full entry field layout, and the native free/reuse path.
+3. Every native consumer of bucket and chain indices, including bounds and
+   whether the index is ever used in pointer arithmetic before validation.
+4. The allocator's synchronization/lock contract and whether allocation can
+   re-enter during zone load/unload or callbacks.
+5. The exact mapping API semantics, address-residue strategy, maximum reserve
+   count, failure cleanup, and safe publication ordering for the supported
+   PS4 process.
+6. A build fingerprint that is checked independently from the existing
+   LinkXAsset/ZonePriority signatures.
+
+The current helper is intentionally a standalone arithmetic contract test.
+It is not called by production code until the items above are verified. The
+correct next step is native call-graph recovery, not a guessed hook or a
+larger reserve constant.
