@@ -3,7 +3,7 @@
 **Scope:** BO3-Customs SPRX only. Companion Lua is included where it is part of the SPRX's loader/runtime behavior. FFPorter/converter work, Osiris and unrelated projects are explicitly deferred.
 
 **Repository:** [Zorian1337/PS4-BO3-Customs](https://github.com/Zorian1337/PS4-BO3-Customs), default branch `main`.
-**Current main:** `c092e86393ba61b79da9a669b734579dda8e4147` (documentation-only commits follow the verified build).
+**Current main:** `main` (subsequent commits after the verified build are documentation-only).
 **Last verified buildable source:** `db015da32383c1f6196e78e04585b00d18f94e03`, validated by BO3 Auto Build run #44247367325. Future source changes must repeat the target build and native artifact validation. Build success is not console stability proof.
 
 ## Mandatory work protocol
