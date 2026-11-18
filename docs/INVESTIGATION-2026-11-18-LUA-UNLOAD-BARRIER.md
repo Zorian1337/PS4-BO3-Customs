@@ -33,3 +33,31 @@ This is a source-level lifetime race. If a loader worker is validating or hashin
 ## Safety boundary
 
 Do not merge a gate that can remain closed after a failed or deferred transition. Every successful close must have an explicit, audited resume point; every timeout must reopen before returning false. Do not reset/free the append-only bytecode arena as part of this fix because existing HKS closures may still reference retained chunks.
+
+
+## Implementation plan — retention operation drain (2026-11-18)
+
+### Required invariant
+A native `RawFileAsset` header and its bytecode buffer are borrowed from a zone. No code may dereference either pointer after the unload barrier begins unless it has successfully entered the retention-operation gate. Unload may proceed only after the gate is closed and the active-operation count reaches zero. A lookup that arrives while closed must return the immutable rejection asset without inspecting `name`, `original`, the rawfile header, or the buffer.
+
+### Concurrency design
+Use one atomic word with a high `closing` bit and low active-reader count. Entry uses a compare/exchange loop: reject if `closing` is set; otherwise increment the count atomically. Close sets the bit with `fetch_or`, preventing all later entries, then waits a bounded number of short intervals for the low count to reach zero. This single-word state avoids the race inherent in separate `closing` and `active` atomics. The RAII reader guard decrements on every return. A timeout clears the closing bit and aborts the unload; it must never leave retention permanently closed.
+
+### Integration boundaries
+- Enter at the very first instruction of `RetainModLua()`, before validating or dereferencing the asset name/header/buffer.
+- `T7Lua_PrepareModUiUnload()` closes and drains; it returns false on timeout so `ApplyModsNow()` leaves all zones intact.
+- If frontend shutdown cannot be scheduled, or a later pre-free check aborts the transition, explicitly reopen the gate before returning.
+- For a queued frontend transition, keep the gate closed across the gap until `ApplyModsAtFrontend()` has successfully removed old zones; reopen before the new `core_frontend` native load can request Lua modules.
+- For the host-session/common-zone transaction, reopen only after the native common-zone load returns successfully. If the transaction is rejected before any zone free, reopen on that exit.
+- If `FreeModsFrom()` fails or reports remaining mod zones, reopen before returning because the old source zones remain resident. On successful free, keep the gate closed only until the replacement stack is established and before any new frontend Lua lookup.
+- Preserve the append-only retained bytecode arena. This gate protects source-buffer lifetime; it does not authorize reclaiming old chunks or manipulating the HKS module cache.
+
+### Tests required before merge
+- Unit test the production gate helper: entry/close race, nested readers, concurrent readers, close rejection, drain, timeout/reopen, and repeated close/open cycles.
+- Compile and run under ASan/UBSan and ThreadSanitizer.
+- Extract the production `RetainModLua()` body into a host fixture and pass an intentionally unreadable pointer while closed; assert the rejection asset is returned without any pointer read.
+- Source integration checks every `ApplyModsNow()` return after a successful close, frontend queued transition, `ApplyModsAtFrontend()`, `FreeModsFrom()` failure/success, and host common-zone return.
+- Full host regression inventory and fresh PS4 target build. Console validation is still required for real HKS/module-cache and disable/re-enable/reload behavior.
+
+### Failure policy
+Fail closed: on drain timeout, do not unload any zone. On a lookup while closed, return the immutable Lua error asset without dereferencing borrowed data. Never free/reset the retained arena. Keep the user's ability to disable mods by ensuring every aborted transition reopens the gate and every successful transition reopens before new UI scripts are loaded.
