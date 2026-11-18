@@ -13,7 +13,7 @@ Read `AGENTS.md`, then this file, the dated stability roadmap, and only the rele
 
 ## Active source review branch — Lua asset-name bounds
 
-Branch `fix/lua-asset-name-bounds` adds validated chunked copying for game-owned rawfile names before Lua classification and diagnostics. The production helper has a focused ASan/UBSan fixture for guard-page edges and unterminated strings. It does not alter bytecode retention, mod unload, or native lookup behavior. Review and CI are pending; no target build or console test is claimed. See `docs/INVESTIGATION-2026-11-17-LUA-ASSET-NAME-BOUNDS.md`.
+Branch `fix/lua-asset-name-bounds` adds validated chunked copying for game-owned rawfile names before Lua classification and diagnostics. The production helper has a focused ASan/UBSan fixture for guard-page edges and unterminated strings. It does not alter bytecode retention, mod unload, or native lookup behavior. Full source-policy audit, publication-guard tests, all 43 registered host regression programs, SPRX diagnostics and in-game script-log checks passed on head `984c395a87a9205d894e7ce9bf235e6e5f830498`. No target build or console test is claimed. See `docs/INVESTIGATION-2026-11-17-LUA-ASSET-NAME-BOUNDS.md`.
 
 ---
 
