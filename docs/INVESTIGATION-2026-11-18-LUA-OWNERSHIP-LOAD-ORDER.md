@@ -55,3 +55,16 @@ PR #58 currently enables the per-zone retention scope only when zoneIndex > 0. T
 The failed PR #58 diagnostics run is caused by the obsolete extracted-fixture stub T7Maps_UsingMods(), which is no longer called by the production rawfile hook after retention policy was centralized in T7Maps_NeedsLuaRetention(). The fixture's active flag is still needed: make its T7Maps_NeedsLuaRetention() stub call the production T7LuaOwnership::ShouldRetainLua(true, false, active, owned && ownership.MayContain(name)), remove only the unused T7Maps_UsingMods() stub, and keep the existing disabled-mod assertion for the marked ui/test.lua asset. This preserves a meaningful test of stock passthrough after disable instead of deleting that coverage.
 
 Both corrections are required before treating PR #58 as review-ready. Re-run the full exact-head diagnostics, sanitizer tests, project-session guard and all other PR workflows afterward; then synchronize with current main, review the complete diff and obtain a fresh PS4 target build.
+
+
+## Implementation status — current-main PR #59 (2026-11-18)
+
+The active-zone retention correction and its regression coverage have been ported from the diverged PR #58 branch onto a clean branch based on current main as PR #59 (`28fedd0dca94eb0cda2f636f3d76dfbacdc84331`). The implementation now:
+
+- Uses an atomic RAII counter for every recognized mod-zone `LoadXFile_h()` call, including first-mod index 0, and for the complete changed-stack `ApplyModsNow()` transaction.
+- Copies and bounds the zone name for the lifetime of the native load call while preserving the original native arguments.
+- Removes the rawfile hook's outer `T7Maps_UsingMods()` short-circuit and centralizes the decision in `T7Maps_NeedsLuaRetention()` / `ShouldRetainLua()`.
+- Preserves stock Lua passthrough when mods are disabled outside active mod-zone/stack-transition scopes.
+- Tests all four unprefixed first-mod zones, later stacked zones, unrelated-zone exclusion, nested/concurrent scopes, fallback policy and disabled-stock behavior.
+
+All six exact-head PR #59 workflows passed: SPRX diagnostics, Project Session Guard, in-game script log regression, frontend reload state regression, script priority context regression and mod stack transaction regression. The branch is one commit ahead and zero behind current main. A fresh PS4 target build is still required before merge; no console, HKS module-cache restoration or full disable/re-enable/reload lifecycle claim is made. The original PR #58 branch is superseded and is not the merge candidate.
