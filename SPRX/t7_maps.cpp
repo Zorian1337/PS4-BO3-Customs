@@ -317,6 +317,8 @@ static int                     g_loadedCount = 0;
 static char                    g_sessionMods[kMaxStack][kNameMax];
 static int                     g_sessionModCount = -1;
 static ModLoadContexts<>      g_zoneLoadContexts;
+static ActiveModLuaRetentionScopes     g_activeModLuaRetentionScopes;
+static std::atomic<uint32_t>  g_modLuaFallbackRetains{0};
 static std::atomic<uint64_t>   g_plainZoneThread{0};
 static std::atomic<bool>       g_applyWanted{false};
 static std::atomic<bool>       g_prefetchWanted{false};
@@ -1940,6 +1942,26 @@ static int StackIndexOfZone(const char* zone)
     return ZoneKind(zone, &localized) >= 0 ? 0 : -1;
 }
 
+static bool CopyZoneName(uintptr_t address, char* destination, size_t capacity)
+{
+    if (!address || !destination || capacity < 2)
+        return false;
+
+    destination[0] = 0;
+    for (size_t i = 0; i < capacity; ++i)
+    {
+        if (address > UINTPTR_MAX - (uintptr_t)i || !RangeReadable(address + i, 1))
+            return false;
+
+        destination[i] = *(const char*)(address + i);
+        if (!destination[i])
+            return true;
+    }
+
+    destination[capacity - 1] = 0;
+    return false;
+}
+
 static bool ScriptBase(const char* name, char* base, size_t size)
 {
     if (!name || !base || size < 2)
@@ -2508,7 +2530,12 @@ static uint64_t LoadXFile_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, 
                             uint64_t a8, double x0, double x1, double x2, double x3, double x4, double x5, double x6,
                             double x7)
 {
-    ModLoadContexts<>::Scope loading(g_zoneLoadContexts, (uint64_t)scePthreadSelf(), (uintptr_t)a3);
+    char zoneName[kNameMax] = {};
+    const bool haveZoneName = CopyZoneName((uintptr_t)a3, zoneName, sizeof(zoneName));
+    const int zoneIndex = haveZoneName ? StackIndexOfZone(zoneName) : -1;
+    ActiveModLuaRetentionScopes::Scope activeModRetentionScope(g_activeModLuaRetentionScopes, zoneIndex >= 0);
+    ModLoadContexts<>::Scope loading(g_zoneLoadContexts, (uint64_t)scePthreadSelf(),
+                                     haveZoneName ? (uintptr_t)zoneName : 0);
     const uint64_t result = ((LoadXFile_t)g_loadXFileOriginal)(a1, a2, a3, a4, a5, a6, a7, a8, x0, x1, x2, x3, x4, x5,
                                                                x6, x7);
     return result;
@@ -5291,6 +5318,10 @@ static void ApplyModsNow()
     if (keep == g_loadedCount && keep == wanted)
         return;
 
+    // Keep Lua rawfile retention conservative for the full stack transaction,
+    // including the host-session common-zone path and count-publication window.
+    ActiveModLuaRetentionScopes::Scope modStackTransition(g_activeModLuaRetentionScopes, true);
+
     if (g_loadedCount > 0 && (keep < g_loadedCount || g_sessionModCount >= 0) &&
         !T7Lua_PrepareModUiUnload())
         return;
@@ -5491,6 +5522,8 @@ static void TraceModTransition(const char* when, const char* level)
                 zoneLoaded[0] ? 1 : 0, zoneLoaded[1] ? 1 : 0, zoneLoaded[2] ? 1 : 0, zoneLoaded[3] ? 1 : 0,
                 modZones, ModeCommonOnTop() ? 1 : 0, g_reloadCheck ? 1 : 0, g_waitZoneCount,
                 g_applyWanted.load(std::memory_order_acquire) ? 1 : 0);
+    T7Log_Write("[LuaRetention] transition fallback lookups=%u",
+                g_modLuaFallbackRetains.load(std::memory_order_relaxed));
     for (int i = 0; i < wanted && i < kMaxStack; ++i)
         T7Log_Write("[Transition] selected mod %d: %s", i + 1, names[i]);
     for (int i = 0; i < g_loadedCount && i < kMaxStack; ++i)
@@ -8315,7 +8348,15 @@ bool T7Maps_UsingMods()
 
 bool T7Maps_NeedsLuaRetention(const char* name)
 {
-    return T7Maps::g_modLuaOwnership.MayContain(name);
+    size_t nameLength = 0;
+    const bool luaFile = T7Maps::IsLuaUiFileName(name, &nameLength);
+    const bool activeModRetentionScope = T7Maps::g_activeModLuaRetentionScopes.Any();
+    const bool modsActive = T7Maps_UsingMods();
+    const bool owned = modsActive && T7Maps::g_modLuaOwnership.MayContain(name);
+    const bool retain = T7LuaOwnership::ShouldRetainLua(luaFile, activeModRetentionScope, modsActive, owned);
+    if (retain && activeModRetentionScope && !owned)
+        T7Maps::g_modLuaFallbackRetains.fetch_add(1, std::memory_order_relaxed);
+    return retain;
 }
 
 bool T7Maps_UiTransitionBusy()
