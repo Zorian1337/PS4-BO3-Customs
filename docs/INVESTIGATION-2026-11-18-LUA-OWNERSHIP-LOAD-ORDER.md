@@ -6,7 +6,7 @@
 - `LinkXAsset_h()` calls `NoteLevelLua()` after the native asset-link operation. For rawfile assets, `NoteLevelLua()` calls `NoteUiFile()`, which marks a bounded `.lua` name in `g_modLuaOwnership`.
 - `T7Maps_NeedsLuaRetention()` currently consults only `g_modLuaOwnership.MayContain(name)`.
 - The rawfile hook in `t7_lua.cpp` additionally gates retention on `T7Maps_UsingMods()`.
-- `ApplyModsNow()` updates `g_loadedCount` after the mod-zone load operation returns. During the initial load, the mod zone can therefore be in flight while the loaded-mod count still reflects the previous (possibly empty) stack.
+- In the normal menu path, `AppendMods()` calls `SetLoaded(through)` before `LoadXAssets_h()`, so `g_loadedCount` is published before those mod-zone loads. The host-session `g_sessionModCount >= 0` path uses a separate common-zone transaction and must not be assumed to have identical publication timing. Therefore the outer `T7Maps_UsingMods()` gate is not a reliable way to decide whether a mod-zone load is currently in progress.
 
 The per-thread load context and ownership index make attribution possible, but the current retention decision does not use the active zone context. A lookup that occurs during the mod-zone load before `NoteUiFile()` publishes the name can miss the index. The outer `T7Maps_UsingMods()` gate can also suppress retention during initial mod loading while `g_loadedCount` has not yet been updated.
 
@@ -36,3 +36,38 @@ While any mod zone is being loaded, a Lua rawfile lookup from another worker may
 - Full host regression inventory and PS4 target build.
 - Matching-build DEBUG capture with zone name, stack index, pthread ID, lookup decision and ownership mark order.
 - Console validation remains separate.
+
+## Implementation candidate — PR #58
+
+The source-only candidate adds:
+
+- `ActiveModLuaRetentionScopes`, an atomic RAII counter for nested/concurrent mod-zone `LoadXFile_h()` scopes and the full changed-stack `ApplyModsNow()` transaction.
+- A bounded readable zone-name copy before resolving the current stack index; the per-thread context now points at that call-lifetime copy, while the native `LoadXFile` arguments remain unchanged.
+- A global active-zone/stack-transition fallback in `T7Maps_NeedsLuaRetention()`: during a mod-zone load or changed-stack transaction, retain only Lua rawfiles even if the ownership index has not yet been marked and `g_loadedCount` is still zero.
+- The existing ownership-index path remains gated by `T7Maps_UsingMods()`, so stale names do not cause stock Lua retention after mods are disabled.
+- The rawfile hook delegates the complete policy to `T7Maps_NeedsLuaRetention()`; the `.lua` suffix check is now case-insensitive.
+- A DEBUG transition diagnostic reports the cumulative number of active-zone fallback retentions.
+
+The host candidate extends the production `LoadXFile_h()` fixture with nested, concurrent and base-zone cases under ASan/UBSan + TSan, tests the retention policy truth table, and asserts the rawfile hook no longer short-circuits on `T7Maps_UsingMods()`.
+
+The fallback intentionally may retain a stock Lua dependency requested by another worker during a mod-zone load or stack transaction. Its counter is included in transition diagnostics so this memory cost can be measured against the existing retention budget. Exact-head workflow and target-build results are pending; no runtime claim is made.
+
+## Additional transition-scope refinement — 2026-11-18
+
+Reviewing `ApplyModsNow()` and `AppendMods()` corrected the initial-load timing assumption: the ordinary menu path publishes `g_loadedCount` via `SetLoaded()` before the native mod-zone load. The host-session path is different and delegates to a fresh common-zone transaction. To cover both without depending on the exact `g_loadedCount` update point, the implementation will keep a retention scope active for the entire changed-stack transaction in `ApplyModsNow()`, in addition to the narrower per-zone `LoadXFile_h()` scope. The counter is nested/atomic, so the zone scopes remain valid inside the transaction. This can conservatively retain a stock Lua dependency during a stack transition; the fallback counter measures the cost.
+
+## Validation feedback — diagnostics fixture dependency
+
+The first PR workflow run found that `diagnostic_hook_checks.py` extracts `TraceModTransition()` into a standalone host fixture. The new transition fallback counter is a legitimate production dependency but the fixture did not declare it, so the extracted function failed to compile. This is a test-fixture dependency gap, not a target-source failure. Add an atomic zero-initialized counter to the fixture and assert the transition trace reports it; then rerun all exact-head workflows.
+
+The zone-context regression now compares the copied context's zone-name contents rather than pointer identity; the hook intentionally stores a bounded call-lifetime copy instead of the engine-owned input pointer.
+
+The follow-up fixture review also found the new transition-log assertion reused `found`, which is declared later in the same generated C++ fixture. Use a distinct `retentionTraceFound` variable to keep the fixture valid; this is another test-only correction, not a production behavior change.
+
+The next exact-head diagnostic run found that `session_common_activation_checks.py` extracts the production `ApplyModsNow()` body but did not include the new retention-scope type or global instance. The correction is to include the production `mod_load_context.hpp` helper in that fixture and declare its test instance; the zone-context test separately exercises real nested/concurrent counter behavior. This is a host-fixture dependency, not a production compile failure.
+
+The next diagnostics run found the existing `mod_lua_retention_checks.py` fixture still defined a `T7Maps_UsingMods()` stub that became unused when the outer gate was removed from the production rawfile hook. With `-Werror`, the stale static helper now fails the fixture compile. Remove the obsolete stub (and any state used only by it); the production policy remains exercised through the new helper tests.
+
+The next diagnostics run exposed an obsolete `T7Maps_UsingMods()` stub in the bytecode-retention fixture. Because the production hook now delegates the complete decision to `T7Maps_NeedsLuaRetention()`, the fixture must model the new policy rather than retain the old outer gate. Remove the unused stub and exercise both `activeModRetentionScope=true` with `modsActive=false` (initial load) and both false (stock lookup after disable).
+
+Review of the session fixture showed it extracts both `ApplyModsNow()` and `ApplyModsAtFrontend()`. The latter can call `AppendMods()` without the former's stack-transition scope; therefore only the common-zone stubs reached from `ApplyModsNow()` should assert the transaction scope. The `AppendMods()` stub must remain neutral. The zone-context fixture also compares the copied zone-name context by string value, not string-literal pointer identity.

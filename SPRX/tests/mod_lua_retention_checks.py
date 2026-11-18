@@ -103,7 +103,7 @@ fixture = r'''
 #include <vector>
 #include <sys/mman.h>
 static uintptr_t denied=0; static size_t deniedSize=0;
-static bool failAllocation=false, active=true;
+static bool failAllocation=false, active=true, activeModRetention=false;
 static bool owned=true;
 static bool RangeReadable(uintptr_t address,size_t bytes) {
     if(address<4096 || bytes>UINTPTR_MAX-address) return false;
@@ -141,8 +141,7 @@ static uint64_t NativeFind(uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t
     return reinterpret_cast<uint64_t>(nativeFile);
 }
 static void* g_findAssetOriginal=reinterpret_cast<void*>(&NativeFind);
-static bool T7Maps_UsingMods() { return active; }
-static bool T7Maps_NeedsLuaRetention(const char* name) { return owned && ownership.MayContain(name); }
+static bool T7Maps_NeedsLuaRetention(const char* name) { return T7LuaOwnership::ShouldRetainLua(true, activeModRetention, active, owned && ownership.MayContain(name)); }
 static void T7Log_LuiFile(const char*) {}
 static void T7Log_LuiBuffer(const char*,uintptr_t) {}
 static const RawFileAsset* LuiFileFor(const char*) { return nullptr; }
@@ -162,7 +161,11 @@ int main() {
     const auto find=[&](int type=47){return FindXAsset(type,reinterpret_cast<uint64_t>(mapped),0,0,0,0,0,0,0,0,0,0,0,0);};
     active=false; assert(find()==reinterpret_cast<uint64_t>(&raw));
     active=true; assert(find(1)==reinterpret_cast<uint64_t>(&raw));
-    owned=false; assert(find()==reinterpret_cast<uint64_t>(&raw)); owned=true;
+    owned=false; assert(find()==reinterpret_cast<uint64_t>(&raw));
+    // Initial mod-zone/stack transition must retain before the ownership index
+    // is published and even while the loaded-mod count still says "disabled".
+    active=false; activeModRetention=true; assert(find()!=reinterpret_cast<uint64_t>(&raw));
+    activeModRetention=false; active=true; owned=true;
     auto saved=reinterpret_cast<const RawFileAsset*>(find());
     assert(saved!=&raw && saved->buffer!=raw.buffer && saved->name!=raw.name);
     assert(saved->length==64 && saved->padding==17 && reinterpret_cast<uintptr_t>(saved->buffer)%16==0);
@@ -215,7 +218,7 @@ int main() {
     assert(alias->buffer[21]==0 && changed->buffer[21]==0);
     assert(g_retainedLuaCount==5);
     // Mod-disabled lookup must continue to return the native stock rawfile.
-    active=false;
+    active=false; activeModRetention=false;
     nativeFile=&revision;
     assert(FindXAsset(47,reinterpret_cast<uint64_t>(revision.name),0,0,0,0,0,0,0,0,0,0,0,0)
            ==reinterpret_cast<uint64_t>(&revision));
