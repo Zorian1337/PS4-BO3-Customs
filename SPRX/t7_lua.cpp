@@ -2193,6 +2193,12 @@ static void ShowShare()
     if ((!visible && !shown) || !UiUp() || !UiTryLock())
         return;
 
+    if (T7Maps_UiTransitionBusy())
+    {
+        UiUnlock();
+        return;
+    }
+
     if (UiUp())
     {
         if (DvarOn("bo3customs_share_cancel"))
@@ -2245,6 +2251,12 @@ static void InjectScripts()
 {
     if (!UiUp() || !UiTryLock())
         return;
+
+    if (T7Maps_UiTransitionBusy())
+    {
+        UiUnlock();
+        return;
+    }
 
     if (UiUp())
     {
@@ -3110,6 +3122,12 @@ static void CheckMenus()
     if (!UiUp() || !UiTryLock())
         return;
 
+    if (T7Maps_UiTransitionBusy())
+    {
+        UiUnlock();
+        return;
+    }
+
     bool broken = false;
 
     if (UiUp())
@@ -3319,6 +3337,12 @@ static void AddPcUtil()
     if (L == 0 || (!fresh && !g_forceInject && (g_ticks % interval) != 0) || !UiUp() || !UiTryLock())
         return;
 
+    if (T7Maps_UiTransitionBusy())
+    {
+        UiUnlock();
+        return;
+    }
+
     if (UiUp())
     {
         if (fresh)
@@ -3508,6 +3532,14 @@ void T7Lua_Tick()
 
     if (g_menuInitPending && UiUp() && UiTryLock())
     {
+        // The native transition can be queued after the frame-entry check but
+        // before this lock is acquired. Recheck while holding the UI lock.
+        if (T7Maps_UiTransitionBusy())
+        {
+            UiUnlock();
+            return;
+        }
+
         g_menuInitPending = false;
         g_forceInject = true;
         AddPcUtil();
@@ -3516,7 +3548,7 @@ void T7Lua_Tick()
         CheckMenus();
         UiUnlock();
     }
-    else
+    else if (!T7Maps_UiTransitionBusy())
         AddPcUtil();
 
     if ((g_ticks % 15) == 0)
@@ -3533,8 +3565,9 @@ void T7Lua_Tick()
     }
     else if (!T7Maps_InLevel() && UiTryLock())
     {
-        // Lobby housekeeping does not need to run while the game is active.
-        if (UiUp())
+        // Recheck after locking: a queued zone transition may have started
+        // while the tick was waiting to enter the UI critical section.
+        if (!T7Maps_UiTransitionBusy() && UiUp())
             RunLua(k_lobbyTickLua, "=bo3customs_lobbytick");
 
         UiUnlock();
@@ -3582,6 +3615,12 @@ void T7Lua_TraceState(const char* reason)
     if (!UiTryLock())
     {
         T7Log_Write("[Transition] UI snapshot (%s): busy; no Lua inspected", reason);
+        return;
+    }
+    if (T7Maps_UiTransitionBusy())
+    {
+        UiUnlock();
+        T7Log_Write("[Transition] UI snapshot (%s): transition began after lock; no Lua inspected", reason);
         return;
     }
     TraceStateLocked(reason);
