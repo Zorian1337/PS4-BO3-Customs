@@ -4,7 +4,7 @@
 
 **Repository:** [Zorian1337/PS4-BO3-Customs](https://github.com/Zorian1337/PS4-BO3-Customs), default branch `main`.
 **Current main:** `main` (subsequent commits after the verified build are documentation-only).
-**Last verified buildable source:** `db015da32383c1f6196e78e04585b00d18f94e03`, validated by BO3 Auto Build run #44247367325. Future source changes must repeat the target build and native artifact validation. Build success is not console stability proof.
+**Last verified buildable source:** `532a6b682cba6120a9d6518a0a7ece592e776a66`, validated by BO3 Auto Build run #44248692943. Documentation-only commits follow this source revision. Future source changes must repeat the target build and native artifact validation. Build success is not console stability proof.
 
 ## Mandatory work protocol
 
@@ -21,27 +21,28 @@ Work directly through connected GitHub tools in Chat mode when Work mode is unav
 
 ## Current repository / PR state
 
-- **Current main:** `db015da32383c1f6196e78e04585b00d18f94e03`.
-- PR #50 (FolderScanStatus target compile correction) and PR #51 (bounded Lua rawfile names) are merged. PR #51 source commit `1f7abbb8166499a1d789ecf10c11d2423d01cf63` passed BO3 Auto Build #44248077872 and is the last verified buildable source.
-- PR #52 (nonblocking optional Lua fallback + atomic companion-cache publication) is merged as `532a6b682cba6120a9d6518a0a7ece592e776a66`; its fresh BO3 Auto Build #44248692943 is in progress. Do not call this newer revision buildable until that run's final gate and artifacts pass.
+- PR #50 (FolderScanStatus target compile correction), #51 (bounded Lua rawfile names) and #52 (nonblocking optional Lua fallback + atomic companion-cache publication) are merged.
+- PR #51 source commit `1f7abbb8166499a1d789ecf10c11d2423d01cf63` passed BO3 Auto Build #44248077872.
+- PR #52 source commit `532a6b682cba6120a9d6518a0a7ece592e776a66` passed BO3 Auto Build #44248692943. This is the last verified buildable source.
+- PR #53 (nonblocking bytecode retention lock) is open on a current-main branch; exact-head host/diagnostics checks are running. It is not merged or target-built.
 - PR #49 was closed unmerged as superseded by #50. PRs #43/#48 were also superseded and closed.
-- Other open PRs: #39 (UI transition/image lifetime + bounded stream diagnostics; draft and blocked on wait-zone publication review), #40 (XAssetEntry arithmetic research only; draft), #41 (Blood Run bootstrap regression only; draft), #47 (native GPU/clientfield/zone evidence; draft). PRs #42, #45 and #46 were closed unmerged as superseded by #51/#52.
+- Other open PRs: #39 (UI transition/image lifetime + bounded stream diagnostics; draft and blocked on wait-zone publication review), #40 (XAssetEntry arithmetic research only; draft), #41 (Blood Run bootstrap regression only; draft), #47 (native GPU/clientfield/zone evidence; draft), #53 (bytecode retention lock; checks pending). PRs #42, #45 and #46 were closed unmerged as superseded by #51/#52.
 - PR #37/#38 were earlier standalone work superseded by #39. Do not merge them independently.
 - PR #40's unsafe production reserve publisher was removed. Its helper/tests are arithmetic groundwork only; it does not fix XAssetEntry exhaustion.
-- PR #51 and #52 are merged source fixes. PR #52's three PR workflows passed, including ThreadSanitizer for companion-cache publication, but its post-merge PS4 target build is still running. These changes do not change bytecode retention, mod disable/restore semantics or establish a console loader-stall fix.
+- PR #51 and #52 are merged and target-build validated. PR #52's three PR workflows passed, including ThreadSanitizer for companion-cache publication. They do not change bytecode retention, full mod disable/restore semantics or establish a console loader-stall fix.
 
 ## Latest verified target build — 2026-11-18
 
-- Workflow: [BO3 Auto Build run #44247367325](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44247367325)
-- Exact source commit: `db015da32383c1f6196e78e04585b00d18f94e03`.
+- Workflow: [BO3 Auto Build run #44248692943](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44248692943)
+- Exact source commit: `532a6b682cba6120a9d6518a0a7ece592e776a66`.
 - Final workflow result: **success**. Host job, PS4 SPRX job and final completeness gate all completed successfully; converter job was correctly skipped on the fork.
-- The host regression inventory and release/package-policy tests passed.
+- The host regression inventory and release/package-policy tests passed, including the new companion-Lua ThreadSanitizer test.
 - All 14 native translation units compiled with the pinned LLVM 18/OpenOrbis target toolchain; GoldHEN ELF/SPRX link and packaging passed.
 - Native module/container validation and malformed-container rejection checks passed.
-- Uploaded Debug SPRX artifact: `bo3-sprx-db015da32383c1f6196e78e04585b00d18f94e03-1` (artifact ID `14402750921`, ZIP 562,196 bytes; contained `BO3-Customs.sprx` 487,120 bytes).
-- Verified SPRX SHA-256: `5da25a9b39bb1df80cb9df37e0e8c72ea3f2e1341a4a71e50f409cc08b9b6e3f` (matches both the downloaded artifact and `target-validation.json`).
-- Native evidence artifact: `bo3-native-evidence-db015da32383c1f6196e78e04585b00d18f94e03-1` (artifact ID `14401604991`, 32,410 bytes).
-- **Buildability is now demonstrated for this exact commit.** The artifact is a Debug GoldHEN FSELF, not Sony-signed; its manifest explicitly records `console_validated: false`. This does not establish PS4/PS5 runtime stability, mod lifecycle correctness or console validation. No release, FTP upload or deployment was performed.
+- Uploaded Debug SPRX artifact: `bo3-sprx-532a6b682cba6120a9d6518a0a7ece592e776a66-1` (artifact ID `14401879743`, ZIP 562,164 bytes; contained `BO3-Customs.sprx` 487,088 bytes).
+- Verified SPRX SHA-256: `6f3cceaadc33d3a34f666c5c49d6bdf76c030942c61f665ccbc19c3034329453` (matches the downloaded artifact and `manifest-sprx.json`).
+- Native evidence artifact: `bo3-native-evidence-532a6b682cba6120a9d6518a0a7ece592e776a66-1` (artifact ID `14402527702`, 32,414 bytes).
+- **Buildability is demonstrated for this exact commit.** The artifact is a Debug GoldHEN FSELF, not Sony-signed; its manifest explicitly records `console_validated: false`. This does not establish PS4/PS5 runtime stability, mod lifecycle correctness or console validation. No release, FTP upload or deployment was performed.
 
 ## SPRX issue inventory — document first, then implement
 
@@ -49,10 +50,10 @@ Only SPRX/runtime issues are in scope. The open FFPorter issue #32 is deliberate
 
 | Priority | Issue / area | Confirmed evidence and current state | Proposed correction path / gate |
 |---|---|---|---|
-| P0 | Target buildability / PR #50 | PR #50 restored the real newline before `FolderScanStatus` and added a source-line regression. The corrected current-main commit `db015da32383c1f6196e78e04585b00d18f94e03` passed all host checks, all 14 PS4 native translation units, link/package and native module/container validation in BO3 Auto Build #44247367325. | [x] Establish a successful target build for this exact commit. Any later SPRX source change must pass host checks and a fresh target build before being called buildable. Console testing remains separate. |
+| P0 | Target buildability / PRs #50–#52 | PR #50 fixed the FolderScanStatus declaration; #51 bounded game-owned Lua asset-name reads; #52 made optional Lua fallback nonblocking and companion cache publication atomic. Current source `532a6b682cba6120a9d6518a0a7ece592e776a66` passed all host checks, all 14 PS4 native translation units, link/package and native module/container validation in BO3 Auto Build #44248692943. | [x] Establish a successful target build for this exact commit. Any later SPRX source change must pass host checks and a fresh target build before being called buildable. Console testing remains separate. |
 | P0 | Lua bytecode lifetime and safe mod disable/restore | Bytecode retention exists to protect closures and old revisions. The explicit product requirement is that users can always disable mods and return to original included Lua behavior without crash, reset, stale references or partially restored state. The current frontend path queues unload before `core_frontend` reload; the host-session path uses a mode-common transaction without the same frontend generation reset. Full HKS/module-cache restoration remains unproven. PRs #51/#52 do not address this lifecycle. | Audit every bytecode allocation, dedup key, revision/header owner, closure lifetime, cache and Lua state transition. Document ownership and failure modes first. Add tests for first load, unload, disable, re-enable, same-name revision, overlapping stack changes, frontend reconstruction and stock Lua fallback. See [disable/restore audit](INVESTIGATION-2026-11-18-LUA-DISABLE-RESTORE.md). Preserve old bodies until no closure can reference them; restore original source/behavior transactionally. |
 | P0 | Mod-stack capacity / fixed limits | Existing implementation has bounded stack/file structures; historical source review identifies a stack ceiling and fixed per-stack file records. A limit increase alone risks memory pressure and out-of-bounds consumers. | Inventory every limit, array, index, serializer, network buffer, UI consumer and rollback path. Calculate worst-case PS4 memory. Prefer checked dynamic/bounded allocation and explicit rejection before mutation; never silently truncate. Preserve transactional apply/rollback. |
-| P1 | Lua retention arena lock contention | `RetainModLua()` currently sleeps/retries without a deadline on one global atomic flag while it scans retained headers, compares bytecode, maps/copies memory and may log allocation failures. A delayed owner can stall other rawfile lookup workers. | Use one nonblocking acquire; on contention return the immutable fail-closed Lua error asset, never borrowed bytecode. Release the arena lock before failure logging. Add a held-lock production regression and TSan/ASan coverage. See [retention-lock investigation](INVESTIGATION-2026-11-18-LUA-RETENTION-LOCK.md). |
+| P1 | Lua retention arena lock contention | `RetainModLua()` currently sleeps/retries without a deadline on one global atomic flag while it scans retained headers, compares bytecode, maps/copies memory and may log allocation failures. A delayed owner can stall other rawfile lookup workers. | PR #53 implements a nonblocking acquire, immutable fail-closed return on contention and lock release before budget/allocation failure logging; its exact-head checks are pending. Review the branch and its held-lock regression, then target-build before merge. See [retention-lock investigation](INVESTIGATION-2026-11-18-LUA-RETENTION-LOCK.md). |
 | P1 | Mod Lua ownership publication / lookup ordering | `Mark()` sets Bloom bits before publishing an exact key, while `MayContain()` consults Bloom bits only after table overflow. A concurrent lookup can miss a key during publication; exact link-before-HKS-lookup ordering is not proven. The current test reads only after concurrent writers join. | Add a visible pending-key publication state and deterministic concurrent reader/writer tests; prove the native link/mark/lookup order and pthread identities. If lookup can precede marking, mark ownership earlier or use validated current-zone context. See [ownership publication investigation](INVESTIGATION-2026-11-18-LUA-OWNERSHIP-PUBLICATION.md). |
 | P1 | #30 XAssetEntry exhaustion | Fresh dev.66 nine-mod activation exhausted the shared 152,576-entry registry and aborted the Database thread. Native analysis identifies allocator 0x8583B0, transfer 0x8587B0, cleanup 0x858CB0, 32-byte entries, separate free-list/hash/index links. Exact executable fingerprint, all consumers and synchronization are not proven. | Recover the separate private dev.67 source/archive and verify its provenance; fingerprint the exact supported executable; enumerate every free-list mutation and index consumer; prove sentinel/index semantics and lock/reentrancy. Only then evaluate allocator-boundary reserve pages with production-body tests. Do not revive the removed LinkXAsset hook. |
 | P1 | #28 GPU protection fault | Async GPU read-protection fault during mode-common transition. Existing dispatch/progress snapshots do not identify allocation owner, resource lifetime, last submission or fence completion. | Fingerprint the executable; trace allocation/map/unmap/free, resource creation/destruction, queue submission and completion. Correlate fault address with generation-tagged live allocations and in-flight submissions. No guessed free hook, delayed free or arbitrary retention. |
@@ -75,15 +76,16 @@ Only SPRX/runtime issues are in scope. The open FFPorter issue #32 is deliberate
 
 ## Implementation order after the inventory
 
-1. [x] Review and correct the FolderScanStatus target compile blocker; merge PR #50 and complete the PS4 target build/artifact validation on `db015da32383c1f6196e78e04585b00d18f94e03`.
-2. Review/resolve the already-open source PRs #39, #42, #45 and #46 as a combined SPRX integration set. PR #39 additionally has a wait-zone writer/frame-reader publication hazard to disprove or fix before merge; do not merge on title/description alone.
-3. Audit and document the complete Lua bytecode/mod disable/restore lifecycle and stack-capacity graph, then implement the highest-confidence source fixes and tests.
-4. Continue XAssetEntry native ABI/fingerprint work and GPU/zone/clientfield evidence tracks without speculative native mutation.
-5. Any source changes after the buildable commit must rerun host checks and the PS4 target workflow; preserve the last known buildable SHA until the next one passes.
+1. [x] Correct the FolderScanStatus target compile blocker and establish a successful PS4 build.
+2. [x] Bound game-owned Lua asset-name reads; merge PR #51 and verify its target build.
+3. [x] Make optional Lua fallback nonblocking and companion cache publication atomic; merge PR #52 and verify its target build.
+4. Review/merge PR #53's nonblocking bytecode-retention lock after exact-head checks, then repeat the PS4 target build.
+5. Continue the full Lua disable/restore and ownership-publication audit, mod-stack capacity work, and native XAssetEntry/GPU/zone/clientfield evidence tracks without speculative native mutation.
+6. Any source changes after the buildable commit must rerun host checks and the PS4 target workflow; preserve the last known buildable SHA until the next one passes.
 
 ## Buildability definition
 
-**Achieved for `db015da32383c1f6196e78e04585b00d18f94e03`:** the actual PS4 target workflow completed successfully, all 14 native translation units compiled/linked, package/container validation succeeded, and both run-specific artifacts were uploaded under names containing the exact source SHA. Host tests alone would not have been sufficient. Console stability remains a separate validation milestone.
+**Achieved for `532a6b682cba6120a9d6518a0a7ece592e776a66`:** the actual PS4 target workflow completed successfully, all 14 native translation units compiled/linked, package/container validation succeeded, and both run-specific artifacts were uploaded under names containing the exact source SHA. The SPRX file hash was independently matched against its manifest. Host tests alone would not have been sufficient. Console stability remains a separate validation milestone.
 
 ---
 
