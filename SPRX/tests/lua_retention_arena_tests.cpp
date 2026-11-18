@@ -14,6 +14,19 @@ struct Block
 
 int main()
 {
+    std::size_t aligned = 0;
+    assert(T7LuaRetentionArena::Align16(0, &aligned) && aligned == 0);
+    assert(T7LuaRetentionArena::Align16(1, &aligned) && aligned == 16);
+    assert(T7LuaRetentionArena::Align16(16, &aligned) && aligned == 16);
+    assert(T7LuaRetentionArena::Align16(17, &aligned) && aligned == 32);
+    assert(!T7LuaRetentionArena::Align16(static_cast<std::size_t>(-1), &aligned));
+
+    std::size_t required = 0;
+    assert(T7LuaRetentionArena::RequiredMappingSize(1, 32, &required) && required == 0x4000);
+    assert(T7LuaRetentionArena::RequiredMappingSize(0x4000, 32, &required) && required == 0x8000);
+    assert(!T7LuaRetentionArena::RequiredMappingSize(static_cast<std::size_t>(-1), 32, &required));
+    assert(!T7LuaRetentionArena::RequiredMappingSize(1, static_cast<std::size_t>(-1), &required));
+
     // The newest block is too small, but an older block has enough free tail.
     // The production allocator must reuse that tail instead of mapping again.
     Block older{nullptr, 1024, 256};
