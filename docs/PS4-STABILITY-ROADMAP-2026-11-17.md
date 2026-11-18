@@ -3,8 +3,8 @@
 **Scope:** BO3-Customs SPRX only. Companion Lua is included where it is part of the SPRX's loader/runtime behavior. FFPorter/converter work, Osiris and unrelated projects are explicitly deferred.
 
 **Repository:** [Zorian1337/PS4-BO3-Customs](https://github.com/Zorian1337/PS4-BO3-Customs), default branch `main`.
-**Current main:** `db015da32383c1f6196e78e04585b00d18f94e03`.
-**Buildability:** achieved on BO3 Auto Build run #44247367325 for this exact commit. Future source changes must repeat the target build and native artifact validation. Build success is not console stability proof.
+**Current main:** `c092e86393ba61b79da9a669b734579dda8e4147` (documentation-only commits follow the verified build).
+**Last verified buildable source:** `db015da32383c1f6196e78e04585b00d18f94e03`, validated by BO3 Auto Build run #44247367325. Future source changes must repeat the target build and native artifact validation. Build success is not console stability proof.
 
 ## Mandatory work protocol
 
@@ -22,7 +22,7 @@ Work directly through connected GitHub tools in Chat mode when Work mode is unav
 ## Current repository / PR state
 
 - **Current main:** `db015da32383c1f6196e78e04585b00d18f94e03`.
-- PR #50 (FolderScanStatus target compile correction) was reviewed, passed all five required PR workflows on its final head, and was squash-merged as the current main commit.
+- PR #50 (FolderScanStatus target compile correction) was reviewed, passed all five required PR workflows on its final head, and was squash-merged as buildable source commit `db015da32383c1f6196e78e04585b00d18f94e03`.
 - PR #49 was closed unmerged as superseded by #50. PRs #43/#48 were also superseded and closed.
 - Other open PRs: #39 (UI transition/image lifetime + bounded stream diagnostics; draft), #40 (XAssetEntry arithmetic research only; draft), #41 (Blood Run bootstrap regression only; draft), #42 (bounded Lua asset-name reads; ready for review), #45 (nonblocking optional Lua fallback; draft), #46 (thread-safe companion-Lua cache publication; draft), #47 (native GPU/clientfield/zone evidence; draft).
 - PR #37/#38 were earlier standalone work superseded by #39. Do not merge them independently.
@@ -30,8 +30,6 @@ Work directly through connected GitHub tools in Chat mode when Work mode is unav
 - PR #45/#46 are source/host validated only. They improve optional Lua fallback contention and companion cache publication; they do not change bytecode retention, mod disable/restore semantics or establish a console loader-stall fix.
 
 ## Latest verified target build — 2026-11-18
-
-<badge-placeholder>
 
 - Workflow: [BO3 Auto Build run #44247367325](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44247367325)
 - Exact source commit: `db015da32383c1f6196e78e04585b00d18f94e03`.
@@ -42,10 +40,6 @@ Work directly through connected GitHub tools in Chat mode when Work mode is unav
 - Uploaded SPRX artifact: `bo3-sprx-db015da32383c1f6196e78e04585b00d18f94e03-1` (artifact ID `14402750921`, 562,196 bytes).
 - Native evidence artifact: `bo3-native-evidence-db015da32383c1f6196e78e04585b00d18f94e03-1` (artifact ID `14401604991`, 32,410 bytes).
 - **Buildability is now demonstrated for this exact commit.** This does not establish PS4/PS5 runtime stability, mod lifecycle correctness or console validation. No release, FTP upload or deployment was performed.
-
-## SPRX issue inventory — document first, then implement
-
-Only SPRX/runtime issues are in scope. The open FFPorter issue #32 is deliberately deferred.
 
 ## SPRX issue inventory — document first, then implement
 
