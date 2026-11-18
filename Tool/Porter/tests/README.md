@@ -23,3 +23,6 @@ run.cmd --console <ip[:port]>     sign in to a console's FTP server and look, ch
 - `UpdateProbe` is a tiny single-file app that carries the updater, so a whole update (download, hand-over,
   swap, restart) can run for real without the full tool. `run.cmd` publishes it twice as `work\probe_one` and `work\probe_two`.
 - Everything the checks write goes under `work\`, which git ignores.
+GitHub Actions also runs `run.cmd` on Windows 2025 for pull requests that change `Tool/Porter/**` or this workflow. It runs only the default offline suite; the real-world switches above are never enabled in CI.
+
+Community download fixtures should follow the current output contract: maps go under `out/usermaps/<map>` and mods under `out/mods/<mod>`. Do not use the retired `out/t7/...` layout in new tests.
