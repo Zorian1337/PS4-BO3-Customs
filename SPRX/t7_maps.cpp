@@ -5344,7 +5344,16 @@ static void ApplyModsNow()
         return;
     }
 
-    // Close immediately before the native common-zone/free transaction. Do not
+    // The no-common path loads replacement mod zones inside LoadModeCommonForMods().
+    // Do not hold the source gate across that mixed load; wait until a common zone
+    // exists and the ordinary path can free old mod zones separately.
+    if (g_loadedCount > 0 && LoadedModeCommon() < 0)
+    {
+        T7Log_Write("[Mods] stack change deferred until a mode common zone is active; preserving current Lua sources");
+        return;
+    }
+
+    // Close immediately before the native mod-zone free transaction. Do not
     // block ordinary frontend teardown while waiting for core_frontend to reload.
     bool luaRetentionClosed = false;
     if (g_loadedCount > 0 && keep < g_loadedCount)

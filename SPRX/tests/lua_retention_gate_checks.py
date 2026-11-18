@@ -18,11 +18,14 @@ assert retain.index('LuaRetentionGate::Scope sourceRead') < retain.index('if (!n
 assert 'return RetainLuaFailure("(unavailable)", 0' in retain
 assert 'BeginClose()' in prepare and 'IsDrained()' in prepare and 'Reopen()' in prepare
 assert 'kDrainAttempts = 2000' in prepare
+assert 'if (!ownsClose)' in prepare and 'return false;' in prepare
 maps=(root/'t7_maps.cpp').read_text()
 apply=maps[maps.index('static void ApplyModsNow()'):maps.index('static void ApplyModsAtFrontend(',maps.index('static void ApplyModsNow()'))]
 assert apply.index('ReloadFrontend(') < apply.index('T7Lua_PrepareModUiUnload()')
 assert 'if (!FreeModsFrom(keep))' in apply and 'T7Lua_ResumeModUiRetention();' in apply
 assert 'g_sessionModCount >= 0 && g_loadedCount > 0' in apply
+assert 'g_loadedCount > 0 && LoadedModeCommon() < 0' in apply
+assert apply.index('stack change deferred until a mode common zone is active') < apply.index('T7Lua_PrepareModUiUnload()')
 assert apply.index('host stack change deferred') < apply.index('T7Lua_PrepareModUiUnload()')
 assert apply.index('T7Lua_ResumeModUiRetention();') < apply.index('AppendMods(names, wanted, mode)')
 assert 'T7Lua_ResumeModUiRetention();' in maps[maps.index('void T7Maps_FrameWork()'):]

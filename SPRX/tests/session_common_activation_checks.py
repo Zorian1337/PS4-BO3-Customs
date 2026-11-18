@@ -102,7 +102,9 @@ int main() {
     g_loadedCount=0; wanted=2; g_sessionModCount=-1;
     ApplyModsNow(); assert(frontend==2 && g_frontendApplyPending);
     ApplyModsAtFrontend(&frontendZone,1); assert(appends==1 && !retentionClosed);
-    g_sessionModCount=2; mode=-1; ApplyModsNow(); assert(reloads==2); // First host stack has no old mod sources.
+    g_sessionModCount=2; mode=-1; g_loadedCount=1; ApplyModsNow();
+    assert(reloads==1 && !retentionClosed); // Defer no-common transition while old sources remain.
+    g_loadedCount=0; ApplyModsNow(); assert(reloads==2); // First host stack has no old mod sources.
     assert(!g_activeModLuaRetentionScopes.Any());
     assert(frontend==2);
     std::puts("PASS: host common transaction, exact-order no-op, empty host, zone/memory guards and personal activation");

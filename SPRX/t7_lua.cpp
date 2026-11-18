@@ -3697,7 +3697,7 @@ bool T7Lua_PrepareModUiUnload()
     using namespace T7Lua;
     const bool ownsClose = g_modLuaRetentionGate.BeginClose();
     if (!ownsClose)
-        return g_modLuaRetentionGate.IsClosed() && g_modLuaRetentionGate.IsDrained();
+        return false; // A second transition must not share ownership of the closed gate.
 
     constexpr int kDrainAttempts = 2000;
     for (int attempt = 0; attempt < kDrainAttempts; ++attempt)
