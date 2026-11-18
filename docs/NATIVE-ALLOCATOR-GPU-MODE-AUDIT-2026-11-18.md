@@ -120,3 +120,45 @@ These are recorded claims from the issue's local-candidate report; the source tr
 The dev.69 log(8).txt is a different artifact: it records only a startup "shared asset-entry reserve ready" line and later 148,929 SPRX-linked assets before the excerpt ends at map-load start. It does not prove that the dev.67 allocator fix was present or that a reserve page was consumed. The PR #40 runtime hook that was removed is also a separate, unsafe reconstruction; it must not be presented as the dev.67 candidate or as a review of that private source.
 
 The dev.67 build report does not satisfy PR #43's target-compatibility gate: it predates the FolderScanStatus correction and is not a target build of the corrected PR #43 head. A fresh PS4 target build is still needed after that source correction, followed by console verification where relevant.
+
+
+## Native allocator deep pass — exact operation order and distinct link roles
+
+The saved Ghidra decompilation was re-read around the complete allocation and cleanup bodies. The following details are now recorded to prevent a future reserve implementation from relying on the wrong lock or link field.
+
+### Allocation function 0x8583B0 (FUN_008583b0)
+
+Observed order in the decompiler:
+
+1. Read the global free-list head from `DAT_05D26718`.
+2. If it is null, emit `Could not allocate asset - increase XASSET_ENTRY_POOL_SIZE`.
+3. Increment `DAT_05D26720` (current allocation count), update `DAT_05D26724` (high-water count), and update the named `XAssetEntryCount` statistic when available.
+4. Pop the free-list node by assigning `DAT_05D26718 = *(uint**)node`, then write the requested type into the first 32-bit word.
+5. Attempt the per-type physical-preset free-list path using `DAT_037C8400/8408` and related per-type counters.
+6. **Only if that per-type path cannot supply an entry**, acquire the state represented by `DAT_0CF60BB4` using a thread-local recursion counter and atomic compare/exchange loop. Under that scope, walk all `0x25400` hash buckets at `DAT_057E9710`, traversing bucket links at entry offset `0x14` and override/secondary links at offset `0x1C`; then release the scoped lock and call the fatal path.
+7. On success, initialize the entry's type-specific data pointer, type metadata, and link/flag fields before returning it.
+
+This ordering is critical: the shared free-list pop at step 4 occurs **before** the later `DAT_0CF60BB4` lock scope at step 6. Therefore, that lock state is not evidence that a caller owns the global free-list lock, and the current decompilation does not show it protecting reserve-page publication or the initial global free-list pop. Reusing it as a reserve-publication lock would be unsafe.
+
+### Distinct native links and consumers
+
+- Entry base: `DAT_0587E710`; stride: `0x20`.
+- Shared free-list next pointer: the first pointer-sized word of each free node, consumed by `DAT_05D26718 = *(uint**)node` and rebuilt by native cleanup paths.
+- Hash-bucket chain link: 32-bit index at entry offset `0x14` (`DAT_0587E724`).
+- Secondary/override chain link: 32-bit index at entry offset `0x1C` (`DAT_0587E72C`).
+- Hash bucket heads: `DAT_057E9710`, with `0x25400` buckets. The bucket-head array is not the entry table and is not the free-list.
+- Entry index conversion appears as `(entry - 0x0587E710) / 0x20` in native link code. Multiple consumers multiply stored indices by `0x20` before dereferencing the corresponding link field.
+
+The transfer path at `0x8587B0` uses a separate lock/state mechanism around payload/metadata copy or swap. The cleanup path at `0x858CB0` dispatches type-specific cleanup and updates per-type free lists. Additional teardown/rebuild paths walk the hash and secondary chains and push nodes back to the shared free list. These are separate lifecycle operations; the fact that a 32-bit index fits an arithmetic bound does not prove that an added entry is visible to every traversal or is correctly reclaimed.
+
+### What this changes in the engineering plan
+
+The allocator investigation is no longer blocked on finding the native allocator entry point: that function is identified. The remaining blockers are now narrower and concrete:
+
+1. Identify and fingerprint the exact executable/module used for the failing dev.66/dev.67 run and the supported PS4 target. The Ghidra analysis profile hash `07bc342c072de5802bde3fe6af22f16637477553bf3c011ec84d73c25263f6f9` identifies the analysis profile, **not** the executable fingerprint.
+2. Enumerate every function that reads or writes the shared free-list head, entry first word, offset `0x14`, and offset `0x1C`; include indirect function-table dispatches and cleanup/rebuild paths.
+3. Recover the actual lock/critical-section contract for each mutation. Do not infer ownership from a shared busy flag or from a different lock used during a later fallback traversal.
+4. Prove index interpretation, sentinel values, signedness, bounds and pointer provenance at every consumer.
+5. Only after those gates, test the exact allocator body and concurrent allocate/free/reuse behavior. A reserve hook must attach at the allocator boundary and preserve all native accounting and cleanup invariants.
+
+No production reserve publisher or allocator detour is justified by this evidence yet. PR #40 remains arithmetic/test groundwork only.
