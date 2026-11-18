@@ -21,6 +21,9 @@ int main()
             assert(XAssetReserveIndex::TryEncodePositiveIndex(base, entry, stride, encoded));
             assert(encoded == index);
             assert(base + static_cast<uintptr_t>(encoded) * stride == entry);
+            uintptr_t decoded = 0;
+            assert(XAssetReserveIndex::TryDecodePositiveIndex(base, encoded, stride, decoded));
+            assert(decoded == entry);
         }
     }
 
@@ -56,6 +59,19 @@ int main()
         assert(!XAssetReserveIndex::TryEncodePositiveIndex(0x1000, 0x1020, 0, encoded));
         assert(encoded == 77);
     }
+    // Reject non-positive sentinel indices, zero stride, and pointer overflow.
+    {
+        uintptr_t decoded = 0x1234;
+        assert(!XAssetReserveIndex::TryDecodePositiveIndex(0x1000, 0, stride, decoded));
+        assert(!XAssetReserveIndex::TryDecodePositiveIndex(0x1000, -1, stride, decoded));
+        assert(!XAssetReserveIndex::TryDecodePositiveIndex(0x1000, 1, 0, decoded));
+        assert(decoded == 0x1234);
+
+        const uintptr_t base = std::numeric_limits<uintptr_t>::max() - 15;
+        assert(!XAssetReserveIndex::TryDecodePositiveIndex(base, 1, stride, decoded));
+        assert(decoded == 0x1234);
+    }
+
     // Validate a complete reserve page, not just one selected entry. The
     // first and last indices bound every fixed-stride entry in between.
     for (uintptr_t residue = 0; residue < stride; ++residue)
