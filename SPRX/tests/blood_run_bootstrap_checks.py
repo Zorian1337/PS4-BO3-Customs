@@ -8,7 +8,7 @@ import sys
 root = Path(__file__).resolve().parents[2]
 source = Path(sys.argv[2]).read_text() if len(sys.argv) > 2 else (root / "SPRX/t7_lua.cpp").read_text()
 block = source.split("static const char k_globalAliasLua[] =", 1)[1].split(";", 1)[0]
-chunk = "".join(ast.literal_eval(value) for value in re.findall(r'"(?:[^"\\]|\\\\.)*"', block))
+chunk = "".join(ast.literal_eval(value) for value in re.findall(r'"(?:[^"\\]|\\.)*"', block))
 assert "Mods_IsUsingUsermap" in chunk
 assert "function() return level() ~= nil end" in chunk
 
