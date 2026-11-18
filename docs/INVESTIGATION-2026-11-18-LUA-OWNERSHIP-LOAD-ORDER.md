@@ -36,3 +36,18 @@ While any mod zone is being loaded, a Lua rawfile lookup from another worker may
 - Full host regression inventory and PS4 target build.
 - Matching-build DEBUG capture with zone name, stack index, pthread ID, lookup decision and ownership mark order.
 - Console validation remains separate.
+
+## Implementation candidate — PR #58
+
+The source-only candidate adds:
+
+- `ActiveModZoneLoads`, an atomic RAII counter for nested/concurrent mod-zone `LoadXFile_h()` scopes.
+- A bounded readable zone-name copy before resolving the current stack index; the per-thread context now points at that call-lifetime copy, while the native `LoadXFile` arguments remain unchanged.
+- A global active-zone fallback in `T7Maps_NeedsLuaRetention()`: during any active mod-zone load, retain only Lua rawfiles even if the ownership index has not yet been marked and `g_loadedCount` is still zero.
+- The existing ownership-index path remains gated by `T7Maps_UsingMods()`, so stale names do not cause stock Lua retention after mods are disabled.
+- The rawfile hook delegates the complete policy to `T7Maps_NeedsLuaRetention()`; the `.lua` suffix check is now case-insensitive.
+- A DEBUG transition diagnostic reports the cumulative number of active-zone fallback retentions.
+
+The host candidate extends the production `LoadXFile_h()` fixture with nested, concurrent and base-zone cases under ASan/UBSan + TSan, tests the retention policy truth table, and asserts the rawfile hook no longer short-circuits on `T7Maps_UsingMods()`.
+
+The fallback intentionally may retain a stock Lua dependency requested by another worker during a mod-zone load. Its counter is included in transition diagnostics so this memory cost can be measured against the existing retention budget. Exact-head workflow and target-build results are pending; no runtime claim is made.
