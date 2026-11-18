@@ -59,3 +59,5 @@ Reviewing `ApplyModsNow()` and `AppendMods()` corrected the initial-load timing 
 ## Validation feedback — diagnostics fixture dependency
 
 The first PR workflow run found that `diagnostic_hook_checks.py` extracts `TraceModTransition()` into a standalone host fixture. The new transition fallback counter is a legitimate production dependency but the fixture did not declare it, so the extracted function failed to compile. This is a test-fixture dependency gap, not a target-source failure. Add an atomic zero-initialized counter to the fixture and assert the transition trace reports it; then rerun all exact-head workflows.
+
+The zone-context regression now compares the copied context's zone-name contents rather than pointer identity; the hook intentionally stores a bounded call-lifetime copy instead of the engine-owned input pointer.
