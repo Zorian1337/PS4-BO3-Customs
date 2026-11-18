@@ -13,6 +13,18 @@ assert "g_uiZoneWaitState.store(kUiZoneWaitHeldReady, std::memory_order_release)
 assert "g_uiZoneWaitState.store(kUiZoneWaitIdle, std::memory_order_release)" in maps
 assert "g_waitZones" not in busy and "g_reloadCheck" not in busy
 assert "ready += ZoneStateOf(g_waitZones[i]) >= 2 ? 1 : 0;" in maps
+
+# FrameWork can observe the old false reload flag after WaitForModZones has
+# already published Pending but before it finishes publishing the new list.
+# Its no-reload fast path must not overwrite that pending publication.
+frame_start = maps.index("void T7Maps_FrameWork()")
+frame_end = maps.index("\nbool T7Maps_DllModLoaded()", frame_start)
+frame = maps[frame_start:frame_end]
+no_wait_start = frame.index("if (!g_reloadCheck)")
+no_wait_end = frame.index("\n    }", no_wait_start)
+no_wait = frame[no_wait_start:no_wait_end]
+assert "g_uiZoneWaitState.store(kUiZoneWaitIdle" not in no_wait
+assert "WaitForModZones publishes Pending before it mutates" in frame
 assert "g_frontendApplyPending" in busy and "AnyZoneLoading()" in busy
 
 tick_start = lua.index("void T7Lua_Tick()")
