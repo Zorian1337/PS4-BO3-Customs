@@ -2,9 +2,8 @@
 
 **Scope:** BO3-Customs SPRX/runtime and its companion Lua only. FFPorter, Osiris and unrelated projects remain deferred.
 
-**Current main:** `dd7054a9dce3b759ac3d4d076c94a76c482227e3` (documentation-only test-build handoff commit).
-**Current test source:** PR #60 and PR #61 are both merged. PR #61 merge commit is `9ba6ca4b592fd4fff16c9f683755894a7ac9c09d`; current main has only documentation changes after that merge. Compare of the merge commit to current main reports one commit ahead, zero behind, with changes limited to `RESUME.md` and documentation files.
-**Latest verified target artifact:** PR #61 exact-head build [BO3 Auto Build #44336275249](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44336275249), head `f7db33a9e2c25daca8f79df8cbd6cf2c79062a3c`. Artifact ID `14442530769`; ZIP SHA-256 `2d3982b64d55afe3e53369b614c88d4b0135f3554b3db0a72df7e440c7182506`; embedded SPRX SHA-256 `e04143784dff72a24a00cb5f321594a7e0f4800aaa30414bc088eb2e4b2c9408`. Current main's SPRX source is unchanged from this tested source tree.
+**Current main source:** PR #60 and PR #61 are merged. PR #61 merge commit is `9ba6ca4b592fd4fff16c9f683755894a7ac9c09d`; all subsequent main changes recorded here are documentation-only, with no SPRX source changes.
+**Latest verified main-branch target artifact:** [BO3 Auto Build #44337307357](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44337307357), source commit `eb3e0fd2881bc0a74f565d9f6d90613daf347019`. Artifact ID `14442381395`; ZIP SHA-256 `36e84e726c518dc108cdf865324e19f7cd93dd273a77e975694e859f22da3b48`; embedded SPRX SHA-256 `242895ba2d269c771aefc2a566de91ab85e9b16d3916b0fea9cdabb430d2ae48` (487,216 bytes). The artifact was downloaded and both hashes independently verified. Manifest: Debug, 14 translation units, four payload segments, `console_validated:false`, `sony_signed:false`.
 **Runtime boundary:** the artifact manifest explicitly says `console_validated:false` and `sony_signed:false`. It is target-build/package validated, not console validated. No claim of stable gameplay, HKS cache invalidation or full stock Lua restoration is authorized until the console gates in [the test-build handoff](TEST-BUILD-HANDOFF-2026-11-18.md) pass.
 
 ## Mandatory work protocol
