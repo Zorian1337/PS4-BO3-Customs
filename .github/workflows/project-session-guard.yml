@@ -58,7 +58,7 @@ jobs:
         run: |
           {
             echo "## Project session guard"
-            echo "- Commit: `$GITHUB_SHA`"
+            echo "- Commit: $GITHUB_SHA"
             echo "- Source publication audit, publication-guard unit tests, and the registered host regression inventory are run as independent steps above."
             echo "- This workflow does not build, upload, or release an SPRX and does not replace PS4/PS5 console validation."
           } >> "$GITHUB_STEP_SUMMARY"
