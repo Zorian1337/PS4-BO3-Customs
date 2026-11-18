@@ -222,3 +222,18 @@ the allocator strategy and invariants but not independently verifiable native
 table/free-list addresses, structure offsets, hook ABI/signature and matching
 build fingerprint. Guessing these contracts risks corrupting the shared asset
 registry. Keep #30 open until those native contracts are recovered and verified.
+
+
+## Stream diagnostic concurrency stress coverage (2026-11-17)
+
+The PR #39 stream-guard tests now include a standalone C++ stress program that
+executes the production `StreamGuard::TryClaimDiagnostic` helper with 32
+simultaneous workers. Eight rounds each race 2,048 total claim attempts and
+assert that exactly 16 events are admitted, the counter remains saturated at
+16, and repeated post-cap calls never reopen the budget. The host runner
+already compiles every `*_tests.cpp` file, so this test is automatically part
+of the full regression inventory and PR diagnostics without a separate
+registration list.
+
+This validates the bounded diagnostic counter under contention only. It does
+not establish that the backend crash is fixed or validate console scheduling.
