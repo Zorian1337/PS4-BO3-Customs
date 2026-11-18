@@ -1,13 +1,14 @@
 # Current development status
 
-Updated 2026-11-17. The dated investigation sections below retain their chronology; for active branch and candidate status, see [RESUME.md](../RESUME.md) and the [PS4 stability roadmap](PS4-STABILITY-ROADMAP-2026-11-17.md).
+Updated 2026-11-18. Active SPRX scope, buildability, PR state and issue inventory are maintained in [RESUME.md](../RESUME.md) and the [authoritative PS4 stability roadmap](PS4-STABILITY-ROADMAP-2026-11-17.md).
 
+## Latest buildability result
 
-## Current PR review update (2026-11-17)
+The FolderScanStatus target compile defect was corrected in PR #50 and merged to `main` as `db015da32383c1f6196e78e04585b00d18f94e03`. BO3 Auto Build run [#44247367325](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44247367325) completed successfully: host regressions passed, all 14 PS4 native translation units compiled, GoldHEN linking/packaging and native module/container validation passed, and run-specific SPRX/native-evidence artifacts were uploaded. This establishes buildability for that exact source commit only. No console validation, deployment or release was performed.
 
-The repository now has five open PRs (#37–#41). PRs #37 and #38 are standalone predecessors to combined PR #39 and must not be merged independently. PR #39's six workflows and 46-program host inventory pass, but source review found a delayed custom-image callback can escape tracking after its `Picture` record is cleared/reused; a review comment is recorded, and the PR must remain draft until retired-address tracking and a post-reuse regression are added. PR #40's checked arithmetic tests pass, but the signed-32 index assumption remains unverified against the public `uint32_t` chain consumer; it is not a runtime allocator fix. PR #41's focused Lua fallback regression passes; Blood Run GSC/gameplay/pause failures remain open.
+The remaining open SPRX work is tracked in the roadmap. PR #39 (transition/image lifetime and stream diagnostics), #40 (arithmetic-only XAssetEntry research), #41 (Blood Run fallback regression), #42 (bounded Lua asset names), #45 (nonblocking optional Lua fallback), #46 (thread-safe companion Lua cache), and #47 (native ownership evidence) remain open and require their recorded review/validation gates. FFPorter issue #32 is out of scope.
 
-No native SPRX build, upload, release, or console test was performed. See [RESUME.md](../RESUME.md) and the [stability roadmap](PS4-STABILITY-ROADMAP-2026-11-17.md) for exact branch heads, checks, review blockers and next steps.
+## Historical investigation archive
 
 ## DS4C UI failure and recovery (dev.60 candidate)
 
