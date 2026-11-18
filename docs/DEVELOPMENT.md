@@ -1,54 +1,13 @@
 # Current development status
 
-Updated 2026-11-17. The dated investigation sections below retain their
-original chronology; for the active branch and candidate status, see
-[RESUME.md](../RESUME.md) and the
-[PS4 stability roadmap](PS4-STABILITY-ROADMAP-2026-11-17.md).
+Updated 2026-11-17. The dated investigation sections below retain their chronology; for active branch and candidate status, see [RESUME.md](../RESUME.md) and the [PS4 stability roadmap](PS4-STABILITY-ROADMAP-2026-11-17.md).
 
-## Current review state (2026-11-17)
 
-PR [#36 — map-load diagnostics and transactional catalog refresh](https://github.com/Zorian1337/PS4-BO3-Customs/pull/36)
-was full-diff reviewed and squash-merged to `main` as
-`10169fc1100eb88813c28bffdf0f2ae32c5a6df6`. Its source changes add structured
-directory-scan results, rollback-safe catalog publication, storage-root
-presence checks, bounded generated Lua output, and DEBUG map-load timing. The supplied
-`zm_ccube` excerpt still does not establish the crash cause.
+## Current PR review update (2026-11-17)
 
-Review found stale four-argument `ListFolder` calls in the mod-stack scanner
-after the scanner interface changed. Those call sites now use structured
-results, log failures, and discard additions from a failed folder scan. A
-regression checks the argument count of every production `ListFolder`
-invocation.
+The repository now has five open PRs (#37–#41). PRs #37 and #38 are standalone predecessors to combined PR #39 and must not be merged independently. PR #39's six workflows and 46-program host inventory pass, but source review found a delayed custom-image callback can escape tracking after its `Picture` record is cleared/reused; a review comment is recorded, and the PR must remain draft until retired-address tracking and a post-reuse regression are added. PR #40's checked arithmetic tests pass, but the signed-32 index assumption remains unverified against the public `uint32_t` chain consumer; it is not a runtime allocator fix. PR #41's focused Lua fallback regression passes; Blood Run GSC/gameplay/pause failures remain open.
 
-Final PR head `6c757633504d048183a119328872b96e058741c2` passed all five required
-workflows: SPRX diagnostics (run 417), project-session guard (run 160),
-frontend reload (run 236), mod-stack transaction (run 235), and script-priority
-(run 241). The project-session guard audited the complete `main`-to-PR diff,
-passed its publication-guard unit tests and the complete registered host
-regression inventory. No native SPRX build, upload, release or PS4/PS5 runtime
-test was performed. Do not claim the reported map crash is fixed.
-
-## GitHub cleanup audit (2026-11-17)
-
-The repository had 10 open issues and one open PR. PR #36 was the only open
-PR and is now merged. All 10 issues were reviewed; none was closed because
-each still has an unresolved fix, provenance, reproduction, complete-package,
-or console-validation requirement. Issue #32 received a comment clarifying
-that full package conversion and console loading remain unverified. Issue #29
-has a tester-confirmed improvement on dev.65, but the associated source patch
-is still local/uncommitted and is not yet a repository fix.
-
-## dev.69 candidate provenance
-
-Issue #33 describes a dev.69 DEBUG candidate with a bounded
-`stream-block-rejected` trace, but direct inspection found no corresponding
-implementation in public `main` or PR #36's `SPRX/t7_maps.cpp`. The issue's
-local SPRX size (487,856 bytes) differs from the remote FTP SIZE response
-(576,352 bytes), which matches the OELF container; the remote bytes were not
-read back. Treat that artifact as an unverified local candidate until its
-exact source patch is recovered and reconciled with the public branch. The
-Buried backend crash remains unresolved.
-
+No native SPRX build, upload, release, or console test was performed. See [RESUME.md](../RESUME.md) and the [stability roadmap](PS4-STABILITY-ROADMAP-2026-11-17.md) for exact branch heads, checks, review blockers and next steps.
 
 ## DS4C UI failure and recovery (dev.60 candidate)
 
