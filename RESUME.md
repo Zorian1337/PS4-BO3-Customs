@@ -363,3 +363,18 @@ claims each diagnostic. Added a production-function concurrency stress
 fixture and registered it in both PR diagnostics and the full host runner.
 CI for the updated test is pending; this is a diagnostic race fix, not proof
 of a pool allocator failure or of the reported map crash.
+
+## Repository progress update — 2026-11-18 (GitHub-only)
+
+Current base: `main` at `2515af69f1c76d93e64dbd448938bcc9290108e2`.
+
+- PR #39 (`recovery/issue-driven-dev65-dev69`) is rebased onto current main at `43c16f7c52f0c1c755b0259b8b0db4506ba4a2dc`. It contains the dev.65 queued-zone/UI/image-lifetime safeguards and dev.69 bounded stream-rejection diagnostics. A follow-up closes the Pending-publication race where FrameWork could clear Pending while the loader was still constructing its wait-zone list. All six PR workflows and both push checks pass. Keep draft until the independent #43 compile blocker is resolved and target-build approval is explicit.
+- PR #42 (`fix/lua-asset-name-bounds`) is rebased at `1aae9b06841695bf89d36a4ccb0605024f8cd6f5`; three fresh checks pass. It bounds game-owned rawfile-name reads and safe diagnostic formatting without changing Lua bytecode retention, mod-stack behavior, or stock Lua restoration. Ready for review, but do not merge before #43 resolves the target compile blocker.
+- PR #43 (`fix/folder-scan-status-declaration`) is rebased at `a40d85e69f358e7cdba48c64f7a4ffb105fa62e7`; all six PR workflows pass. It restores the real newline before `FolderScanStatus` and guards the previous host-test blind spot. No target build was run after the correction; more target compiler errors may remain.
+- PR #40 (`recovery/xasset-entry-index-safety`) is rebased at `8f7412d7ea1c2b897d7107c8ccaa9a383cd74505`. It remains arithmetic/test groundwork only, not a runtime allocator fix. Native allocator ABI, all index consumers and synchronization remain unverified.
+- PR #41 (`investigation/blood-run-bootstrap-regression`) is rebased at `d8a02950895553d66d9ffc1cfab23b797124ab83`. It tests only the existing absent-only usermap Lua fallback; Blood Run GSC/gameplay/pause failures remain unresolved.
+- PRs #37 and #38 were closed as superseded by combined PR #39; they must not be merged independently.
+
+Issues #29, #30, #31 and #33 received source/validation status comments. Issues #1, #2, #20, #23, #28 and #32 remain open with their existing evidence requirements. Do not claim the Buried crash, Blood Run gameplay stall, GPU fault, Seven-Eleven hang, BG-cache join failure, or complete FFPorter package is fixed.
+
+No native target build was run after the FolderScanStatus correction. No console test, upload, release or deployment was performed. Merging to `main` triggers the automatic PS4 build workflow; do not merge or trigger that build until explicitly approved. Host CI is not target ABI or console proof.
