@@ -5518,10 +5518,10 @@ static void TraceModTransition(const char* when, const char* level)
                 zoneLoaded[0] ? 1 : 0, zoneLoaded[1] ? 1 : 0, zoneLoaded[2] ? 1 : 0, zoneLoaded[3] ? 1 : 0,
                 modZones, ModeCommonOnTop() ? 1 : 0, g_reloadCheck ? 1 : 0, g_waitZoneCount,
                 g_applyWanted.load(std::memory_order_acquire) ? 1 : 0);
-    for (int i = 0; i < wanted && i < kMaxStack; ++i)
-        T7Log_Write("[LuaRetention] active-zone fallback lookups=%u",
+    T7Log_Write("[LuaRetention] active-zone fallback lookups=%u",
                 g_modLuaZoneFallbackRetains.load(std::memory_order_relaxed));
-    T7Log_Write("[Transition] selected mod %d: %s", i + 1, names[i]);
+    for (int i = 0; i < wanted && i < kMaxStack; ++i)
+        T7Log_Write("[Transition] selected mod %d: %s", i + 1, names[i]);
     for (int i = 0; i < g_loadedCount && i < kMaxStack; ++i)
         T7Log_Write("[Transition] loaded mod %d: %s", i + 1, g_loaded[i]);
     T7Lua_TraceState(when);
