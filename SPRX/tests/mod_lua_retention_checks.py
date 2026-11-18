@@ -87,6 +87,7 @@ int main() {
 }
 '''
 run("ui-filename-bounds", filename_fixture)
+asset_name_helper = source[source.index("static bool CopyAssetName("):source.index("static uint64_t FindXAsset(")]
 hook = source[source.index("static uint64_t FindXAsset("):source.index("static void AddPcUtil();")]
 guard = source[source.index("bool T7Lua_PrepareModUiUnload()"):source.index("void T7Lua_RunShareVm(")]
 fixture = r'''
@@ -144,7 +145,7 @@ static void T7Log_LuiBuffer(const char*,uintptr_t) {}
 static const RawFileAsset* LuiFileFor(const char*) { return nullptr; }
 static const RawFileAsset* LuiExtraFor(const char*) { return nullptr; }
 static bool LuaMissing(uint64_t raw) { return !raw; }
-''' + hook + r'''
+''' + asset_name_helper + hook + r'''
 }
 int main() {
     using namespace T7Lua;
