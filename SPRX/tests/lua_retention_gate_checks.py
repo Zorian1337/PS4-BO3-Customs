@@ -1,3 +1,4 @@
+# CI entrypoint for the production Lua retention gate.
 from pathlib import Path
 import os, subprocess, tempfile
 root=Path(__file__).resolve().parent
