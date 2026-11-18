@@ -477,7 +477,7 @@ static uint64_t PictureFor(const char* name)
             {
                 if (!g_retiredPictureLimitLogged)
                 {
-                    T7Log_Write("[MapImages] retired-image registry full; new custom images are disabled to preserve callback safety");
+                    T7Log_Write("[MapImages] retired-image registry full; replacement of stale custom images is disabled to preserve callback safety");
                     g_retiredPictureLimitLogged = true;
                 }
                 return 0;
