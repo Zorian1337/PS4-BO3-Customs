@@ -33,4 +33,30 @@ inline bool TryEncodePositiveIndex(uintptr_t tableBase, uintptr_t entryAddress,
     encoded = static_cast<int32_t>(index);
     return true;
 }
+
+// Validate the index range for every fixed-stride entry in one reserve page.
+// This is still arithmetic-only: the caller must separately prove that the
+// page is mapped, writable, correctly owned, and safe to publish.
+inline bool TryValidatePage(uintptr_t tableBase, uintptr_t pageBase,
+                            uintptr_t pageBytes, uint32_t entryStride,
+                            int32_t& firstIndex, int32_t& lastIndex)
+{
+    if (!entryStride || !pageBytes || pageBytes % entryStride || pageBase <= tableBase)
+        return false;
+
+    if (pageBytes > std::numeric_limits<uintptr_t>::max() - pageBase)
+        return false;
+
+    const uintptr_t lastEntry = pageBase + pageBytes - entryStride;
+    int32_t first = 0;
+    int32_t last = 0;
+    if (!TryEncodePositiveIndex(tableBase, pageBase, entryStride, first) ||
+        !TryEncodePositiveIndex(tableBase, lastEntry, entryStride, last) ||
+        last < first)
+        return false;
+
+    firstIndex = first;
+    lastIndex = last;
+    return true;
+}
 }
