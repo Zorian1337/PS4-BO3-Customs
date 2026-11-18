@@ -586,11 +586,10 @@ print("PASS: incomplete optional accent colors use complete fallback RGB")
 subprocess.run([lua, "-"], input=color_fixture, text=True, cwd=root, check=True)
 
 
-// Native UI error recovery is a separate state machine from the Lua menu
-// fixtures above. Assert the production hooks keep a failed generation
-// contained, retain the selected mod stack, and only re-arm after the native
-// AddMenu("main") call returns successfully.
-const nativeLua = (root / "t7_lua.cpp").read_text(encoding="utf-8")
+# Native UI error recovery is separate from the Lua menu fixtures above.
+# Assert that the production hooks contain a failed generation, preserve the
+# selected mod stack, and re-arm only after native AddMenu("main") succeeds.
+nativeLua = (root / "SPRX/t7_lua.cpp").read_text(encoding="utf-8")
 
 def native_section(start, end):
     first = nativeLua.index(start)
@@ -623,7 +622,7 @@ frontend_load = native_section("void T7Lua_FrontendWillLoad()", "void T7Lua_OnUi
 assert "g_frontendGeneration.fetch_add(1" in frontend_load
 assert "g_frontendInjectionBlocked.store(false" in frontend_load
 
-mods_ui = (root / "../Lua/ui_scripts/mods.lua").read_text(encoding="utf-8")
+mods_ui = (root / "Lua/ui_scripts/mods.lua").read_text(encoding="utf-8")
 assert "-- Keep the MODS entry available" in mods_ui
 assert "AddModsButton" in mods_ui
 print("PASS: native UI errors pause only compatibility injection; selected mods remain intact; only successful main-menu registration re-arms recovery")
