@@ -54,3 +54,8 @@ No arena reclamation or forced HKS cache manipulation is authorized by current e
 The source-read race described above now has a concrete implementation candidate in draft PR #61. The gate protects the entire `RetainModLua()` operation, including pointer validation, hashing, deduplication and copying; it uses a single atomic close-bit/reader-count word so an entrant cannot slip between close and drain. The ordinary frontend unload closes only at the free boundary and reopens before new mod Lua is loaded. Host-session and no-common transitions with old source zones are deferred instead of using the gate across mixed teardown/load calls.
 
 The candidate does not reclaim the retained arena, invalidate HKS modules, or prove that old closures are destroyed. The ownership publication race is separately addressed by merged PR #60. Exact-head host/sanitizer checks and a PS4 target build are required before merge; console validation remains required before claiming end-to-end stock Lua restoration.
+
+
+## Validation result — PR #61 candidate
+
+Exact-head diagnostics and host tests passed, including the production source-pointer rejection and bounded timeout recovery tests. The full PR-time PS4 build and native package checks also passed. Artifact ID `14440233593`, ZIP SHA-256 `d4f93947b38b0cbcd2ba0b38f5e62d1117af6e9530d3ca6c635c67349010d34e`; embedded SPRX SHA-256 `7d6a7a65b55a82e1bbcc61b95ff88cf67f930a6385e023b6aee4353e7f1cf247`. Manifest remains `console_validated: false`, `sony_signed: false`. The source-read barrier is build-verified; native HKS cache behavior and real console disable/restore remain unverified.
