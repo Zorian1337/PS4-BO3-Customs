@@ -216,3 +216,10 @@ Console tests remain pending until a tester supplies the corresponding logs.
 ## PR #42 — Lua rawfile name bounds (2026-11-17)
 
 The rawfile lookup hook previously validated only 16 bytes before scanning up to 191 bytes for a terminator, and the missing-config diagnostic formatted the original game-owned pointer. PR #42 adds validated chunk copying, rejects unterminated/unreadable names for plugin classification, and logs from the copied buffer or a placeholder. Native lookup arguments/results and Lua bytecode retention are unchanged. Its source-policy audit, publication guard, 43 host regressions, SPRX diagnostics and script-log checks pass on `bfc2673bd9e5acd816408fca4fc7681fe172380c`. It is ready for review, not merged; no target build or console test.
+
+
+## P0 — Restore FolderScanStatus target declaration (2026-11-18)
+
+Automatic BO3 Auto Build run #75 attempted the PS4 cross-compile after a documentation push to `main` and failed in `SPRX/t7_maps.cpp`. A literal escaped newline after `// libkernel ENOENT` swallowed the `FolderScanStatus` enum, producing an `expected unqualified-id` error and undeclared-type errors. The compiler stopped at its error limit; additional target errors may remain. Artifact upload and native-module inspection were skipped.
+
+PR #43 (`fix/folder-scan-status-declaration`) replaces the literal escape with a real newline and adds a guard to `map_catalog_safety_checks.py`; the old test extracted the enum token from the comment, masking the full translation-unit failure. Host/source-policy checks are pending. No second target build is authorized or claimed. See the investigation in PR #43.
