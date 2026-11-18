@@ -24,7 +24,8 @@ int main()
     assert(guardedRead(gate, static_cast<const volatile uint64_t*>(denied)) == 0xBAD0);
     assert(!gate.TryEnter());
     gate.Reopen();
-    assert(guardedRead(gate, static_cast<const volatile uint64_t*>(denied)) != 0xBAD0 ? false : true);
+    const uint64_t safeValue = 0x12345678;
+    assert(guardedRead(gate, &safeValue) == safeValue);
 
     std::atomic<bool> entered{false}, release{false};
     std::thread reader([&] {

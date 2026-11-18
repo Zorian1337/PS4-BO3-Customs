@@ -3699,7 +3699,7 @@ bool T7Lua_PrepareModUiUnload()
     if (!ownsClose)
         return g_modLuaRetentionGate.IsClosed() && g_modLuaRetentionGate.IsDrained();
 
-    constexpr int kDrainAttempts = 200;
+    constexpr int kDrainAttempts = 2000;
     for (int attempt = 0; attempt < kDrainAttempts; ++attempt)
     {
         if (g_modLuaRetentionGate.IsDrained())
