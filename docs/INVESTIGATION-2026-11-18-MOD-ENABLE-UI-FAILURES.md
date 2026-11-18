@@ -71,3 +71,17 @@ Keep the narrow successful-`main` recovery behavior, add/retain regression cover
 ## Validation boundary
 
 The source review confirms the allocator's head-only search defect and the error-code classification. No console reproduction, HKS cache proof, or proof that the fragmentation defect was the sole ENOMEM cause is claimed by this investigation.
+
+
+## Candidate implementation status — 2026-11-18
+
+A source-only candidate is recorded on branch `fix/mod-enable-lua-arena-reuse` (six commits ahead of `main`, zero behind; not merged and no PR opened). It:
+
+- Adds `T7LuaRetentionArena::FindBlockWithSpace()` and changes `AllocateRetainedLua()` to search every existing append-only block before calling `sceKernelMmap`. Stable block addresses and process-lifetime bytecode ownership are unchanged; no old block or HKS closure storage is reclaimed.
+- Adds checked size/alignment arithmetic and tracks aggregate reusable tail bytes. Failure diagnostics now distinguish requested allocation size from mmap block size and report retained bytes, mapped bytes, aggregate reusable bytes, largest reusable tail and retained header count.
+- Adds `SPRX/tests/lua_retention_arena_tests.cpp` for older-block reuse, exact fit, insufficient contiguous space, invalid block metadata and size-limit behavior. The existing host runner discovers all `*_tests.cpp` files automatically.
+- Extends `lua_menu_recovery_checks.py` with source-contract assertions that a modded UI error pauses only compatibility injection, does not clear the selected stack, and only a successful native `AddMenu("main")` call re-arms recovery. The Mods entry remains present in the Lua UI source.
+
+**Validation performed:** the helper/test logic was compiled and run with local g++ C++20 and UBSan; both passed. ASan could not start in the local Python runtime because its runtime was not first in the process library list. The full repository host suite, PS4 target build, and console lifecycle tests have not run. The new source branch therefore remains an unvalidated implementation candidate; `main` remains unchanged and retains its last verified target-build state. No SPRX build was started because the workflow requires explicit build approval.
+
+**Remaining boundary:** the log proves kernel ENOMEM but does not prove how much arena space was stranded or that fragmentation was the sole cause. The new largest-tail diagnostics will distinguish internal fragmentation from true process memory pressure on the next matching console run. DS4C's nil operand remains unknown and cannot be safely patched from stripped third-party bytecode alone.
