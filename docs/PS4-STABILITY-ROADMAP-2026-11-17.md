@@ -206,3 +206,17 @@ This is arithmetic groundwork only. It does not map or publish reserve memory, v
 ## Parallel source recovery — PR #39
 
 [PR #39](https://github.com/Zorian1337/PS4-BO3-Customs/pull/39) continues to carry the issue-driven dev.65 UI/image-lifetime guards and dev.69 stream rejection diagnostics. Its additional 32-worker diagnostic-cap stress test and roadmap/RESUME updates are on that separate draft branch. All six GitHub Actions workflows now pass on head `84ecf1917ad6e3930f7643e473076a9ce3f35059`: SPRX diagnostics #517, project-session guard #294, frontend reload #293, mod-stack transaction #292, script priority #298 and in-game script log #89. The project guard completed the publication audit and full host regression inventory; diagnostics passed including the concurrent stream-cap test. These are host/CI results only. Keep PR #39 separate from the #30 allocator work until both branches have passed their own review and CI.
+
+
+## XAssetEntry registry follow-up (2026-11-18)
+
+- [x] Verify the arithmetic helper and whole-page index bounds with host tests.
+- [x] Add checked index decoding and rejection tests for zero/negative indices and pointer overflow.
+- [x] Audit published t7_maps.cpp: LinkXAsset_h is a link-stage hook, not the shared XAssetEntry allocator.
+- [x] Record ClearAssetsInUse() as the explicit public SPRX chain consumer; it reads bucket/next values as uint32_t and uses a 32-byte entry stride.
+- [ ] Verify whether the dev.67 positive signed-32 index rule is enforced by every native consumer; current public source does not prove it.
+- [ ] Recover the native allocator/free/reuse functions, complete entry ABI, every native index consumer, synchronization contract, and independent build fingerprint.
+- [ ] Implement reserve-page mapping/publication only after the native contract is proven; test mapping failure, cleanup, cap, reuse, and original fast-path ABI.
+- [ ] Reproduce the nine-mod dev.66 exhaustion case in a fresh process with the matching build and verify no regression after the runtime fix.
+
+The helper remains arithmetic-only and is not wired into production. CI #530 and #320 passed on the pre-decode commit 58d33d0; the new decode helper and test additions require fresh CI. No PS4 target build, SPRX upload, or console test was performed.
