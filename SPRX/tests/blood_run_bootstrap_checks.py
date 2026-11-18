@@ -12,7 +12,7 @@ chunk = "".join(ast.literal_eval(value) for value in re.findall(r'"(?:[^"\\]|\\.
 assert "Mods_IsUsingUsermap" in chunk
 assert "function() return level() ~= nil end" in chunk
 
-fixture = r\'''
+fixture = r'''
 local function install(map, fail)
   local env=setmetatable({}, {__index=_G})
   env._G=env
@@ -61,7 +61,7 @@ chosen.BO3CustomsChosenMod="selected_mod"
 assert(chosen.Mods_IsUsingMods()==true)
 assert(chosen.Mods_IsUsingUsermap()==false)
 print("PASS: Blood Run usermap fallback detects maps, rejects frontend/errors, and preserves existing providers")
-\'''
+'''
 
 subprocess.run([sys.argv[1], "-"], input="local CHUNK=[====[" + chunk + "]====]\n" + fixture,
                text=True, cwd=root, check=True)
