@@ -2417,11 +2417,15 @@ static uint64_t RetainModLua(const char* name, uint64_t original)
     for (size_t i = 0; i < length; ++i)
         hash = (hash ^ (uint8_t)raw.buffer[i]) * 1099511628211ull;
 
-    // Rawfile lookup runs on loader workers. Never sleep indefinitely behind
-    // another worker's arena scan/map/copy; fail closed rather than return a
-    // borrowed bytecode buffer whose source zone may be unloaded.
-    if (g_retainedLuaLock.test_and_set(std::memory_order_acquire))
-        return RetainLuaFailure(name, original, "retention arena busy", false);
+    // Rawfile lookup runs on loader workers. Allow normal short contention,
+    // but never wait indefinitely behind another worker's arena scan/map/copy.
+    constexpr int kRetainedLuaLockWaitAttempts = 200;
+    for (int attempt = 0; g_retainedLuaLock.test_and_set(std::memory_order_acquire); ++attempt)
+    {
+        if (attempt + 1 >= kRetainedLuaLockWaitAttempts)
+            return RetainLuaFailure(name, original, "retention arena busy", false);
+        sceKernelUsleep(50);
+    }
 
     struct Unlock
     {
