@@ -17,3 +17,11 @@ Read `AGENTS.md`, this current handoff, and [the authoritative SPRX roadmap](doc
 - **Merged Lua ownership work:** PR #60 (`715a9f28ed081eda588e9f52fa02c4d1dc762679`) and PR #61 (`9ba6ca4b592fd4fff16c9f683755894a7ac9c09d`). Do not treat PR #60/#61 as open.
 - **Validation:** all 47 registered host regressions; ASan/UBSan + TSan source-read gate tests; nested/concurrent reader, timeout/reopen and failed-free/retry tests; all 14 native PS4 translation units; GoldHEN FSELF packaging/inspection; malformed module/container rejection controls. Workflow host, SPRX and final-completeness jobs succeeded.
 - **Not proven:** manifest says `console_validated:false`, `sony_signed:false`. No PS4 gameplay test, HKS cache invalidation proof or complete disable/re-enable/reload proof exists yet.
+
+## 2026-11-18 mod-enable/UI failure investigation
+
+- New investigation: [docs/INVESTIGATION-2026-11-18-MOD-ENABLE-UI-FAILURES.md](docs/INVESTIGATION-2026-11-18-MOD-ENABLE-UI-FAILURES.md).
+- The 00:47 server shutdown is the expected queued frontend reload. The 03:17 Lua retention failure is a confirmed PS4 mmap ENOMEM after 27,688,960 bytes mapped; UI Error 81928 is fail-closed handling and the later missing-main error is a partial frontend-build consequence.
+- Source review found the retained arena searches only its newest block and can strand free tails in older append-only blocks. Planned correction: search all blocks before mapping, add allocator regressions and bounded usage diagnostics; preserve 32 MiB / 4,096-header caps and never reclaim closure-owned bytecode.
+- DS4C's nil-index remains a third-party stripped-bytecode exception with an unknown operand; no safe patch can be inferred from this log. Existing successful-main recovery needs a full failure/recovery/Mods-disable regression.
+- At documentation time, the issue inventory and proposed corrections are recorded; implementation and fresh target build are pending. No console test, release, upload or build authorization is implied.
