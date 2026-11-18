@@ -5,18 +5,20 @@ Read `AGENTS.md` and the authoritative section at the top of [the SPRX stability
 - **Scope:** SPRX/runtime only, including companion Lua where it is part of SPRX behavior. FFPorter issue #32, Osiris and unrelated projects are deferred.
 - **Repository:** `Zorian1337/PS4-BO3-Customs`, branch `main`.
 - **Current main:** `main` (documentation-only follow-ups after the verified source build).
-- **Last verified buildable source:** `db015da32383c1f6196e78e04585b00d18f94e03`.
-- **PR #50:** merged; corrects the FolderScanStatus declaration and adds a source-line regression. PR #49 is closed unmerged as superseded.
-- **Latest target build:** [BO3 Auto Build #44247367325](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44247367325) completed successfully. All 14 native translation units compiled, GoldHEN link/package succeeded, native module/container validation passed, and the final workflow gate succeeded.
-- **Artifacts:** SPRX `bo3-sprx-db015da32383c1f6196e78e04585b00d18f94e03-1` (ID `14402750921`), containing a 487,120-byte Debug SPRX; SHA-256 `5da25a9b39bb1df80cb9df37e0e8c72ea3f2e1341a4a71e50f409cc08b9b6e3f`. Native evidence `bo3-native-evidence-db015da32383c1f6196e78e04585b00d18f94e03-1` (ID `14401604991`). Hash independently matched the downloaded artifact and validation manifest. These are run-specific CI artifacts, not a release or console deployment.
-- **Other open PRs:** #39, #40, #41, #42, #45, #46 and #47. Exact purpose, review boundaries and validation are in the roadmap. PRs #43/#48/#49 are superseded and closed; #37/#38 are superseded by #39.
-- **Lua acceptance:** users must always be able to disable mods and restore original included Lua behavior without crashes, resets, stale bytecode or partial state. PRs #45/#46 do not satisfy this lifecycle requirement.
-- **Remaining work:** review/integrate safe outstanding SPRX PRs; audit and implement complete Lua disable/restore and stack-capacity safety; continue native XAssetEntry, GPU, zone/clientfield and GSC evidence tracks. Rebuild after every subsequent source change before calling that revision buildable.
+- **Last verified buildable source:** `532a6b682cba6120a9d6518a0a7ece592e776a66`.
+- **Merged fixes:** PR #50 (FolderScanStatus target compile), #51 (bounded Lua asset-name reads) and #52 (nonblocking optional Lua fallback + atomic companion-Lua cache publication).
+- **Latest target build:** [BO3 Auto Build #44248692943](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44248692943) completed successfully. All 14 native translation units compiled, GoldHEN link/package succeeded, native module/container validation passed, and the final workflow gate succeeded.
+- **Verified Debug SPRX:** artifact `bo3-sprx-532a6b682cba6120a9d6518a0a7ece592e776a66-1` (ID `14401879743`), 487,088 bytes; SHA-256 `6f3cceaadc33d3a34f666c5c49d6bdf76c030942c61f665ccbc19c3034329453`. Hash matched the downloaded artifact and manifest. Native evidence artifact ID `14402527702`.
+- **Open PRs:** #39 (draft; wait-zone publication race review required), #40 (arithmetic-only XAssetEntry groundwork), #41 (Blood Run fallback regression), #47 (GPU/clientfield/zone evidence), #53 (nonblocking bytecode-retention lock; checks pending). PRs #42/#45/#46 are closed unmerged as superseded by #51/#52. PRs #43/#48/#49 are superseded and closed; #37/#38 are superseded by #39.
+- **Lua acceptance:** users must always be able to disable mods and restore original included Lua behavior without crashes, resets, stale bytecode or partial state. PRs #51/#52 do not complete HKS module-cache or full disable/restore validation.
+- **Remaining work:** review and target-build PR #53; close the ownership-index publication and full HKS disable/restore evidence gaps; audit mod-stack capacity; continue native XAssetEntry, GPU, zone/clientfield and GSC evidence tracks. Rebuild after every subsequent source change before calling that revision buildable.
 - **Validation boundary:** the exact commit above is buildable. The manifest records `console_validated: false` and `sony_signed: false`; no PS4/PS5 console validation, FTP deployment or release was performed. Buildability is not a stability guarantee.
 - **Workflow:** document each issue and proposed correction before implementation; keep the SPRX inventory current; add production-path tests; update this file and the roadmap after every meaningful change. Work in Chat mode using connected GitHub tools when Work mode is unavailable.
 - **Publication:** source/test/docs only. Keep private logs, binaries, toolchains, credentials and third-party plugin content out of the public repository. Do not upload/release or claim console validation without actual evidence.
 
 ---
+
+## Historical handoff archive
 
 ## Historical handoff archive
 
