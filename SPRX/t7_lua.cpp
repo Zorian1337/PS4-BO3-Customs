@@ -5,6 +5,7 @@
 #include "t7_share_lua.hpp"
 #include "t7_lua_files.hpp"
 #include "t7_lua_failure.hpp"
+#include "lua_retention_gate.hpp"
 #include <system_service.h>
 
 #include <atomic>
@@ -2385,8 +2386,15 @@ static uint64_t RetainLuaFailure(const char* name, uint64_t original, const char
     return (uint64_t)&rejected;
 }
 
+static LuaRetentionGate g_modLuaRetentionGate;
+
 static uint64_t RetainModLua(const char* name, uint64_t original)
 {
+    // Must precede all reads from the borrowed name, rawfile header or buffer.
+    LuaRetentionGate::Scope sourceRead(g_modLuaRetentionGate);
+    if (!sourceRead)
+        return RetainLuaFailure("(unavailable)", 0, "mod Lua unload in progress", false);
+
     if (!name)
         return RetainLuaFailure("(null)", original, "null Lua asset name");
     if (!original || !RangeReadable(original, sizeof(RawFileAsset)))
@@ -3687,11 +3695,32 @@ bool T7Lua_IsUiState(uintptr_t L)
 bool T7Lua_PrepareModUiUnload()
 {
     using namespace T7Lua;
-    T7Log_Write("[Lua] mod unload keeps %u shared Lua chunk(s) alive (%llu retained bytes, %llu mapped bytes outside the script heap)",
-                g_retainedLuaCount.load(std::memory_order_relaxed),
-                (unsigned long long)g_retainedLuaBytes.load(std::memory_order_acquire),
-                (unsigned long long)g_retainedLuaMapped.load(std::memory_order_acquire));
-    return true;
+    const bool ownsClose = g_modLuaRetentionGate.BeginClose();
+    if (!ownsClose)
+        return false; // A second transition must not share ownership of the closed gate.
+
+    constexpr int kDrainAttempts = 2000;
+    for (int attempt = 0; attempt < kDrainAttempts; ++attempt)
+    {
+        if (g_modLuaRetentionGate.IsDrained())
+        {
+            T7Log_Write("[Lua] source-read gate drained; keeping %u retained Lua chunk(s), %llu bytes",
+                        g_retainedLuaCount.load(std::memory_order_relaxed),
+                        (unsigned long long)g_retainedLuaBytes.load(std::memory_order_acquire));
+            return true;
+        }
+        sceKernelUsleep(50);
+    }
+
+    // A timeout cancels unload and reopens lookup; no zone may be freed.
+    g_modLuaRetentionGate.Reopen();
+    T7Log_Write("[Lua] unload cancelled: source reads did not drain; mod zones remain loaded");
+    return false;
+}
+
+void T7Lua_ResumeModUiRetention()
+{
+    T7Lua::g_modLuaRetentionGate.Reopen();
 }
 
 void T7Lua_RunShareVm(uintptr_t L)

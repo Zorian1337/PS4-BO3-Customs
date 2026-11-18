@@ -3,6 +3,14 @@ name: BO3 Auto Build
 on:
   push:
     branches: [main, nexus/standalone-converter]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'SPRX/**'
+      - '.github/scripts/build_sprx.py'
+      - '.github/scripts/build_support.py'
+      - '.github/scripts/tests/check_native_artifact.py'
+      - '.github/workflows/bo3-build.yml'
   workflow_dispatch:
 
 permissions:
@@ -14,7 +22,7 @@ concurrency:
 
 jobs:
   host:
-    if: (github.repository == 'Zorian1337/PS4-BO3-Customs' && github.ref == 'refs/heads/main') || (github.repository == 'Hi6795/PS4-BO3-Customs' && github.ref == 'refs/heads/nexus/standalone-converter')
+    if: (github.repository == 'Zorian1337/PS4-BO3-Customs' && ((github.event_name == 'pull_request' && github.base_ref == 'main') || github.ref == 'refs/heads/main')) || (github.repository == 'Hi6795/PS4-BO3-Customs' && github.ref == 'refs/heads/nexus/standalone-converter')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -104,7 +112,7 @@ jobs:
 
   complete:
     needs: [host, porter, sprx]
-    if: always() && ((github.repository == 'Zorian1337/PS4-BO3-Customs' && github.ref == 'refs/heads/main') || (github.repository == 'Hi6795/PS4-BO3-Customs' && github.ref == 'refs/heads/nexus/standalone-converter'))
+    if: always() && ((github.repository == 'Zorian1337/PS4-BO3-Customs' && ((github.event_name == 'pull_request' && github.base_ref == 'main') || github.ref == 'refs/heads/main')) || (github.repository == 'Hi6795/PS4-BO3-Customs' && github.ref == 'refs/heads/nexus/standalone-converter'))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:

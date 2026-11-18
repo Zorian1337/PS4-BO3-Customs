@@ -121,6 +121,7 @@ static void T7Log_Write(const char*,...) {}
 static std::atomic<unsigned> g_retentionSleepCalls{0};
 static void sceKernelUsleep(int) { g_retentionSleepCalls.fetch_add(1); std::this_thread::yield(); }
 
+#include "lua_retention_gate.hpp"
 #include "t7_lua_failure.hpp"
 #include "t7_lua_ownership.hpp"
 static T7LuaOwnership::Index ownership;
@@ -181,6 +182,19 @@ int main() {
     assert(munmap(mapped,4096)==0);
     assert(std::strcmp(saved->name,"ui/test.lua")==0 && std::memcmp(saved->buffer,"\x1bLuaQ",5)==0);
     denied=0;
+    // Exercise the real RetainModLua() entry with a genuinely unmapped source
+    // pointer. The gate must reject before RangeReadable/header/buffer access.
+    const auto closedGateResult = RetainModLua("ui/closed.lua", reinterpret_cast<uint64_t>(mapped));
+    assert(closedGateResult != reinterpret_cast<uint64_t>(mapped));
+    assert(reinterpret_cast<const RawFileAsset*>(closedGateResult)->buffer ==
+           reinterpret_cast<const char*>(kLuaRetentionFailure));
+    T7Lua_ResumeModUiRetention();
+    {
+        LuaRetentionGate::Scope held(T7Lua::g_modLuaRetentionGate);
+        assert(held);
+        assert(!T7Lua_PrepareModUiUnload()); // A held source reader forces the bounded timeout.
+        assert(!T7Lua::g_modLuaRetentionGate.IsClosed()); // Timeout must reopen the gate.
+    }
 
     char chunk[64]={}; std::memcpy(chunk,"\x1bLuaQ",5);
     RawFileAsset replacement{"ui/test.lua",64,17,chunk};
@@ -228,21 +242,23 @@ int main() {
     assert(RetainModLua(text.name,reinterpret_cast<uint64_t>(&text))==reinterpret_cast<uint64_t>(&text));
     RawFileAsset shortText{"ui/short.lua",2,0,"--"};
     assert(RetainModLua(shortText.name,reinterpret_cast<uint64_t>(&shortText))==reinterpret_cast<uint64_t>(&shortText));
-    assert(g_retainedLuaFailures==0);
+    assert(g_retainedLuaFailures==1); // Only the deliberate closed-gate rejection so far.
 
     failAllocation=true;
     g_retainedLuaBlocks->used=g_retainedLuaBlocks->size; // Force another slab.
     assert(RetainModLua("ui/fail.lua",reinterpret_cast<uint64_t>(&replacement))!=reinterpret_cast<uint64_t>(&replacement));
     assert(T7Lua_PrepareModUiUnload());
-    assert(T7Lua_PrepareModUiUnload());
+    assert(!T7Lua_PrepareModUiUnload()); // A second transition cannot share the closed gate.
     RawFileAsset core{"ui/LUI/LUI.lua",64,0,chunk};
     nativeFile=&core;
     auto coreResult=FindXAsset(47,reinterpret_cast<uint64_t>(core.name),0,0,0,0,0,0,0,0,0,0,0,0);
     assert(coreResult==reinterpret_cast<uint64_t>(&core)); // Failed mod allocation cannot reject stock recovery UI.
+    T7Lua_ResumeModUiRetention();
     failAllocation=false;
     auto retry=reinterpret_cast<const RawFileAsset*>(RetainModLua("ui/fail.lua",reinterpret_cast<uint64_t>(&replacement)));
     assert(retry->buffer!=reinterpret_cast<const char*>(kLuaRetentionFailure));
     assert(retry->buffer[20]==42 && T7Lua_PrepareModUiUnload());
+    T7Lua_ResumeModUiRetention();
     const auto used=g_retainedLuaBytes.load(); g_retainedLuaBytes=kRetainedLuaBudget;
     assert(RetainModLua("ui/budget.lua",reinterpret_cast<uint64_t>(&replacement))!=reinterpret_cast<uint64_t>(&replacement));
     g_retainedLuaBytes=used;

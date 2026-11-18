@@ -5322,9 +5322,14 @@ static void ApplyModsNow()
     // including the host-session common-zone path and count-publication window.
     ActiveModLuaRetentionScopes::Scope modStackTransition(g_activeModLuaRetentionScopes, true);
 
-    if (g_loadedCount > 0 && (keep < g_loadedCount || g_sessionModCount >= 0) &&
-        !T7Lua_PrepareModUiUnload())
+    // The host-session common-zone request combines old-zone teardown and new
+    // mod-zone loading in one native call. Do not close the source gate across
+    // that mixed transaction: defer a changed host stack until the session ends.
+    if (g_sessionModCount >= 0 && g_loadedCount > 0)
+    {
+        T7Log_Write("[Mods] host stack change deferred until the current session ends; preserving loaded Lua sources");
         return;
+    }
 
     if (g_sessionModCount < 0 && !g_frontendApplying)
     {
@@ -5339,6 +5344,25 @@ static void ApplyModsNow()
         return;
     }
 
+    // The no-common path loads replacement mod zones inside LoadModeCommonForMods().
+    // Do not hold the source gate across that mixed load; wait until a common zone
+    // exists and the ordinary path can free old mod zones separately.
+    if (g_loadedCount > 0 && LoadedModeCommon() < 0)
+    {
+        T7Log_Write("[Mods] stack change deferred until a mode common zone is active; preserving current Lua sources");
+        return;
+    }
+
+    // Close immediately before the native mod-zone free transaction. Do not
+    // block ordinary frontend teardown while waiting for core_frontend to reload.
+    bool luaRetentionClosed = false;
+    if (g_loadedCount > 0 && keep < g_loadedCount)
+    {
+        if (!T7Lua_PrepareModUiUnload())
+            return;
+        luaRetentionClosed = true;
+    }
+
     const int mode = LoadedModeCommon();
 
     if (mode < 0)
@@ -5346,12 +5370,14 @@ static void ApplyModsNow()
         if (wanted > 0)
             LoadModeCommonForMods();
 
+        if (luaRetentionClosed) T7Lua_ResumeModUiRetention();
         return;
     }
 
     if (!ModeCommonOnTop())
     {
         T7Log_Write("[Mods] another zone sits above the mods, so the changes apply when your next match starts");
+        if (luaRetentionClosed) T7Lua_ResumeModUiRetention();
         return;
     }
 
@@ -5373,6 +5399,7 @@ static void ApplyModsNow()
         common.allocFlags = kModeCommonFlags;
         common.freeFlags = kModeCommonFlags;
         LoadXAssets_h((uint64_t)&common, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        if (luaRetentionClosed) T7Lua_ResumeModUiRetention();
         return;
     }
 
@@ -5393,7 +5420,10 @@ static void ApplyModsNow()
         }
 
         if (!FreeModsFrom(keep))
+        {
+            if (luaRetentionClosed) T7Lua_ResumeModUiRetention();
             return;
+        }
 
         PruneWaitZones();
         g_loadedCount = keep;
@@ -5404,10 +5434,21 @@ static void ApplyModsNow()
         EndListWrite();
 
         SetLoaded(keep);
+
+        // The old zone source is now gone. Reopen before AppendMods issues any
+        // lookup for replacement Lua modules in the newly loaded mod zones.
+        if (luaRetentionClosed)
+        {
+            T7Lua_ResumeModUiRetention();
+            luaRetentionClosed = false;
+        }
     }
 
     if (wanted > keep)
         AppendMods(names, wanted, mode);
+
+    // Replacement stack is established; reopen before new UI rawfile lookups.
+    if (luaRetentionClosed) T7Lua_ResumeModUiRetention();
 
     if (g_frontendApplying)
         return;

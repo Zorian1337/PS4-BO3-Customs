@@ -11,6 +11,7 @@ on:
       - 'SPRX/t7_maps.hpp'
       - 'SPRX/t7_lua.cpp'
       - 'SPRX/t7_lua.hpp'
+      - 'SPRX/lua_retention_gate.hpp'
       - 'SPRX/t7_lua_files.hpp'
       - 'SPRX/diagnostic_ring.hpp'
       - 'SPRX/script_error_budget.hpp'
@@ -57,6 +58,7 @@ jobs:
           python3 SPRX/tests/lua_extra_lock_checks.py
           python3 SPRX/tests/lua_file_cache_concurrency_checks.py
           python3 SPRX/tests/mod_lua_retention_checks.py
+          python3 SPRX/tests/lua_retention_gate_checks.py
           python3 SPRX/tests/config_io_bounds_checks.py
           python3 SPRX/tests/map_catalog_safety_checks.py
           python3 SPRX/tests/map_fastfile_route_checks.py
