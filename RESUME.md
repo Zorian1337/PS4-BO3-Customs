@@ -1,25 +1,42 @@
 # Current SPRX handoff — 2026-11-18
 
-Read `AGENTS.md` and the authoritative section at the top of [the SPRX stability roadmap](docs/PS4-STABILITY-ROADMAP-2026-11-17.md) first. The roadmap is the source of truth for scope, issue inventory, evidence, proposed fixes, priority, PR status and buildability gates.
+Read `AGENTS.md`, this current handoff, and [the authoritative SPRX roadmap](docs/PS4-STABILITY-ROADMAP-2026-11-17.md) first. The dedicated [stable PS4 test-build handoff](docs/TEST-BUILD-HANDOFF-2026-11-18.md) contains artifact identity, install/rollback procedure and staged console gates.
 
-- **Scope:** BO3-Customs SPRX/runtime only, including companion Lua when it is part of SPRX loader/runtime behavior. FFPorter issue #32, Osiris and unrelated projects are deferred.
+## Current candidate and repository state
+
 - **Repository:** `Zorian1337/PS4-BO3-Customs`, default branch `main`.
-- **Current main:** `dd660b6d4642c9f48da421c821adf95dc2a528e4`; changes after the last verified build are documentation-only.
-- **Latest verified main build:** commit `7fa1a2003fab5acabca9af8abb75506907b99962`, BO3 Auto Build #44253105600. Host regressions, all 14 PS4 native translation units, GoldHEN SPRX compile/link/package, native module validation, all six malformed-container controls and final completeness gate passed. Later main commits are documentation-only relative to source `7f9b96757149c299a30d671862f307450fcb116a`.
-- **Latest Debug SPRX artifact:** `bo3-sprx-7fa1a2003fab5acabca9af8abb75506907b99962-1` (artifact ID `14404827155`, ZIP 562,164 bytes). The identical source revision `7f9b96757149c299a30d671862f307450fcb116a` has independently verified SPRX SHA-256 `c1b82949d4f03e12a7feef33b144ec1d98b9f5c524f2585f38b6932fdbd09ede`. Manifest says `console_validated: false`, `sony_signed: false`.
-- **Merged source fixes:** PR #50 (FolderScanStatus compile correction), #51 (bounded Lua rawfile-name reads), #52 (nonblocking optional Lua fallback and atomic companion-Lua cache publication), #54 (bounded bytecode-retention lock waiting), #57 (in-flight Lua ownership publication protection). Each has successful target-build evidence; #57's post-merge target build is #44250403844.
-- **Open PRs:** #39 (draft; UI transition/image lifetime + stream diagnostics; wait-zone and image-lifetime review remains), #40 (draft; arithmetic-only XAssetEntry research, no allocator hook), #41 (draft; Blood Run bootstrap regression only), #47 (draft; native GPU/clientfield/zone evidence), #60 (current-main Lua retention implementation; exact-head checks pending, target build pending).
-- **PR #60:** head `265a1faca9ea88f309ed00259b2eb9c32c39d845`, based on main before the latest documentation-only commits. It adds nested/concurrent active-mod-zone and changed-stack retention scopes, bounded copied zone-name context, centralized Lua retention policy, all four first-mod index-zero zone tests, later stacked-zone tests, unrelated-zone exclusion and stock fallback after disable. Four exact-head workflows passed; SPRX diagnostics and Project Session Guard were running at last check. Require all six exact-head workflows and a fresh PS4 target build before merge.
-- **PR #59/#58:** superseded by the newer current-main PR #60. PR #58's original branch diverged after merged source fixes; its code/test changes were ported to clean current-main branches.
-- **P0 Lua unload barrier:** `T7Lua_PrepareModUiUnload()` does not drain in-flight `RetainModLua()` reads before zone free; source hashing happens before the arena lock. The close/drain/resume design is documented in `docs/INVESTIGATION-2026-11-18-LUA-UNLOAD-BARRIER.md` and remains a priority after #60 target validation.
-- **P1 wait-zone publication:** PR #39's atomic UI predicate does not synchronize the ordinary wait-zone array/count or reload flags read/written by loader hooks, FrameWork and PruneWaitZones. The evidence and generation-tagged snapshot fix design are documented in `docs/INVESTIGATION-2026-11-18-WAIT-ZONE-AND-IMAGE-LIFETIME.md`.
-- **P1 custom image lifetime:** PR #39's 1,024-entry retired-address registry has saturation and address-reuse/generation ambiguity; callback thread identity is unproven. Same investigation doc records the evidence and validation needed.
-- **Critical acceptance requirement:** users must always be able to disable mods and restore original included Lua behavior without crashes, resets, stale bytecode or partial state. Full HKS/module-cache restoration and the complete disable/re-enable/reload lifecycle remain unproven.
-- **XAssetEntry #30:** allocator research identifies `0x8583B0`, `0x8587B0`, `0x858CB0`, 32-byte entries, 152,576 buckets and distinct index chains. PR #40's unsafe reserve publisher was removed; arithmetic tests are not a runtime fix.
-- **Other unresolved SPRX issues:** #1 mode/zone transition ownership; #2 native clientfield differences and caller context; #20 automatic host BG-cache mismatch; #23 Seven-Eleven multi-mod stall; #28 GPU protection-fault attribution; #31 Blood Run GSC/gameplay/pause behavior; #33 Buried backend crash attribution. Exact evidence and proposed fixes are in the roadmap.
-- **Mandatory workflow:** investigate source/history/logs; document evidence, root-cause confidence, competing explanations, affected files, proposed fix, tradeoffs and tests **before implementation**; finish the SPRX issue inventory; implement without hiding errors or removing working features; add production-path regressions; run host/sanitizer/source-policy checks; obtain a fresh PS4 target build after every SPRX source change; update roadmap and this handoff after each meaningful change.
-- **Chat mode:** use connected GitHub tools directly. Do not wait for Work mode.
-- **Publication:** keep private captures, binaries, toolchains, credentials and third-party plugin content out of public commits. No release, FTP deployment or console-validation claim without evidence.
+- **Current main:** `dd7054a9dce3b759ac3d4d076c94a76c482227e3` (documentation-only handoff commit; the SPRX source is unchanged from the merged Lua candidate).
+- **Merged Lua ownership work:** PR #60 (`715a9f28ed081eda588e9f52fa02c4d1dc762679`) and PR #61 (`9ba6ca4b592fd4fff16c9f683755894a7ac9c09d`). Do not treat PR #60/#61 as open.
+- **Latest verified target artifact:** BO3 Auto Build [#44336275249](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44336275249), PR #61 exact head `f7db33a9e2c25daca8f79df8cbd6cf2c79062a3c`; artifact ID `14442530769`; ZIP SHA-256 `2d3982b64d55afe3e53369b614c88d4b0135f3554b3db0a72df7e440c7182506`; embedded SPRX SHA-256 `e04143784dff72a24a00cb5f321594a7e0f4800aaa30414bc088eb2e4b2c9408`.
+- Validation: all 47 registered host regressions; ASan/UBSan + TSan source-read gate tests; nested/concurrent reader, timeout/reopen and failed-free/retry tests; all 14 native PS4 translation units; GoldHEN FSELF packaging/inspection; malformed module/container rejection controls. Workflow host, SPRX and final-completeness jobs succeeded.
+- **Not proven:** manifest says `console_validated:false`, `sony_signed:false`. No PS4 gameplay test, HKS cache invalidation proof or complete disable/re-enable/reload proof exists yet.
+- **Fastest stable route:** use the existing verified artifact first. Do not merge unrelated draft PRs just to generate a new build. A fresh main build is available through the existing push/BO3 Auto Build workflow; see the test-build handoff.
+
+## Open work — do not include in first candidate
+
+- PR #39: draft UI transition/image lifetime + dev.69 stream diagnostics; wait-zone publication and image lifetime/reuse remain unresolved.
+- PR #40: draft XAssetEntry arithmetic research only; production reserve hook removed; does not fix exhaustion.
+- PR #41: draft Blood Run bootstrap regression only; actual GSC/gameplay/pause failures remain.
+- PR #47: draft native GPU/clientfield/zone evidence documentation only.
+- PR #58/#59: stale duplicate Lua ownership branches; PR #60 is the merged implementation. Do not merge duplicates.
+- Other unresolved issues: XAssetEntry exhaustion, GPU fault ownership, mode/zone transitions, clientfield mismatch, host/BG-cache activation, Seven-Eleven multi-mod stall, Buried backend crash and Blood Run gameplay scripts.
+
+## Required console test order
+
+1. Verify artifact ZIP and embedded SPRX SHA-256 values.
+2. Back up dev.69 SPRX and existing `/data/BO3-Customs/` files; replace only the SPRX.
+3. First boot from internal storage with no mod selected; preserve `log.txt`.
+4. Load one known-good mod/map and play briefly.
+5. Disable it through the normal Mods UI; verify frontend reload and stock Lua/UI restoration.
+6. Re-enable/disable once, then fully restart and verify stock startup.
+7. Only after these pass, extend play and test one additional feature at a time. Do not start with bulk stacks, rapid mode switching or known-problem maps.
+8. On crash/hang, stop and save logs/test sequence before another launch. Roll back by restoring the backed-up dev.69 SPRX only.
+
+## Mandatory work protocol
+
+For each issue: inspect current source/history/logs; document evidence, root-cause confidence, alternatives, affected files, proposed fix, tradeoffs and tests **before implementation**; finish the SPRX issue inventory; implement with production-path regression tests; run host/sanitizer/source-policy checks; obtain a fresh PS4 target build for every SPRX source change; update roadmap and this handoff. Never claim target or console validation that did not run.
+
+Use connected GitHub tools directly in Chat mode when Work mode is unavailable. Keep private captures, binaries, toolchains, credentials and third-party plugin content out of public commits. No release, FTP deployment or console-validation claim without evidence.
 
 ---
 
