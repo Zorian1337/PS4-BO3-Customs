@@ -86,6 +86,36 @@ int main()
         assert(last == first + static_cast<int32_t>(pageBytes / stride) - 1);
     }
 
+
+    // mmap returns a page-aligned base; choose an interior page start with
+    // the same modulo-stride residue as the native table base.
+    for (uintptr_t residue = 0; residue < stride; ++residue)
+    {
+        const uintptr_t table = 0x200000 + residue;
+        const uintptr_t mapping = 0x400000;
+        constexpr uintptr_t pageBytes = 4096;
+        constexpr uintptr_t mappingBytes = pageBytes + stride - 1;
+        uintptr_t page = 0;
+        int32_t first = -1;
+        int32_t last = -1;
+        assert(XAssetReserveIndex::TrySelectPage(table, mapping, mappingBytes,
+                                                 pageBytes, stride, page, first, last));
+        assert(page == mapping + residue);
+        assert(page % stride == table % stride);
+        assert(first > 0 && last >= first);
+    }
+    {
+        uintptr_t page = 0x55;
+        int32_t first = 66;
+        int32_t last = 77;
+        assert(!XAssetReserveIndex::TrySelectPage(0x200001, 0x400000, 4096, 4096,
+                                                  stride, page, first, last));
+        assert(page == 0x55 && first == 66 && last == 77);
+        assert(!XAssetReserveIndex::TrySelectPage(0x200001, 0x400000, 4096 + stride - 2,
+                                                  4096, stride, page, first, last));
+        assert(page == 0x55 && first == 66 && last == 77);
+    }
+
     // Reject malformed or partially representable pages without publishing
     // partial index outputs.
     {
