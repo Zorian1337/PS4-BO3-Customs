@@ -1,4 +1,4 @@
-#include "lua_retention_gate.hpp"
+#include "../lua_retention_gate.hpp"
 #include <cassert>
 #include <cstdint>
 #include <thread>
