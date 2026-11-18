@@ -3033,24 +3033,73 @@ static const RawFileAsset* LuiExtraFor(const char* name)
     return served;
 }
 
+static bool CopyAssetName(uint64_t address, char* destination, size_t capacity, size_t* length)
+{
+    if (length)
+        *length = 0;
+
+    if (!address || address > (uint64_t)UINTPTR_MAX || !destination || capacity < 2)
+        return false;
+
+    destination[0] = 0;
+    size_t copied = 0;
+
+    // Validate small contiguous chunks before reading them. If a chunk crosses
+    // an unreadable mapping boundary, halve it until the readable prefix is
+    // established. This permits a short valid name at a page edge without
+    // probing bytes beyond its terminator.
+    while (copied < capacity)
+    {
+        const uintptr_t base = (uintptr_t)address;
+        if (base > UINTPTR_MAX - copied)
+            return false;
+
+        size_t chunk = capacity - copied;
+        if (chunk > 16)
+            chunk = 16;
+
+        size_t checked = chunk;
+        while (checked && !RangeReadable(base + copied, checked))
+            checked >>= 1;
+
+        if (!checked)
+            return false;
+
+        const char* const text = (const char*)(base + copied);
+        for (size_t i = 0; i < checked; ++i)
+        {
+            const char value = text[i];
+            if (!value)
+            {
+                destination[copied + i] = 0;
+                if (length)
+                    *length = copied + i;
+                return true;
+            }
+            destination[copied + i] = value;
+        }
+
+        copied += checked;
+    }
+
+    destination[capacity - 1] = 0;
+    return false;
+}
+
 static uint64_t FindXAsset(uint64_t type, uint64_t name, uint64_t a3, uint64_t a4, uint64_t a5, uint64_t a6,
                            double x0, double x1, double x2, double x3, double x4, double x5, double x6, double x7)
 {
-    char asset[192];
+    char asset[192] = {};
     bool lua = false;
+    bool haveAssetName = false;
+    size_t assetLength = 0;
 
-    if ((int32_t)type == kRawFileType && name != 0 && RangeReadable(name, 16))
+    if ((int32_t)type == kRawFileType && name != 0)
     {
-        const char* const text = (const char*)name;
-        size_t length = 0;
+        haveAssetName = CopyAssetName(name, asset, sizeof(asset), &assetLength);
 
-        while (length < sizeof(asset) - 1 && text[length] != 0)
-            ++length;
-
-        if (length > 4 && memcmp(text + length - 4, ".lua", 4) == 0)
+        if (haveAssetName && assetLength > 4 && memcmp(asset + assetLength - 4, ".lua", 4) == 0)
         {
-            memcpy(asset, text, length);
-            asset[length] = 0;
             lua = true;
             T7Log_LuiFile(asset);
 
@@ -3074,7 +3123,7 @@ static uint64_t FindXAsset(uint64_t type, uint64_t name, uint64_t a3, uint64_t a
         blank.length = 0;
         blank.padding = 0;
         blank.buffer = empty;
-        T7Log_Write("[Cmd] exec of a missing file \"%s\" does nothing, as on PC", RangeReadable(name, 4) ? (const char*)name : "?");
+        T7Log_Write("[Cmd] exec of a missing file \"%s\" does nothing, as on PC", haveAssetName ? asset : "?");
         return (uint64_t)&blank;
     }
 
