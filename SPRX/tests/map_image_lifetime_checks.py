@@ -21,8 +21,8 @@ def extract(marker):
     raise ValueError(f"unterminated block: {marker}")
 
 
-PICTURE_LOOKUP = extract("static Picture* PictureByAddress(")
-STILL_OURS = extract("static bool StillOurs(")
+PICTURE_LOOKUP = extract("static Picture* PictureByAddress(uint64_t image, bool* retired)\\n{")
+STILL_OURS = extract("static bool StillOurs(const Picture& picture)\\n{")
 RETIRE_PICTURE = extract("static bool RetirePicture(")
 LIVE_STOCK = extract("static bool IsLiveStockImage(")
 PICTURE_FOR = extract("static uint64_t PictureFor(")
@@ -50,7 +50,7 @@ using FindAsset_t = uint64_t (*)(uint64_t,const char*,uint64_t,uint64_t);
 static constexpr size_t kSlotName=304, kSlotInUse=368;
 static constexpr size_t kStateTop=72, kStateBase=80;
 static constexpr uint32_t kTypeLightUserdata=2, kTypeUserdata=7;
-static constexpr uint32_t kMaxElements=0x4E20;
+static constexpr uint32_t kMaxElements=0x4E20;\nstatic constexpr int kMaxPictures=128;
 static constexpr uint32_t kRetiredPictureMax=1024;
 static constexpr uintptr_t kGenerations=0x1000, kElements=0x2000, kStreamedDraw=0x7000;
 static constexpr int kImageType=9;
