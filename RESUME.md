@@ -1,21 +1,21 @@
-# Current repository status (2026-11-17)
+# Current SPRX handoff — 2026-11-18
 
-- Active base: `main`; PR #36 is merged as `10169fc1100eb88813c28bffdf0f2ae32c5a6df6`.
-- Open issues: 10. None is closed; each still has a source, provenance, reproduction, complete-package, or console-validation requirement.
-- Open PRs: #37, #38, #39, #40, #41, #42 and #43. PRs #37/#38 are earlier standalone versions of combined PR #39; do not merge them independently.
-- PR #39 (`recovery/issue-driven-dev65-dev69`) implements the dev.65 UI guards and dev.69 bounded stream diagnostics. Source head `481d4d4952952f07a52c60e6605197b11474473d` passed all six workflows; 47 host regressions passed. The custom-image path now has a 1,024-entry process-lifetime no-eviction tombstone registry, fail-closed capacity handling, stock-slot reuse passthrough and ASan/UBSan callback-after-record-reuse coverage. Docs-sync head `f1ad3a282b0fe28494a9cdc4d0f459a65c7f26db` is awaiting its project-session guard. PR remains draft; no console verification.
-- PR #42 (`fix/lua-asset-name-bounds`) is ready for review. Source-policy audit, publication guard, all 43 host regressions, SPRX diagnostics and script-log checks passed on source head `bfc2673bd9e5acd816408fca4fc7681fe172380c`. It bounds game-owned rawfile-name reads and routes missing-config logging through a safe copy. Docs-sync head `1d572a7defa3f4235949a7a4e45231a108aaa79c` is awaiting its project-session guard. It is not merged; no console test.
-- PR #40 (`recovery/xasset-entry-index-safety`) is arithmetic groundwork only; native XAssetEntry allocator/free-list ABI, all index consumers and synchronization remain unverified. The public `ClearAssetsInUse()` consumer reads chain values as `uint32_t`; the proposed positive signed-32 subrange is conservative but does not prove every native consumer. Keep draft.
-- PR #41 (`investigation/blood-run-bootstrap-regression`) tests the existing absent-only `Mods_IsUsingUsermap` fallback; it does not repair Blood Run GSC errors or gameplay/pause stalls. Keep draft.
-- PR #43 (`fix/folder-scan-status-declaration`) corrects a target compile blocker: a literal escaped newline left `FolderScanStatus` inside a preceding `//` comment. The host test now checks the real source line boundary; PR checks are pending.
-- The automatic BO3 Auto Build run #75 was triggered by the documentation push to `main`. It attempted the PS4 cross-compile and failed at `FolderScanStatus`; artifact upload and native-module inspection were skipped. This was not a manual build request. No SPRX artifact, release, or console test resulted. Do not start another target build without explicit approval.
-- Lua retention remains a critical acceptance area: preserve original included Lua behavior and ensure users can disable mods and restore non-mod state without crashes, resets, or stale bytecode. Neither PR #39 nor #42 changes bytecode retention.
+Read `AGENTS.md` and the authoritative section at the top of [the SPRX stability roadmap](docs/PS4-STABILITY-ROADMAP-2026-11-17.md) first. That roadmap is the source of truth for scope, every open SPRX issue, evidence, proposed fixes, priority, PR status and buildability gates.
 
-Read `AGENTS.md`, then this file, the dated stability roadmap, and only the relevant issue/source sections. Current priorities and PR boundaries are recorded in the roadmap.
+- **Scope:** SPRX/runtime only, including companion Lua where it is part of SPRX behavior. FFPorter issue #32, Osiris and unrelated projects are deferred.
+- **Repository:** `Zorian1337/PS4-BO3-Customs`, branch `main`.
+- **Main before this handoff update:** `d80d28bdb76a8efe422807aff5da6f8ec9a8d619`.
+- **PR #49:** current FolderScanStatus compile correction; head `1e9bc6f8f15380ff4508a4854e4ffb33799eea52`; all five PR workflows passed. It is not merged and has not been target-built.
+- **Other open PRs:** #39, #40, #41, #42, #45, #46 and #47. Exact purpose, review boundaries and validation are in the roadmap. PRs #43/#48 are superseded and closed; #37/#38 are superseded by #39.
+- **Target build:** last main build #75 failed at the swallowed `FolderScanStatus` declaration. PR #49 corrects that source defect, but no PS4 target build has run after the correction. Do not claim buildability until the actual PS4 workflow compiles/links and validates the package against the exact source commit.
+- **Next task:** complete full-diff review of PR #49, then run the corrected target build workflow. Continue fixing every target-only compile/link/package failure until a reproducibly buildable SPRX is obtained.
+- **Lua acceptance:** users must always be able to disable mods and restore original included Lua behavior without crashes, resets, stale bytecode or partial state. PRs #45/#46 do not satisfy this lifecycle requirement.
+- **Workflow:** document each issue and proposed correction before implementation; finish the SPRX issue inventory first; add production-path tests; update this file and the roadmap after every meaningful change. Work in Chat mode using connected GitHub tools when Work mode is unavailable.
+- **Publication:** source/test/docs only. Keep private logs, binaries, toolchains, credentials and third-party plugin content out of the public repository. Do not upload/release or claim console validation without actual evidence.
 
 ---
 
-
+## Historical handoff archive
 
 ## Historical handoff: map-load diagnostics + transactional catalog refresh (PR #36; now merged)
 
