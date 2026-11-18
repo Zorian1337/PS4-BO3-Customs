@@ -354,3 +354,7 @@ claims each diagnostic. Added a production-function concurrency stress
 fixture and registered it in both PR diagnostics and the full host runner.
 CI for the updated test is pending; this is a diagnostic race fix, not proof
 of a pool allocator failure or of the reported map crash.
+
+## Blood Run bootstrap regression continuation (2026-11-18)
+
+Branch `investigation/blood-run-bootstrap-regression` adds a host test that executes the actual `k_globalAliasLua` production string and checks Mods_IsUsingUsermap behavior for a map, core_frontend, missing map data, native probe failure, and an existing provider. The test is registered in `.github/scripts/run_host_checks.py`. It does not modify GSC behavior or claim the Blood Run stall is fixed. Matching GSC source for the recorded offsets and a clean-start console capture remain required. See [the investigation note](docs/INVESTIGATION-2026-11-18-BLOOD-RUN-BOOTSTRAP.md).
