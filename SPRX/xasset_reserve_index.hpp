@@ -34,6 +34,28 @@ inline bool TryEncodePositiveIndex(uintptr_t tableBase, uintptr_t entryAddress,
     return true;
 }
 
+// Decode a native positive signed-32-bit entry index back to its exact
+// address. Reject zero/negative sentinel values and pointer overflow without
+// modifying the caller's output.
+inline bool TryDecodePositiveIndex(uintptr_t tableBase, int32_t encoded,
+                                   uint32_t entryStride, uintptr_t& entryAddress)
+{
+    if (encoded <= 0 || !entryStride)
+        return false;
+
+    const uintptr_t index = static_cast<uintptr_t>(encoded);
+    if (index > (std::numeric_limits<uintptr_t>::max() - tableBase) / entryStride)
+        return false;
+
+    const uintptr_t address = tableBase + index * entryStride;
+    int32_t roundTrip = 0;
+    if (!TryEncodePositiveIndex(tableBase, address, entryStride, roundTrip) || roundTrip != encoded)
+        return false;
+
+    entryAddress = address;
+    return true;
+}
+
 // Validate the index range for every fixed-stride entry in one reserve page.
 // This is still arithmetic-only: the caller must separately prove that the
 // page is mapped, writable, correctly owned, and safe to publish.
