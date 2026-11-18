@@ -186,3 +186,23 @@ For each P0/P1 change require:
 6. no regressions to disabling mods or restoring original Lua content.
 
 Console tests remain pending until a tester supplies the corresponding logs.
+
+
+## Active follow-up — Issue #30 shared XAssetEntry registry (2026-11-17)
+
+**Problem:** the dev.66 nine-mod activation exhausted the shared 152,576-entry XAssetEntry registry and the Database thread aborted. Per-type asset-pool growth does not enlarge this separate registry.
+
+**Proposed fix:** preserve the original table and entry addresses; append bounded reserve pages only at the verified native allocator boundary when the original free list is empty. Before publication, validate the full mapping, 32-byte address residue, every positive signed-32-bit chain index round-trip, native read/write span, reserve cap, and exact allocator/free-list ABI. On any mapping or contract failure, do not publish the page and preserve native fatal behavior. Never relocate the live table, overwrite adjacent globals, drop assets, or bypass native validation.
+
+**Work started on** `recovery/xasset-entry-index-safety`:
+- Added `SPRX/xasset_reserve_index.hpp`, a pure checked conversion from an entry address to the positive signed-32-bit native index.
+- Added `SPRX/tests/xasset_reserve_index_tests.cpp` covering all 32 address residues, sparse addresses above 4 GiB, the signed-index boundary, misalignment, zero stride, and unchanged output on rejection.
+- Added [the detailed issue/solution/acceptance note](XASSET-RESERVE-INDEX-SAFETY.md).
+
+This is arithmetic groundwork only. It does not map or publish reserve memory, validate the game's actual allocator ABI, or fix the registry exhaustion. The new C++ test is auto-discovered by `.github/scripts/run_host_checks.py`; CI must pass before this work is considered reviewed. The exact native allocator entry point, table/free-list consumers, instruction fingerprints and supported build identity remain prerequisites for the runtime correction.
+
+**Acceptance criteria:** production-body tests for original fast path, refill, map failure, every residue/index limit, reuse/free, reserve cap and full native ABI forwarding; matching PS4 target build and artifact validation; fresh-process nine-mod console reproduction; no regressions to single-mod loading or unload.
+
+## Parallel source recovery — PR #39
+
+[PR #39](https://github.com/Zorian1337/PS4-BO3-Customs/pull/39) continues to carry the issue-driven dev.65 UI/image-lifetime guards and dev.69 stream rejection diagnostics. Its additional 32-worker diagnostic-cap stress test and roadmap/RESUME updates are on that separate draft branch. Its earlier six CI workflows passed on the prior head, but the later stress-test commit still requires fresh CI. Keep PR #39 separate from the #30 allocator work until both branches have passed their own review and CI.
