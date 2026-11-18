@@ -1,10 +1,80 @@
-# PS4 BO3-Customs stability roadmap
+# Authoritative SPRX roadmap status — 2026-11-18
 
-Updated: 2026-11-17
+**Scope:** BO3-Customs SPRX only. Companion Lua is included where it is part of the SPRX's loader/runtime behavior. FFPorter/converter work, Osiris and unrelated projects are explicitly deferred.
 
-The goal is stable custom-map loading and long sessions on constrained PS4
-memory, not maximum asset capacity. Every memory increase must be justified by
-a reproducible exhaustion record and bounded by a measured budget.
+**Repository:** [Zorian1337/PS4-BO3-Customs](https://github.com/Zorian1337/PS4-BO3-Customs), default branch `main`.
+**Current main:** `d80d28bdb76a8efe422807aff5da6f8ec9a8d619`.
+**Build objective:** reach a reproducibly successful PS4 target compile and native artifact validation. A successful compile is not console stability proof.
+
+## Mandatory work protocol
+
+For every issue or newly discovered defect:
+1. Review current source, history, reports and related PRs.
+2. Record the symptom, direct evidence, impact, confidence, competing explanations, proposed correction(s), tradeoffs and validation required **before changing implementation**.
+3. Finish the SPRX issue inventory before beginning the next implementation pass.
+4. Implement the documented correction without removing working functionality or hiding native errors.
+5. Add production-path regression coverage; run host checks and source-policy/session audits.
+6. Run the PS4 target workflow when needed to establish buildability; fix each target compiler/linker/package error and repeat until successful.
+7. Update this roadmap and `RESUME.md` in the same work session. Never claim target or console validation that did not run.
+
+Work directly through connected GitHub tools in Chat mode when Work mode is unavailable. Do not wait for Work mode. Keep private captures, executables, toolchains, credentials and reverse-engineered third-party plugin content out of the public repository.
+
+## Current repository / PR state
+
+- PR #49 is the current FolderScanStatus correction, open and non-draft, based on current `main` (3 commits ahead, 0 behind at review). Head: `1e9bc6f8f15380ff4508a4854e4ffb33799eea52`.
+- All five PR #49 workflows passed: SPRX diagnostics, project-session guard, mod-stack transaction regression, script-priority context regression and frontend reload state regression. These are host/source checks, **not** a PS4 target build.
+- PR #49 corrects a literal escaped newline that had commented out `FolderScanStatus`; the added source-line assertion closes the host fixture blind spot.
+- PR #43 and #48 are closed as superseded, not merged. PR #49 is their current replacement.
+- Other open PRs: #39 (UI transition/image lifetime + bounded stream diagnostics; draft), #40 (XAssetEntry arithmetic research only; draft), #41 (Blood Run bootstrap regression only; draft), #42 (bounded Lua asset-name reads; ready for review), #45 (nonblocking optional Lua fallback; draft), #46 (thread-safe companion-Lua cache publication; draft), #47 (native GPU/clientfield/zone evidence; draft).
+- PR #37/#38 were earlier standalone work superseded by #39. Do not merge them independently.
+- PR #40's unsafe production reserve publisher was removed. Its helper/tests are arithmetic groundwork only; it does not fix XAssetEntry exhaustion.
+- PR #45/#46 are source/host validated only. They improve optional Lua fallback contention and companion cache publication; they do not change bytecode retention, mod disable/restore semantics or establish a console loader-stall fix.
+- No corrected PS4 target build has run after the FolderScanStatus fix. No current SPRX artifact, console validation, upload or release is claimed.
+
+## SPRX issue inventory — document first, then implement
+
+Only SPRX/runtime issues are in scope. The open FFPorter issue #32 is deliberately deferred.
+
+| Priority | Issue / area | Confirmed evidence and current state | Proposed correction path / gate |
+|---|---|---|---|
+| P0 | Target buildability / PR #49 | Previous BO3 Auto Build run #75 failed because `FolderScanStatus` was swallowed by a literal escaped newline. PR #49 restores the real newline; all five PR workflows pass. | Review PR #49's complete diff and workflow results, then run the actual PS4 target workflow. Fix every further target-only compile/link/package failure. Do not equate host CI with buildability. |
+| P0 | Lua bytecode lifetime and safe mod disable/restore | Bytecode retention exists to protect closures and old revisions. The explicit product requirement is that users can always disable mods and return to original included Lua behavior without crash, reset, stale references or partially restored state. Current PRs #45/#46 do not address this lifecycle. | Audit every bytecode allocation, dedup key, revision/header owner, closure lifetime, cache and Lua state transition. Document ownership and failure modes first. Add tests for first load, unload, disable, re-enable, same-name revision, overlapping stack changes, frontend reconstruction and stock Lua fallback. Preserve old bodies until no closure can reference them; restore original source/behavior transactionally. |
+| P0 | Mod-stack capacity / fixed limits | Existing implementation has bounded stack/file structures; historical source review identifies a stack ceiling and fixed per-stack file records. A limit increase alone risks memory pressure and out-of-bounds consumers. | Inventory every limit, array, index, serializer, network buffer, UI consumer and rollback path. Calculate worst-case PS4 memory. Prefer checked dynamic/bounded allocation and explicit rejection before mutation; never silently truncate. Preserve transactional apply/rollback. |
+| P1 | #30 XAssetEntry exhaustion | Fresh dev.66 nine-mod activation exhausted the shared 152,576-entry registry and aborted the Database thread. Native analysis identifies allocator 0x8583B0, transfer 0x8587B0, cleanup 0x858CB0, 32-byte entries, separate free-list/hash/index links. Exact executable fingerprint, all consumers and synchronization are not proven. | Recover the separate private dev.67 source/archive and verify its provenance; fingerprint the exact supported executable; enumerate every free-list mutation and index consumer; prove sentinel/index semantics and lock/reentrancy. Only then evaluate allocator-boundary reserve pages with production-body tests. Do not revive the removed LinkXAsset hook. |
+| P1 | #28 GPU protection fault | Async GPU read-protection fault during mode-common transition. Existing dispatch/progress snapshots do not identify allocation owner, resource lifetime, last submission or fence completion. | Fingerprint the executable; trace allocation/map/unmap/free, resource creation/destruction, queue submission and completion. Correlate fault address with generation-tagged live allocations and in-flight submissions. No guessed free hook, delayed free or arbitrary retention. |
+| P1 | #1 mode transitions / zone ownership | Existing snapshots record mode, selected/loaded stacks, zone presence, apply state, UI pointer and native load return. No confirmed failing transition with complete ownership/lifecycle evidence. | Capture both ZM→MP and MP→ZM. Trace zone load/transfer/unload/reuse, common-zone ownership, selected vs loaded stack, Lua generation and native completion. Add bounded read-only ownership diagnostics only after native layout is verified. |
+| P1 | #2 clientfield registration / caller context | Native analysis exposes 14 set tables and descriptor fields; a separate 117-entry BG_InitClientFields/netfield lead exists but is not proven to be the same GSC clientfield registry. | Identify the exact mismatch diagnostic/call path and executable fingerprint. Validate table layout and initialization stability; snapshot both sides read-only and compare set, field ID/name, type, width, offset, mask and registration order. Add caller/entity context only when safely validated. Never mutate or bypass validation. |
+| P1 | #20 automatic host activation / BG cache | Files download and zones reach ready before `EXE_ERR_BG_CACHE`; manually activating the same reported stack succeeds. Checksum values and exact byte-for-byte stack parity are not yet established. | Instrument received/calculated checksum with verified signatures/ranges; compare automatic vs manual path, exact mod hashes/order, frontend/pre-join state and transition timing. Preserve native checksum rejection; do not bypass it. |
+| P1 | #23 Seven-Eleven multi-mod stall / GSC invalid opcode | Working vs stalled captures differ in mod stack and linked-asset count. Invalid opcode in mod-slot-2 occurs after stall begins; exact DS4C package/source/build absent. Asset count alone does not prove allocator cause. | Obtain exact package/source/build identity. Reproduce clean process: no mods, each mod alone, then combined. Correlate first stall with script owner/bytecode identity, pool/registry state and loader progress. Do not suppress GSC errors or infer causality from later opcode. |
+| P1 | #31 Blood Run GSC failures / frozen controls | Missing `Mods_IsUsingUsermap` frontend fallback exists and PR #41 tests it. Separate map/menu GSC invalid entity/value errors and a server shutdown are recorded; gameplay freeze/pause behavior remains unresolved. | Obtain matching GSC source/package and map offsets. Reproduce with mod selected before first map in a clean process; distinguish server shutdown from client-frame freeze. Fix only proven SPRX integration defects; do not patch unknown third-party script semantics. |
+| P1 | #29 rapid X/back / delayed image callback | Tester reported rapid main-menu X/back symptom improved in dev.65. PR #39 reimplements queued-zone busy checks, post-lock transition rechecks, retired-image address tracking and bounded stream diagnostics. Adjacent delayed callback hazard is source-supported but not proven as the original crash cause. | Complete PR #39 review against current main; verify no stale pointer forwarding, tombstone exhaustion behavior, stock slot reuse and UI lock exits. Target build and fresh console reproduction still required. |
+| P1 | #33 Buried backend crash | dev.68 SIGSEGV on 2_Backend, RIP 0xFA2A98, read 0x27, no selected mods. PR #39 adds bounded diagnostics for existing stream rejection branches; exact EBOOT fingerprint and cause remain unknown. | Validate PR #39 production guard equivalence and trace cap, reproduce clean without mods, preserve full kernel report and correlate first fault on matching executable. Do not claim stream guard instrumentation fixes the crash. |
+| P2 | Lua rawfile and optional companion lookup concurrency | PR #42 bounds game-owned asset-name reads; #45 makes optional fallback lock acquisition nonblocking; #46 publishes four companion-Lua cache entries with atomic state. PRs are not merged/target-built. | Review all three diffs together for hook semantics, memory ordering, negative-cache behavior, first-request fallback, native passthrough and tests. Integrate only after complete source review and target build. |
+| P2 | Map catalog / storage refresh | PR #36 merged structured scan results, fail-closed candidate publication and rollback. Remaining design risk: synchronous refresh and reader lifetime; no proven safe worker/double-buffer reclamation yet. | Preserve transactional behavior. Measure stalls first; only design double buffering after pointer lifetime and reclamation are proved. |
+| P2 | Asset-pool growth / pool-out | Binary-search allowlist and atomic diagnostic latch have host evidence in prior work; per-type pools are distinct from XAssetEntry registry. Native allocator serialization and actual allocation-failure attribution remain open. | Audit target allocator call context/locking; compare high-water/limit/free-list state. Keep unsafe pools excluded and do not infer XAsset registry growth from per-type pool growth. |
+
+### Out of scope for this SPRX-only pass
+
+- Issue #32 FFPorter conversion support: defer entirely until the user changes scope.
+- OsirisMenu, unrelated tooling, converter changes and gameplay-mod source are not part of this workstream.
+
+## Implementation order after the inventory
+
+1. Review and target-build PR #49 correction to establish a compiling baseline. The user has requested continued work until buildability is demonstrated; use the corrected target workflow and preserve its full logs.
+2. Review/resolve the already-open source PRs #39, #42, #45 and #46 as a combined SPRX integration set; do not merge on title/description alone.
+3. Audit and document the complete Lua bytecode/mod disable/restore lifecycle and stack-capacity graph, then implement the highest-confidence source fixes and tests.
+4. Continue XAssetEntry native ABI/fingerprint work and GPU/zone/clientfield evidence tracks without speculative native mutation.
+5. Resolve remaining target-only errors, rerun target build and artifact validation until the corrected SPRX is reproducibly buildable.
+
+## Buildability definition
+
+Report the SPRX as **buildable** only when the corrected current source completes the repository's actual PS4 target workflow, all native translation units compile/link, package/container validation succeeds, and the artifact is bound to the exact source commit. Host tests alone are insufficient. Console stability remains a separate validation milestone.
+
+---
+
+## Historical roadmap archive
+
+The material below preserves earlier investigations and validation notes. Where historical PR numbers, branch heads, candidate versions or statuses conflict with the authoritative status above, the authoritative section above wins. Do not treat archived status as current.
 
 ## P0 — Map catalog integrity and map-load diagnostics (PR #36; merged)
 
