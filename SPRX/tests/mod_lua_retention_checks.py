@@ -118,6 +118,8 @@ static int sceKernelMmap(int,size_t bytes,int,int,int,int,void** output) {
     return 0;
 }
 static void T7Log_Write(const char*,...) {}
+static std::atomic<unsigned> g_retentionSleepCalls{0};
+static void sceKernelUsleep(int) { g_retentionSleepCalls.fetch_add(1); std::this_thread::yield(); }
 
 #include "t7_lua_failure.hpp"
 #include "t7_lua_ownership.hpp"
@@ -257,6 +259,7 @@ int main() {
     const auto beforeBusyMapped = g_retainedLuaMapped.load();
     const auto beforeBusyMaps = mappingCalls.load();
     const auto beforeBusyFailures = g_retainedLuaFailures.load();
+    const auto beforeBusySleeps = g_retentionSleepCalls.load();
     g_retainedLuaLock.test_and_set(std::memory_order_acquire);
     const auto busy = reinterpret_cast<const RawFileAsset*>(
         RetainModLua("ui/busy.lua", reinterpret_cast<uint64_t>(&replacement)));
@@ -265,6 +268,7 @@ int main() {
     assert(g_retainedLuaBytes.load() == beforeBusyBytes);
     assert(g_retainedLuaMapped.load() == beforeBusyMapped && mappingCalls.load() == beforeBusyMaps);
     assert(g_retainedLuaFailures.load() == beforeBusyFailures + 1);
+    assert(g_retentionSleepCalls.load() - beforeBusySleeps == 199);
     const bool otherWorkerStillOwnsLock = g_retainedLuaLock.test_and_set(std::memory_order_acquire);
     assert(otherWorkerStillOwnsLock);
     g_retainedLuaLock.clear(std::memory_order_release);
