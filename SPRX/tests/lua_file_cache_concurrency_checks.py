@@ -113,8 +113,9 @@ int main()
 
 with tempfile.TemporaryDirectory(prefix="bo3-lua-file-cache-") as directory:
     source = Path(directory) / "fixture.cpp"
-    binary = Path(directory) / "fixture"
     source.write_text(FIXTURE, encoding="utf-8")
-    subprocess.run([os.environ.get("CXX", "g++"), "-std=c++20", "-Wall", "-Wextra", "-Werror",
-                    "-fsanitize=address,undefined", "-pthread", str(source), "-o", str(binary)], check=True)
-    subprocess.run([str(binary)], check=True, timeout=20)
+    for sanitizer in ("address,undefined", "thread"):
+        binary = Path(directory) / ("fixture-" + sanitizer.replace(",", "-"))
+        subprocess.run([os.environ.get("CXX", "g++"), "-std=c++20", "-Wall", "-Wextra", "-Werror",
+                        f"-fsanitize={sanitizer}", "-pthread", str(source), "-o", str(binary)], check=True)
+        subprocess.run([str(binary)], check=True, timeout=30)
