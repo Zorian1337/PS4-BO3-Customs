@@ -5,7 +5,7 @@ Read `AGENTS.md` and the authoritative section at the top of [the SPRX stability
 - **Scope:** SPRX/runtime only, including companion Lua where it is part of SPRX behavior. FFPorter issue #32, Osiris and unrelated projects are deferred.
 - **Repository:** `Zorian1337/PS4-BO3-Customs`, branch `main`.
 - **Current main:** `main` (documentation-only follow-ups after the verified source build).
-- **Last verified buildable source:** `46c72aba2738f66221f344e77f445d136c27f596`. PR #54's fresh target build #44249707280 passed.
+- **Last verified buildable source:** `46c72aba2738f66221f344e77f445d136c27f596`. PR #57 source `7f9b96757149c299a30d671862f307450fcb116a` awaits target build #44250403844.
 - **Merged fixes:** PR #50 (FolderScanStatus target compile), #51 (bounded Lua asset-name reads) and #52 (nonblocking optional Lua fallback + atomic companion-Lua cache publication).
 - **Latest target build:** [BO3 Auto Build #44249707280](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44249707280) completed successfully. All 14 native translation units compiled, GoldHEN link/package succeeded, native module/container validation passed, and the final workflow gate succeeded.
 - **Verified Debug SPRX:** artifact `bo3-sprx-46c72aba2738f66221f344e77f445d136c27f596-1` (ID `14403093011`), 487,088 bytes; SHA-256 `7f33a320338eaa28ea6868b48d2a68e4ac428d9b1856b1f12b92e69f60bfef0d`. Hash matched the downloaded artifact and manifest. Native evidence artifact ID `14403137765`.
