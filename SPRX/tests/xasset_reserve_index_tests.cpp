@@ -111,7 +111,7 @@ int main()
         assert(!XAssetReserveIndex::TrySelectPage(0x200001, 0x400000, 4096, 4096,
                                                   stride, page, first, last));
         assert(page == 0x55 && first == 66 && last == 77);
-        assert(!XAssetReserveIndex::TrySelectPage(0x200001, 0x400000, 4096 + stride - 2,
+        assert(!XAssetReserveIndex::TrySelectPage(0x20001F, 0x400000, 4096 + stride - 2,
                                                   4096, stride, page, first, last));
         assert(page == 0x55 && first == 66 && last == 77);
     }
