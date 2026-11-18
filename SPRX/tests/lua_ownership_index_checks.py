@@ -4,6 +4,14 @@ import os,subprocess,tempfile
 root=Path(__file__).resolve().parents[1]
 fixture=r'''
 #include "t7_lua_ownership.hpp"
+static std::atomic<bool> g_ownershipPauseMark{false};
+static std::atomic<bool> g_ownershipMarkEntered{false};
+namespace T7LuaOwnership {
+void TestMarkPublicationPause() {
+ g_ownershipMarkEntered.store(true,std::memory_order_release);
+ while(g_ownershipPauseMark.load(std::memory_order_acquire))std::this_thread::yield();
+}
+}
 #include <cassert>
 #include <cstdio>
 #include <string>
@@ -27,17 +35,17 @@ int main(){
  for(int i=0;i<100000;++i)extra+=index.MayContain(("ui/stock/"+std::to_string(i)+".lua").c_str());
  assert(extra<50); // Saturation must not make all unrelated stock Lua retained.
 
- // A reader overlapping the publication phase must fail closed, even before
- // the exact key/Bloom update is complete.
+ // Deterministically pause a production Mark() after the in-flight
+ // publication guard is active but before the key/Bloom writes complete.
  T7LuaOwnership::Index publication;
- std::string longName(4 * 1024 * 1024, 'x');
- longName += ".lua";
- std::thread marker([&]{ publication.Mark(longName.c_str()); });
- while(!publication.HasInFlightMarks()) std::this_thread::yield();
- assert(publication.MayContain(longName.c_str()));
+ g_ownershipMarkEntered.store(false,std::memory_order_release);
+ g_ownershipPauseMark.store(true,std::memory_order_release);
+ std::thread marker([&]{ publication.Mark("ui/mod/race.lua"); });
+ while(!g_ownershipMarkEntered.load(std::memory_order_acquire)) std::this_thread::yield();
+ assert(publication.MayContain("ui/stock/concurrent.lua"));
+ g_ownershipPauseMark.store(false,std::memory_order_release);
  marker.join();
- assert(!publication.HasInFlightMarks());
- assert(publication.MayContain(longName.c_str()));
+ assert(publication.MayContain("ui/mod/race.lua"));
  for(auto name:{"ui/LUI/LUI.lua","ui/uieditor/clientfieldmodels.lua","ui/uieditor/widgets/MediaManager/MediaManager_SelectedItemInfo.lua","ui/uieditor/widgets/Barracks/CombatRecordButton.lua"})assert(!index.MayContain(name));
  index.Mark("ui/LUI/LUI.lua");assert(index.MayContain("ui/LUI/LUI.lua")); // Real overrides still receive lifetime protection.
  printf("PASS: 20000 long-path owners, case/slash parity, concurrent insertion, conservative saturation; %u of100000 extra stock matches\n",extra);
@@ -47,5 +55,5 @@ with tempfile.TemporaryDirectory(prefix='bo3-ownership-') as d:
  cpp=Path(d)/'check.cpp';cpp.write_text(fixture)
  for sanitizer in ('address,undefined','thread'):
   exe=Path(d)/('check-'+sanitizer.replace(',','-'))
-  subprocess.run([os.environ.get('CXX','g++'),'-std=c++20','-Wall','-Wextra','-Werror',f'-fsanitize={sanitizer}','-pthread','-I',str(root),str(cpp),'-o',str(exe)],check=True)
+  subprocess.run([os.environ.get('CXX','g++'),'-std=c++20','-Wall','-Wextra','-Werror',f'-fsanitize={sanitizer}','-pthread','-DT7_LUA_OWNERSHIP_TEST_HOOKS','-I',str(root),str(cpp),'-o',str(exe)],check=True)
   subprocess.run([str(exe)],check=True,timeout=60)
