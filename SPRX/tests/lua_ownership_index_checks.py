@@ -35,6 +35,10 @@ int main(){
  unsigned extra=0;
  for(int i=0;i<100000;++i)extra+=index.MayContain(("ui/stock/"+std::to_string(i)+".lua").c_str());
  assert(extra<50); // Saturation must not make all unrelated stock Lua retained.
+ assert(T7LuaOwnership::ShouldRetainLua(true, true, false, false));
+ assert(!T7LuaOwnership::ShouldRetainLua(false, true, false, false));
+ assert(T7LuaOwnership::ShouldRetainLua(true, false, true, true));
+ assert(!T7LuaOwnership::ShouldRetainLua(true, false, false, true));
 
  // Deterministically pause a production Mark() after the in-flight
  // publication guard is active but before the key/Bloom writes complete.
