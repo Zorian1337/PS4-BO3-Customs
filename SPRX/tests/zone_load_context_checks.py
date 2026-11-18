@@ -58,14 +58,14 @@ static std::atomic<int> phase{0};
 static uint64_t NativeLoad(uint64_t a,uint64_t flag,uint64_t zone,uint64_t d,uint64_t e,uint64_t f,uint64_t g,uint64_t h,double x0,double x1,double x2,double x3,double x4,double x5,double x6,double x7){
  assert(a==1&&d==4&&e==5&&f==6&&g==7&&h==8&&x0==1&&x1==2&&x2==3&&x3==4&&x4==5&&x5==6&&x6==7&&x7==8);
  if(flag==4) assert(!g_activeModLuaRetentionScopes.Any()); else assert(g_activeModLuaRetentionScopes.Any());
- if(identity==1){phase=1;while(phase<2)std::this_thread::yield();Open();assert(noted==1&&opened=="m2_zm_mod");phase=3;}
- else if(identity==2){phase=2;while(phase<3)std::this_thread::yield();Open();assert(noted==2&&opened=="m3_zm_mod");}
+ if(identity==1){phase=1;while(phase<2)std::this_thread::yield();Open();assert(noted==1&&strcmp(opened,"m2_zm_mod")==0);phase=3;}
+ else if(identity==2){phase=2;while(phase<3)std::this_thread::yield();Open();assert(noted==2&&strcmp(opened,"m3_zm_mod")==0);}
  else if(identity==9){if(flag==4){assert(g_activeModLuaRetentionScopes.Count()==0);}else{Open();assert(strcmp(opened,(const char*)zone)==0);if(flag==2){assert(g_activeModLuaRetentionScopes.Count()==1);assert(Load("m3_zm_mod",3)==0x9876);assert(g_activeModLuaRetentionScopes.Count()==1);Open();assert(strcmp(opened,"m2_zm_mod")==0);}else assert(g_activeModLuaRetentionScopes.Count()==2);}}
  return 0x9876;
 }
 int main(){
  identity=9;assert(Load("m2_zm_mod")==0x9876);assert(!g_activeModLuaRetentionScopes.Any());Open();assert(strcmp(opened,"zm_mod")==0);assert(Load("core_frontend",4)==0x9876);assert(!g_activeModLuaRetentionScopes.Any());
- std::thread a([]{identity=1;assert(Load("m2_zm_mod")==0x9876);Open();assert(opened=="zm_mod");});
+ std::thread a([]{identity=1;assert(Load("m2_zm_mod")==0x9876);Open();assert(strcmp(opened,"zm_mod")==0);});
  while(phase<1)std::this_thread::yield();
  std::thread b([]{identity=2;assert(Load("m3_zm_mod")==0x9876);Open();assert(opened=="zm_mod");});a.join();b.join();assert(!g_activeModLuaRetentionScopes.Any());
  identity=9;Open();assert(opened=="zm_mod");
