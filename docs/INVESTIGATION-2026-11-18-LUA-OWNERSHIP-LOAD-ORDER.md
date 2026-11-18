@@ -55,3 +55,7 @@ The fallback intentionally may retain a stock Lua dependency requested by anothe
 ## Additional transition-scope refinement — 2026-11-18
 
 Reviewing `ApplyModsNow()` and `AppendMods()` corrected the initial-load timing assumption: the ordinary menu path publishes `g_loadedCount` via `SetLoaded()` before the native mod-zone load. The host-session path is different and delegates to a fresh common-zone transaction. To cover both without depending on the exact `g_loadedCount` update point, the implementation will keep a retention scope active for the entire changed-stack transaction in `ApplyModsNow()`, in addition to the narrower per-zone `LoadXFile_h()` scope. The counter is nested/atomic, so the zone scopes remain valid inside the transaction. This can conservatively retain a stock Lua dependency during a stack transition; the fallback counter measures the cost.
+
+## Validation feedback — diagnostics fixture dependency
+
+The first PR workflow run found that `diagnostic_hook_checks.py` extracts `TraceModTransition()` into a standalone host fixture. The new transition fallback counter is a legitimate production dependency but the fixture did not declare it, so the extracted function failed to compile. This is a test-fixture dependency gap, not a target-source failure. Add an atomic zero-initialized counter to the fixture and assert the transition trace reports it; then rerun all exact-head workflows.
