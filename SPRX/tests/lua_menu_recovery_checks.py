@@ -584,3 +584,45 @@ assert(r==0.5 and g==0.6 and b==0.7)
 print("PASS: incomplete optional accent colors use complete fallback RGB")
 '''
 subprocess.run([lua, "-"], input=color_fixture, text=True, cwd=root, check=True)
+
+
+# Native UI error recovery is separate from the Lua menu fixtures above.
+# Assert that the production hooks contain a failed generation, preserve the
+# selected mod stack, and re-arm only after native AddMenu("main") succeeds.
+nativeLua = (root / "SPRX/t7_lua.cpp").read_text(encoding="utf-8")
+
+def native_section(start, end):
+    first = nativeLua.index(start)
+    return nativeLua[first:nativeLua.index(end, first)]
+
+frontend_error = native_section("void T7Lua_OnUiLuaError(", "void T7Lua_Tick()")
+assert "g_frontendInjectionBlocked.compare_exchange_strong(expected, true" in frontend_error
+assert "g_completedMainState.store(0" in frontend_error
+assert "g_menuInitPending.store(false" in frontend_error
+assert "g_pcUtilState = 0" in frontend_error and "g_mouseState = 0" in frontend_error
+assert "T7Maps_InLevel() || !T7Maps_UsingMods()" in frontend_error
+assert "T7Maps_SetSessionMods" not in frontend_error
+assert "g_loadedCount =" not in frontend_error and "FreeModsFrom" not in frontend_error
+
+add_menu = native_section("static uint64_t AddMenu_h(", "static bool FrontendReadyForInjection()")
+native_call = add_menu.index("((Passthrough_t)g_addMenuOriginal)")
+recovery = add_menu.index("g_frontendInjectionBlocked.exchange(false")
+assert native_call < recovery, "recovery must follow successful native menu registration"
+assert 'strcmp(menu, "main") == 0' in add_menu
+assert "if (main)" in add_menu
+assert "g_menuInitPending = true" in add_menu
+assert "T7Maps_MenusBuilt()" in add_menu
+
+ready_start = nativeLua.index("static bool FrontendReadyForInjection()")
+ready = nativeLua[ready_start:ready_start + 420]
+assert "g_frontendInjectionBlocked.load(std::memory_order_acquire)" in ready
+assert "return false" in ready
+
+frontend_load = native_section("void T7Lua_FrontendWillLoad()", "void T7Lua_OnUiLuaError()")
+assert "g_frontendGeneration.fetch_add(1" in frontend_load
+assert "g_frontendInjectionBlocked.store(false" in frontend_load
+
+mods_ui = (root / "Lua/ui_scripts/mods.lua").read_text(encoding="utf-8")
+assert "-- Keep the MODS entry available" in mods_ui
+assert "AddModsButton" in mods_ui
+print("PASS: native UI errors pause only compatibility injection; selected mods remain intact; only successful main-menu registration re-arms recovery")
