@@ -354,3 +354,12 @@ claims each diagnostic. Added a production-function concurrency stress
 fixture and registered it in both PR diagnostics and the full host runner.
 CI for the updated test is pending; this is a diagnostic race fix, not proof
 of a pool allocator failure or of the reported map crash.
+
+## Current continuation — shared XAssetEntry registry (#30)
+
+Active source branch: `recovery/xasset-entry-index-safety`.
+Draft PR will carry a pure, checked signed-32-bit XAssetEntry index conversion helper, exhaustive host boundary/residue coverage, and a saved issue/solution plan. This is only the first verifiable slice of #30; no native allocator hook, reserve mapping, SPRX build, upload or console validation has been performed.
+
+Read [the XAssetEntry reserve-index safety plan](docs/XASSET-RESERVE-INDEX-SAFETY.md) and the P1 section in the stability roadmap before continuing. The runtime fix must wait for the exact supported-build allocator signature, table/free-list layout and all native index consumers. Preserve the original table and fatal behavior on any unverified or failed reserve mapping.
+
+Separate recovery work remains in [PR #39](https://github.com/Zorian1337/PS4-BO3-Customs/pull/39): dev.65 UI/image guards and dev.69 bounded stream diagnostics. Do not conflate its CI/runtime status with the #30 branch.
