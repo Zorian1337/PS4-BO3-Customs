@@ -54,6 +54,8 @@ jobs:
           python3 SPRX/tests/readable_range_checks.py
           python3 SPRX/tests/lua_file_roots_checks.py
           python3 SPRX/tests/lua_asset_name_checks.py
+          python3 SPRX/tests/lua_extra_lock_checks.py
+          python3 SPRX/tests/lua_file_cache_concurrency_checks.py
           python3 SPRX/tests/mod_lua_retention_checks.py
           python3 SPRX/tests/config_io_bounds_checks.py
           python3 SPRX/tests/map_catalog_safety_checks.py
