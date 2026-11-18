@@ -2988,8 +2988,11 @@ static const RawFileAsset* LuiExtraFor(const char* name)
     if (name[n] || strstr(lower, ".."))
         return nullptr;
 
-    while (g_luiExtraLock.exchange(true, std::memory_order_acquire))
-        sceKernelUsleep(50);
+    // Asset lookup may run on a loader worker. Never wait indefinitely for
+    // another worker doing filesystem I/O under this cache lock: contention
+    // falls through to the native missing-asset result and a later lookup can retry.
+    if (g_luiExtraLock.exchange(true, std::memory_order_acquire))
+        return nullptr;
 
     const RawFileAsset* served = nullptr;
     bool known = false;
