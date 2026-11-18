@@ -171,3 +171,10 @@ The repository's .github/workflows/bo3-build.yml runs on pushes to main and supp
 The original PR #43 is now closed as superseded, not merged. Its clean replacement is PR #48, based on current main with 3 commits ahead and 0 behind; all five PR workflows passed on head 1144635efc6af64904efa1e27671598a179b26d9 (SPRX diagnostics 44237212529, project-session guard 44237212480, mod stack transaction 44237212537, script priority context 44237213746, frontend reload state 44237212518). PR #48 is ready for review and remains unmerged pending the target-build authorization.
 
 PR #40 remains draft research groundwork only. Its production reserve hook was removed; SPRX/t7_maps.cpp matches main byte-for-byte. Its latest safe head passed SPRX diagnostics and project-session guard, but the tests validate helper arithmetic and repository policy, not the native allocator. The private dev.67 candidate described in issue #30 remains separate and unreviewed from its local source archive.
+
+
+## Target buildability milestone — 2026-11-18
+
+The FolderScanStatus compile correction was merged in PR #50 as source commit `db015da32383c1f6196e78e04585b00d18f94e03`. BO3 Auto Build run #44247367325 completed successfully on that exact commit. The host regression job passed; the PS4 SPRX job compiled all 14 native translation units, linked and packaged the GoldHEN SPRX, passed native module/container validation and malformed-container rejection checks, and uploaded the run-specific SPRX and native evidence artifacts. The workflow's final completeness gate also passed.
+
+This resolves the previously documented target-build blocker and establishes source buildability for that commit. It does not resolve the separate runtime investigations in this audit: XAssetEntry reserve integration, GPU fault attribution, native zone/clientfield ownership and third-party GSC/map-loading failures remain open. No console test, FTP deployment or release was performed.
