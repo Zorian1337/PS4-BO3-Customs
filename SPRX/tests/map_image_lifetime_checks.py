@@ -8,7 +8,7 @@ SOURCE = (ROOT / "SPRX/t7_mapimages.cpp").read_text(encoding="utf-8")
 
 
 def extract(marker):
-    start = SOURCE.index(marker)
+    start = SOURCE.rindex(marker)
     opening = SOURCE.index("{", start)
     depth = 0
     for i in range(opening, len(SOURCE)):
@@ -21,8 +21,8 @@ def extract(marker):
     raise ValueError(f"unterminated block: {marker}")
 
 
-PICTURE_LOOKUP = extract("static Picture* PictureByAddress(uint64_t image, bool* retired)\\n{")
-STILL_OURS = extract("static bool StillOurs(const Picture& picture)\\n{")
+PICTURE_LOOKUP = extract("static Picture* PictureByAddress(")
+STILL_OURS = extract("static bool StillOurs(")
 RETIRE_PICTURE = extract("static bool RetirePicture(")
 LIVE_STOCK = extract("static bool IsLiveStockImage(")
 PICTURE_FOR = extract("static uint64_t PictureFor(")
