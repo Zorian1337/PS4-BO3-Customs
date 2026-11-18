@@ -182,6 +182,12 @@ int main() {
     assert(munmap(mapped,4096)==0);
     assert(std::strcmp(saved->name,"ui/test.lua")==0 && std::memcmp(saved->buffer,"\x1bLuaQ",5)==0);
     denied=0;
+    // Exercise the real RetainModLua() entry with a genuinely unmapped source
+    // pointer. The gate must reject before RangeReadable/header/buffer access.
+    const auto closedGateResult = RetainModLua("ui/closed.lua", reinterpret_cast<uint64_t>(mapped));
+    assert(closedGateResult != reinterpret_cast<uint64_t>(mapped));
+    assert(reinterpret_cast<const RawFileAsset*>(closedGateResult)->buffer ==
+           reinterpret_cast<const char*>(kLuaRetentionFailure));
     T7Lua_ResumeModUiRetention();
     {
         LuaRetentionGate::Scope held(T7Lua::g_modLuaRetentionGate);
@@ -236,7 +242,7 @@ int main() {
     assert(RetainModLua(text.name,reinterpret_cast<uint64_t>(&text))==reinterpret_cast<uint64_t>(&text));
     RawFileAsset shortText{"ui/short.lua",2,0,"--"};
     assert(RetainModLua(shortText.name,reinterpret_cast<uint64_t>(&shortText))==reinterpret_cast<uint64_t>(&shortText));
-    assert(g_retainedLuaFailures==0);
+    assert(g_retainedLuaFailures==1); // Only the deliberate closed-gate rejection so far.
 
     failAllocation=true;
     g_retainedLuaBlocks->used=g_retainedLuaBlocks->size; // Force another slab.
