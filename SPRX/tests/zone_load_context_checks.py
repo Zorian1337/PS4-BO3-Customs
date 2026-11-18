@@ -37,8 +37,8 @@ constexpr int kKeyValuePairs=1,kBgCache=2,kScriptParseTree=54,kRawFileAsset=47;
 static thread_local int noted=-1;
 static void NoteUiFile(uintptr_t,int index){noted=index;}
 static void ClaimStackScript(uintptr_t,int index){noted=index;}
-static int StackIndexOfZone(const char*zone){int index=-1;char inner[56];StackName(zone,&index,inner,sizeof(inner));return index;}
-static int ZoneKind(const char*,bool*){return 1;}
+static int ZoneKind(const char*zone,bool*localized){if(localized)*localized=false;return (!strcmp(zone,"core_mod")||!strcmp(zone,"zm_mod")||!strcmp(zone,"mp_mod")||!strcmp(zone,"cp_mod"))?0:-1;}
+static int StackIndexOfZone(const char*zone){int index=-1;char inner[56];if(StackName(zone,&index,inner,sizeof(inner)))return index;bool localized=false;return ZoneKind(zone,&localized)>=0?0:-1;}
 static bool EqualsNoCase(const char*a,const char*b){return strcmp(a,b)==0;}
 static const char* InternName(const char*){return "unused";}
 struct ClaimLock{};
@@ -60,11 +60,11 @@ static uint64_t NativeLoad(uint64_t a,uint64_t flag,uint64_t zone,uint64_t d,uin
  if(flag==4) assert(!g_activeModLuaRetentionScopes.Any()); else assert(g_activeModLuaRetentionScopes.Any());
  if(identity==1){phase=1;while(phase<2)std::this_thread::yield();Open();assert(noted==1&&strcmp(opened,"m2_zm_mod")==0);phase=3;}
  else if(identity==2){phase=2;while(phase<3)std::this_thread::yield();Open();assert(noted==2&&strcmp(opened,"m3_zm_mod")==0);}
- else if(identity==9){if(flag==4){assert(g_activeModLuaRetentionScopes.Count()==0);}else{Open();assert(strcmp(opened,(const char*)zone)==0);if(flag==2){assert(g_activeModLuaRetentionScopes.Count()==1);assert(Load("m3_zm_mod",3)==0x9876);assert(g_activeModLuaRetentionScopes.Count()==1);Open();assert(strcmp(opened,"m2_zm_mod")==0);}else assert(g_activeModLuaRetentionScopes.Count()==2);}}
+ else if(identity==9){if(flag==4){assert(g_activeModLuaRetentionScopes.Count()==0);}else if(flag==5){assert(g_activeModLuaRetentionScopes.Count()==1);Open();assert(strcmp(opened,"zm_mod")==0);}else{Open();assert(strcmp(opened,(const char*)zone)==0);if(flag==2){assert(g_activeModLuaRetentionScopes.Count()==1);assert(Load("m3_zm_mod",3)==0x9876);assert(g_activeModLuaRetentionScopes.Count()==1);Open();assert(strcmp(opened,"m2_zm_mod")==0);}else assert(g_activeModLuaRetentionScopes.Count()==2);}}
  return 0x9876;
 }
 int main(){
- identity=9;assert(Load("m2_zm_mod")==0x9876);assert(!g_activeModLuaRetentionScopes.Any());Open();assert(strcmp(opened,"zm_mod")==0);assert(Load("core_frontend",4)==0x9876);assert(!g_activeModLuaRetentionScopes.Any());
+ identity=9;assert(Load("m2_zm_mod")==0x9876);assert(!g_activeModLuaRetentionScopes.Any());Open();assert(strcmp(opened,"zm_mod")==0);assert(Load("core_frontend",4)==0x9876);assert(!g_activeModLuaRetentionScopes.Any());assert(Load("zm_mod",5)==0x9876);assert(!g_activeModLuaRetentionScopes.Any());
  std::thread a([]{identity=1;assert(Load("m2_zm_mod")==0x9876);Open();assert(strcmp(opened,"zm_mod")==0);});
  while(phase<1)std::this_thread::yield();
  std::thread b([]{identity=2;assert(Load("m3_zm_mod")==0x9876);Open();assert(opened=="zm_mod");});a.join();b.join();assert(!g_activeModLuaRetentionScopes.Any());
@@ -83,6 +83,11 @@ policy_start=source.index('bool T7Maps_NeedsLuaRetention(')
 policy_end=source.index('\n}',policy_start)+2
 policy=source[policy_start:policy_end]
 assert 'g_activeModLuaRetentionScopes.Any()' in policy
+load_start=source.index('static uint64_t LoadXFile_h')
+load_end=source.index('\n}',load_start)+2
+load_policy=source[load_start:load_end]
+assert 'zoneIndex >= 0' in load_policy
+assert 'zoneIndex > 0' not in load_policy
 apply_start=source.index('static void ApplyModsNow()')
 apply_end=source.index('\n}',apply_start)+2
 apply_policy=source[apply_start:apply_end]
