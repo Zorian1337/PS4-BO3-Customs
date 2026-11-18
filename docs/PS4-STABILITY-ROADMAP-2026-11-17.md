@@ -3,7 +3,7 @@
 **Scope:** BO3-Customs SPRX only. Companion Lua is included where it is part of the SPRX's loader/runtime behavior. FFPorter/converter work, Osiris and unrelated projects are explicitly deferred.
 
 **Repository:** [Zorian1337/PS4-BO3-Customs](https://github.com/Zorian1337/PS4-BO3-Customs), default branch `main`.
-**Current main:** `8c265c185eec6b284432776c537d55a23626beba` (documentation-only follow-ups after the verified buildable source).
+**Current main:** `6bf378b022c3f4708d67c407926ea5c332b3571e` (documentation-only follow-ups after the verified SPRX source).
 **Last verified buildable source:** `7f9b96757149c299a30d671862f307450fcb116a`, validated by BO3 Auto Build run #44250403844. Documentation-only commits follow this source revision. Future source changes must repeat the target build and native artifact validation. Build success is not console stability proof.
 
 ## Mandatory work protocol
@@ -33,6 +33,13 @@ Work directly through connected GitHub tools in Chat mode when Work mode is unav
 - PR #51/#52/#54/#57 are target-build validated. They do not complete HKS module-cache restoration, full mod disable/restore semantics, or prove console stability.
 
 ## Latest verified target build — 2026-11-18
+
+- Latest main build workflow: [BO3 Auto Build run #44252328075](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44252328075), exact main commit `6bf378b022c3f4708d67c407926ea5c332b3571e`.
+- Workflow result: **success**. Host regression/policy job, PS4 SPRX job and final completeness gate all passed. The PS4 target accepted the Debug build; native module validation and all six malformed module/container rejection controls passed.
+- Uploaded Debug SPRX artifact: `bo3-sprx-6bf378b022c3f4708d67c407926ea5c332b3571e-1` (artifact ID `14404666864`, ZIP 562,164 bytes; uploaded ZIP SHA-256 `a5335f9ea1b15dd4f8f7a013d5bfee440e9375744c3f308a867c1d634f700c1f)).
+- Uploaded native evidence artifact: `bo3-native-evidence-6bf378b022c3f4708d67c407926ea5c332b3571e-1` (artifact ID `14403904267`, 32,411 bytes).
+- This main commit changes documentation only relative to source commit `7f9b96757149c299a30d671862f307450fcb116a`, so the compiled SPRX source is the same source revision whose individual SPRX SHA-256 was independently verified below. This proves current main remains buildable; it does not validate the unmerged PR #58 source changes or console stability.
+
 
 - Workflow: [BO3 Auto Build run #44250403844](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44250403844)
 - Exact source commit: `7f9b96757149c299a30d671862f307450fcb116a`.
