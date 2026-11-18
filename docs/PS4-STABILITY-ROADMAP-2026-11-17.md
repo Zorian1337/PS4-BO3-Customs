@@ -237,3 +237,22 @@ registration list.
 
 This validates the bounded diagnostic counter under contention only. It does
 not establish that the backend crash is fixed or validate console scheduling.
+
+
+## Retired custom-image callback follow-up (2026-11-18)
+
+PR #39 now retains retired custom-image addresses in a process-lifetime 1,024-entry tombstone registry. The registry never evicts an address. If it reaches capacity, `PictureFor()` keeps the active ownership record and refuses replacement rather than losing the address and allowing a delayed callback to pass through to native `SetImage`.
+
+The callback path distinguishes:
+- an address still owned by the matching custom image (normal assignment);
+- a retired address whose slot is free or reused by a different custom image (nonblocking native `$white` fallback);
+- an address reused by a live stock image (preserve the native call and its original arguments/result);
+- a stale element generation (drop before forwarding).
+
+The ASan/UBSan production-hook fixture covers active-record reuse, 100 delayed callbacks, stock-slot reuse, different custom slots, stale element generations, and registry-capacity exhaustion without evicting old tombstones.
+
+**Verification:** all six PR #39 workflows passed on `481d4d4952952f07a52c60e6605197b11474473d`. The project-session guard passed source-publication audit and publication-guard tests; the full host inventory reported 47 regression programs and zero failures. SPRX diagnostics passed C++/sanitizer and Lua checks. No target SPRX build or console validation was performed; issues #29 and #33 remain open.
+
+## PR #42 — Lua rawfile asset-name bounds
+
+PR #42 adds validated chunked copying for game-owned rawfile names before Lua classification and diagnostics. It requires a NUL terminator within the 192-byte destination and routes missing-config logging through the bounded copy. Native lookup arguments/results and Lua retention semantics remain unchanged. The source-policy audit, publication guard, all 43 registered host regressions, SPRX diagnostics and script-log checks passed on `bfc2673bd9e5acd816408fca4fc7681fe172380c`. The PR is ready for review but not merged; no target build or console test was performed.
