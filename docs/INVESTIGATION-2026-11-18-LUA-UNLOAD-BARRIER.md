@@ -48,15 +48,15 @@ Use one atomic word with a high `closing` bit and low active-reader count. Entry
 - `T7Lua_PrepareModUiUnload()` closes and drains; it returns false on timeout so `ApplyModsNow()` leaves all zones intact.
 - If frontend shutdown cannot be scheduled, or a later pre-free check aborts the transition, explicitly reopen the gate before returning.
 - For a queued frontend transition, keep the gate closed across the gap until `ApplyModsAtFrontend()` has successfully removed old zones; reopen before the new `core_frontend` native load can request Lua modules.
-- For the host-session/common-zone transaction, reopen only after the native common-zone load returns successfully. If the transaction is rejected before any zone free, reopen on that exit.
-- If `FreeModsFrom()` fails or reports remaining mod zones, reopen before returning because the old source zones remain resident. On successful free, keep the gate closed only until the replacement stack is established and before any new frontend Lua lookup.
+- Do not close the gate across the host-session common-zone transaction: that native call combines teardown and replacement mod loading, so new Lua lookups may occur before it returns. When a changed host stack is requested while old mods are loaded, defer that change until the session ends; preserve the existing stack rather than risk rejecting replacement Lua or freeing a borrowed source.
+- In the ordinary frontend path, close immediately before `FreeModsFrom()`. If it fails or reports remaining mod zones, reopen before returning because the old source zones remain resident. On success, reopen immediately after the old zones are confirmed gone and before `AppendMods()` can request replacement Lua.
 - Preserve the append-only retained bytecode arena. This gate protects source-buffer lifetime; it does not authorize reclaiming old chunks or manipulating the HKS module cache.
 
 ### Tests required before merge
 - Unit test the production gate helper: entry/close race, nested readers, concurrent readers, close rejection, drain, timeout/reopen, and repeated close/open cycles.
 - Compile and run under ASan/UBSan and ThreadSanitizer.
 - Extract the production `RetainModLua()` body into a host fixture and pass an intentionally unreadable pointer while closed; assert the rejection asset is returned without any pointer read.
-- Source integration checks every `ApplyModsNow()` return after a successful close, frontend queued transition, `ApplyModsAtFrontend()`, `FreeModsFrom()` failure/success, and host common-zone return.
+- Source integration checks every `ApplyModsNow()` return after a successful close, frontend queued transition, `ApplyModsAtFrontend()`, `FreeModsFrom()` failure/success, and verifies that the mixed host-session common-zone path is deferred rather than holding the gate across new mod loads.
 - Full host regression inventory and fresh PS4 target build. Console validation is still required for real HKS/module-cache and disable/re-enable/reload behavior.
 
 ### Failure policy

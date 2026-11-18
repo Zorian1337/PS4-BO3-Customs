@@ -5322,6 +5322,15 @@ static void ApplyModsNow()
     // including the host-session common-zone path and count-publication window.
     ActiveModLuaRetentionScopes::Scope modStackTransition(g_activeModLuaRetentionScopes, true);
 
+    // The host-session common-zone request combines old-zone teardown and new
+    // mod-zone loading in one native call. Do not close the source gate across
+    // that mixed transaction: defer a changed host stack until the session ends.
+    if (g_sessionModCount >= 0 && g_loadedCount > 0)
+    {
+        T7Log_Write("[Mods] host stack change deferred until the current session ends; preserving loaded Lua sources");
+        return;
+    }
+
     if (g_sessionModCount < 0 && !g_frontendApplying)
     {
         if (!g_frontendReloadReady)
@@ -5338,7 +5347,7 @@ static void ApplyModsNow()
     // Close immediately before the native common-zone/free transaction. Do not
     // block ordinary frontend teardown while waiting for core_frontend to reload.
     bool luaRetentionClosed = false;
-    if (g_loadedCount > 0 && (keep < g_loadedCount || g_sessionModCount >= 0))
+    if (g_loadedCount > 0 && keep < g_loadedCount)
     {
         if (!T7Lua_PrepareModUiUnload())
             return;
@@ -5416,6 +5425,14 @@ static void ApplyModsNow()
         EndListWrite();
 
         SetLoaded(keep);
+
+        // The old zone source is now gone. Reopen before AppendMods issues any
+        // lookup for replacement Lua modules in the newly loaded mod zones.
+        if (luaRetentionClosed)
+        {
+            T7Lua_ResumeModUiRetention();
+            luaRetentionClosed = false;
+        }
     }
 
     if (wanted > keep)

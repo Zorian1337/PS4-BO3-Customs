@@ -21,5 +21,8 @@ maps=(root/'t7_maps.cpp').read_text()
 apply=maps[maps.index('static void ApplyModsNow()'):maps.index('static void ApplyModsAtFrontend(',maps.index('static void ApplyModsNow()'))]
 assert apply.index('ReloadFrontend(') < apply.index('T7Lua_PrepareModUiUnload()')
 assert 'if (!FreeModsFrom(keep))' in apply and 'T7Lua_ResumeModUiRetention();' in apply
+assert 'g_sessionModCount >= 0 && g_loadedCount > 0' in apply
+assert apply.index('host stack change deferred') < apply.index('T7Lua_PrepareModUiUnload()')
+assert apply.index('T7Lua_ResumeModUiRetention();') < apply.index('AppendMods(names, wanted, mode)')
 assert 'T7Lua_ResumeModUiRetention();' in maps[maps.index('void T7Maps_FrameWork()'):]
 print('PASS: gate close/entry race, unreadable-pointer rejection, drain, concurrency and source integration (ASan/UBSan + TSan)')
