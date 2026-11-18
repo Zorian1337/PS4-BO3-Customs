@@ -363,3 +363,12 @@ Draft PR carries pure, checked signed-32-bit XAssetEntry index conversion and wh
 Read [the XAssetEntry reserve-index safety plan](docs/XASSET-RESERVE-INDEX-SAFETY.md) and the P1 section in the stability roadmap before continuing. The runtime fix must wait for the exact supported-build allocator signature, table/free-list layout and all native index consumers. Preserve the original table and fatal behavior on any unverified or failed reserve mapping.
 
 Separate recovery work remains in [PR #39](https://github.com/Zorian1337/PS4-BO3-Customs/pull/39): dev.65 UI/image guards and dev.69 bounded stream diagnostics. Do not conflate its CI/runtime status with the #30 branch.
+
+
+## XAssetEntry reserve-page continuation (2026-11-18)
+
+PR [#40](https://github.com/Zorian1337/PS4-BO3-Customs/pull/40) remains draft. The pure helper now has checked encode, checked decode, and whole-page first/last index validation. Tests cover every 32-byte residue, >4 GiB addresses, signed index limits, zero/negative sentinel values, pointer overflow, malformed pages, and unchanged outputs on failure.
+
+Fresh source audit: LinkXAsset_h (site 0x857A10) calls per-type GrowPool and forwards to the original link function; it is not evidence of the shared XAssetEntry allocator. ClearAssetsInUse() is the only explicit public SPRX table consumer found; it loads bucket/next indices as uint32_t, with a 32-byte entry stride, next offset 20, and in-use byte offset 17. Therefore the dev.67 positive signed-32 rule still needs confirmation against every native consumer. Do not invent an allocator hook or wire the arithmetic helper into production until the allocator/free/reuse ABI, synchronization and build fingerprint are recovered.
+
+CI #530 and #320 passed for 58d33d0. Checked decode was added afterward and requires fresh CI. No target build, artifact, upload, merge or console validation. See [the full safety contract](docs/XASSET-RESERVE-INDEX-SAFETY.md).
