@@ -2347,9 +2347,8 @@ static std::atomic<size_t> g_retainedLuaMapRequest{0};
 // free space whenever a larger allocation rolls over to a new block.
 static void* AllocateRetainedLua(size_t bytes)
 {
-    if (bytes > SIZE_MAX - 15)
+    if (!T7LuaRetentionArena::Align16(bytes, &bytes))
         return nullptr;
-    bytes = (bytes + 15) & ~(size_t)15;
     g_retainedLuaAllocationRequest.store(bytes, std::memory_order_relaxed);
 
     RetainedLuaBlock* block = T7LuaRetentionArena::FindBlockWithSpace(g_retainedLuaBlocks, bytes);
@@ -2364,9 +2363,9 @@ static void* AllocateRetainedLua(size_t bytes)
         g_retainedLuaLargestFreeBytes.store(largestFree, std::memory_order_relaxed);
 
         const size_t header = (sizeof(RetainedLuaBlock) + 15) & ~(size_t)15;
-        if (bytes > SIZE_MAX - header - 0x3FFF)
+        size_t required = 0;
+        if (!T7LuaRetentionArena::RequiredMappingSize(bytes, header, &required))
             return nullptr;
-        const size_t required = (header + bytes + 0x3FFF) & ~(size_t)0x3FFF;
         const size_t mapped = g_retainedLuaMapped.load(std::memory_order_relaxed);
         if (mapped > kRetainedLuaBudget || required > kRetainedLuaBudget - mapped)
             return nullptr;
