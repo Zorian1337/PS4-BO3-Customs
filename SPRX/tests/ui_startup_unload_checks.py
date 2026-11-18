@@ -109,7 +109,7 @@ int main(){
  assert(T7Maps_NeedsLuaRetention("lua/shared/mod.lua"));
  usingMods=false;
  {
-     T7Maps::ActiveModLuaRetentionScopes::Scope transition(T7Maps::g_activeModLuaRetentionScopes,true);
+     ActiveModLuaRetentionScopes::Scope transition(T7Maps::g_activeModLuaRetentionScopes,true);
      assert(T7Maps_NeedsLuaRetention("ui/stock.lua"));
      assert(!T7Maps_NeedsLuaRetention("ui/stock.ff"));
  }
