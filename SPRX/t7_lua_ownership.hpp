@@ -5,6 +5,9 @@
 
 namespace T7LuaOwnership
 {
+#ifdef T7_LUA_OWNERSHIP_TEST_HOOKS
+void TestMarkPublicationPause();
+#endif
 // The display/compatibility name list is deliberately not a lifetime index.
 // Entries are append-only: a cached closure can outlive an unloaded zone.
 class Index
@@ -57,6 +60,9 @@ public:
     {
         if (!name || !*name) return;
         PublicationGuard publication(*this);
+#ifdef T7_LUA_OWNERSHIP_TEST_HOOKS
+        TestMarkPublicationPause();
+#endif
         const uint64_t h = Hash(name);
         for (unsigned i = 0; i < 4; ++i)
         {
@@ -73,11 +79,6 @@ public:
         }
         overflow.store(true, std::memory_order_release);
     }
-    bool HasInFlightMarks() const
-    {
-        return activeMarks.load(std::memory_order_acquire) != 0;
-    }
-
     bool MayContain(const char* name) const
     {
         if (!name || !*name) return false;
