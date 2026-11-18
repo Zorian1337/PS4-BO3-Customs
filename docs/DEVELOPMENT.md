@@ -4,13 +4,15 @@ Updated 2026-11-18. Active SPRX scope, buildability, PR state and issue inventor
 
 ## Latest buildability result
 
-PR #52 merged as source commit `532a6b682cba6120a9d6518a0a7ece592e776a66`. BO3 Auto Build run [#44248692943](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44248692943) completed successfully: all host regressions passed, all 14 PS4 native translation units compiled, GoldHEN linking/packaging and native module/container validation passed, and the final workflow gate succeeded.
+PR #54 merged as source commit `46c72aba2738f66221f344e77f445d136c27f596`. BO3 Auto Build run [#44249707280](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44249707280) completed successfully: all host regressions passed, all 14 PS4 native translation units compiled, GoldHEN linking/packaging and native module/container validation passed, and the final workflow gate succeeded.
 
-The Debug SPRX artifact is `bo3-sprx-532a6b682cba6120a9d6518a0a7ece592e776a66-1`; the contained `BO3-Customs.sprx` is 487,088 bytes with SHA-256 `6f3cceaadc33d3a34f666c5c49d6bdf76c030942c61f665ccbc19c3034329453`. The hash was independently checked against the downloaded artifact and its manifest. This establishes buildability for that exact source commit only. The manifest records no console validation and no Sony signing. No console validation, deployment or release was performed.
+The Debug SPRX artifact is `bo3-sprx-46c72aba2738f66221f344e77f445d136c27f596-1`; the contained `BO3-Customs.sprx` is 487,088 bytes with SHA-256 `7f33a320338eaa28ea6868b48d2a68e4ac428d9b1856b1f12b92e69f60bfef0d`. The hash was independently checked against the downloaded artifact and its manifest. This establishes buildability for that exact source commit only. The manifest records no console validation and no Sony signing. No console validation, deployment or release was performed.
 
-PR #50 fixed the FolderScanStatus target compile blocker; PR #51 bounded game-owned Lua asset-name reads; PR #52 made optional Lua fallback nonblocking and companion cache publication atomic. PR #53 is the current proposed nonblocking bytecode-retention lock fix; exact-head checks and a fresh target build are pending.
+PR #50 fixed the FolderScanStatus target compile blocker; PR #51 bounded game-owned Lua asset-name reads; PR #52 made optional Lua fallback nonblocking and companion cache publication atomic; PR #54 bounded bytecode-retention lock waiting. PR #56 is the current ownership-index publication fix; exact-head checks are running and a fresh target build will be required after merge.
 
-Other open SPRX PRs: #39 (transition/image lifetime and stream diagnostics; draft, wait-zone publication review required), #40 (arithmetic-only XAssetEntry research), #41 (Blood Run bootstrap regression), #47 (native GPU/clientfield/zone evidence), and #53 (retention lock). PRs #42/#45/#46 were closed unmerged as superseded by #51/#52. FFPorter issue #32 is out of scope.
+Other open SPRX PRs: #39 (transition/image lifetime and stream diagnostics; draft, wait-zone publication review required), #40 (arithmetic-only XAssetEntry research), #41 (Blood Run bootstrap regression), #47 (native GPU/clientfield/zone evidence), and #56 (Lua ownership publication). PRs #42/#45/#46/#53/#55 were closed unmerged as superseded by #51/#52/#54/#56. FFPorter issue #32 is out of scope.
+
+## Historical investigation archive
 
 ## Historical investigation archive
 
