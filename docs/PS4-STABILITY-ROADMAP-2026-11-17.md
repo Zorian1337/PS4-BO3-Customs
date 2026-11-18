@@ -350,3 +350,12 @@ These are recorded claims from the issue's local-candidate report; the source tr
 The dev.69 log(8).txt is a different artifact: it records only a startup "shared asset-entry reserve ready" line and later 148,929 SPRX-linked assets before the excerpt ends at map-load start. It does not prove that the dev.67 allocator fix was present or that a reserve page was consumed. The PR #40 runtime hook that was removed is also a separate, unsafe reconstruction; it must not be presented as the dev.67 candidate or as a review of that private source.
 
 The dev.67 build report does not satisfy PR #43's target-compatibility gate: it predates the FolderScanStatus correction and is not a target build of the corrected PR #43 head. A fresh PS4 target build is still needed after that source correction, followed by console verification where relevant.
+
+
+## Native allocator deep-pass update — 2026-11-18
+
+The saved Ghidra analysis now exposes the full operation order of FUN_008583b0 (0x8583b0): global free-list pop and allocation counters occur before the later DAT_0CF60BB4 lock scope, which is used for a per-type fallback traversal of the 0x25400 hash buckets. That lock is not proof of ownership of the global free-list and is not safe to reuse for reserve-page publication. The 0x20-byte entry has three distinct link roles: pointer-sized free-list next at offset 0, 32-bit bucket-chain index at +0x14, and 32-bit secondary/override-chain index at +0x1C. Bucket heads are separate from entry records. The Ghidra analysis profile identifier is not the executable fingerprint.
+
+This narrows the XAssetEntry investigation, but exact target executable identity, all direct/indirect index consumers, all free-list mutation paths, index/sentinel interpretation and lock ownership still need proof. No production reserve hook was added; PR #40 remains arithmetic/test groundwork only. The audit document now records the operation order and next gates. Issue comments were refreshed for #30, #28, #1, #2, #20, #23 and #31.
+
+No speculative GPU resource-lifetime, zone ownership, clientfield registration, or third-party GSC behavior changes were made. Their missing evidence remains as recorded in the audit. PR #43's FolderScanStatus correction remains host-validated only; no PS4 target build has been run after it. A target build must be explicitly authorized. FFPorter remains excluded.
