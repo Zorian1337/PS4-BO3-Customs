@@ -23,7 +23,7 @@ static bool g_loadOriginal=true, g_inLevel=false, loading=false, hooks=true, onT
 static bool g_reloadCheck=false, g_reloadForced=false;
 static bool g_frontendApplyPending=false, g_frontendApplying=false, g_frontendApplyLoading=false;
 static bool g_frontendReloadReady=true;
-static bool canUnload=true, retentionClosed=false;
+static bool canUnload=true, retentionClosed=false, freeSucceeds=true;
 static bool T7Lua_PrepareModUiUnload() { if (!canUnload) return false; retentionClosed=true; return true; }
 static void T7Lua_ResumeModUiRetention() { retentionClosed=false; }
 static uint64_t g_frontendApplySince=0;
@@ -60,7 +60,7 @@ template<class... Args> static void LoadXAssets_h(uint64_t pointer,Args...) {
 }
 static bool IsUiMod(const char*) { return true; }
 static bool IsUnshown(const char*) { return false; }
-static bool FreeModsFrom(int) { assert(retentionClosed); ++frees; return true; }
+static bool FreeModsFrom(int) { assert(retentionClosed); ++frees; return freeSucceeds; }
 static void PruneWaitZones() {}
 static void RemoveClaimsFrom(int) {}
 static void BeginListWrite() {}
@@ -94,19 +94,25 @@ int main() {
     // Other database jobs may be queued ahead of this boundary. Preserve their
     // native FIFO ordering, but do not repeatedly postpone the queued stack.
     loading=true;
+    freeSucceeds=false;
     ApplyModsAtFrontend(&frontendZone,1);
     assert(!g_frontendApplyPending && !g_frontendApplying && g_frontendApplyLoading);
-    assert(frees==1 && appends==0 && frontend==1 && !retentionClosed);
+    assert(frees==1 && appends==0 && frontend==1 && !retentionClosed && g_loadedCount==2);
     loading=false;
-    ApplyModsAtFrontend(&frontendZone,1); assert(frees==1 && appends==0);
-    g_loadedCount=0; wanted=2; g_sessionModCount=-1;
+    // A failed native free must reopen the gate and leave the old stack intact.
+    // A later apply can retry the unload and then append the replacement stack.
     ApplyModsNow(); assert(frontend==2 && g_frontendApplyPending);
+    freeSucceeds=true;
+    ApplyModsAtFrontend(&frontendZone,1);
+    assert(frees==2 && appends==0 && !retentionClosed && g_loadedCount==0);
+    g_loadedCount=0; wanted=2; g_sessionModCount=-1;
+    ApplyModsNow(); assert(frontend==3 && g_frontendApplyPending);
     ApplyModsAtFrontend(&frontendZone,1); assert(appends==1 && !retentionClosed);
     g_sessionModCount=2; mode=-1; g_loadedCount=1; ApplyModsNow();
     assert(reloads==1 && !retentionClosed); // Defer no-common transition while old sources remain.
     g_loadedCount=0; ApplyModsNow(); assert(reloads==2); // First host stack has no old mod sources.
     assert(!g_activeModLuaRetentionScopes.Any());
-    assert(frontend==2);
+    assert(frontend==3);
     std::puts("PASS: host common transaction, exact-order no-op, empty host, zone/memory guards and personal activation");
 }
 '''.replace("FUNCTION", body)
