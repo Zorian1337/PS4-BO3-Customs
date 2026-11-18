@@ -816,7 +816,8 @@ static bool IsZoneFile(const char* name)
            EndsWith(name, ".sabs");
 }
 
-constexpr int kKernelErrorNoEntry = (int)0x80020002u; // libkernel ENOENT\nenum class FolderScanStatus : uint8_t
+constexpr int kKernelErrorNoEntry = (int)0x80020002u; // libkernel ENOENT
+enum class FolderScanStatus : uint8_t
 {
     Ok,
     Missing,
