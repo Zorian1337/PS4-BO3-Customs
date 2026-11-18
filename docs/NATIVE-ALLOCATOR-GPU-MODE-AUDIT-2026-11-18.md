@@ -194,3 +194,12 @@ PR #54 replaced the unbounded bytecode-retention lock loop with a finite 200-att
 The merged source commit `46c72aba2738f66221f344e77f445d136c27f596` passed BO3 Auto Build #44249707280: all 14 native translation units compiled, GoldHEN linking/packaging succeeded, native module/container validation and malformed-container rejection passed, and the final workflow gate succeeded. The Debug SPRX SHA-256 is `7f33a320338eaa28ea6868b48d2a68e4ac428d9b1856b1f12b92e69f60bfef0d`.
 
 This verifies buildability for the exact PR #54 source commit. It does not resolve the separate Lua ownership mark-before-lookup ordering, full HKS disable/restore lifecycle, XAssetEntry allocator ABI/index/lock questions, GPU ownership attribution, zone/clientfield lifecycle or third-party GSC/map-loading incidents. No console test, FTP deployment or release was performed.
+
+
+## Lua ownership publication build validation — 2026-11-18
+
+PR #57 added an atomic in-flight publication counter and generation around the mod Lua ownership index. Concurrent readers conservatively retain during an overlapping `Mark()` operation, avoiding a false negative while key/Bloom state is being published. Its deterministic host-only pause hook is compiled only in the test fixture; the production target contains no test hook.
+
+The exact-head ASan/UBSan and ThreadSanitizer workflows passed. Merged source commit `7f9b96757149c299a30d671862f307450fcb116a` passed BO3 Auto Build #44250403844, including all 14 PS4 native translation units, GoldHEN link/package, native module/container validation and malformed-container rejection. The Debug SPRX SHA-256 is `c1b82949d4f03e12a7feef33b144ec1d98b9f5c524f2585f38b6932fdbd09ede`.
+
+PR #58 is the next source-only candidate. It adds active mod-zone and changed-stack retention scopes to cover lookups before ownership marking. Its exact-head tests and target build are not yet complete. Neither PR has console validation.
