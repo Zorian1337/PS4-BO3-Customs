@@ -1,6 +1,7 @@
 #include "../stream_guard.hpp"
 
 #include <atomic>
+#include <cstddef>
 #include <barrier>
 #include <cassert>
 #include <cstdint>
