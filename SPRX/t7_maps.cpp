@@ -2533,7 +2533,7 @@ static uint64_t LoadXFile_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, 
     char zoneName[kNameMax] = {};
     const bool haveZoneName = CopyZoneName((uintptr_t)a3, zoneName, sizeof(zoneName));
     const int zoneIndex = haveZoneName ? StackIndexOfZone(zoneName) : -1;
-    ActiveModLuaRetentionScopes::Scope activeModRetentionScope(g_activeModLuaRetentionScopes, zoneIndex > 0);
+    ActiveModLuaRetentionScopes::Scope activeModRetentionScope(g_activeModLuaRetentionScopes, zoneIndex >= 0);
     ModLoadContexts<>::Scope loading(g_zoneLoadContexts, (uint64_t)scePthreadSelf(),
                                      haveZoneName ? (uintptr_t)zoneName : 0);
     const uint64_t result = ((LoadXFile_t)g_loadXFileOriginal)(a1, a2, a3, a4, a5, a6, a7, a8, x0, x1, x2, x3, x4, x5,
