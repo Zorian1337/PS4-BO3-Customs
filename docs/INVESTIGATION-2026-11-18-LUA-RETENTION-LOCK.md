@@ -31,3 +31,18 @@ A mod Lua lookup that collides with another retention operation may fail closed 
 - Run the concurrent dedup/revision tests, ASan/UBSan and ThreadSanitizer where supported.
 - Run all host workflows and a fresh PS4 target build.
 - Console validation remains separate.
+
+
+## Validation feedback and revised correction — 2026-11-18
+
+The first implementation experiment used a single nonblocking acquire and immediately returned the fail-closed Lua error asset on contention. The production retention fixture's 12-worker same-asset test exposed that this rejects ordinary simultaneous requests: one worker wins initialization while other workers can fail even though the owner completes normally. That behavior is too aggressive for the loader and is not accepted.
+
+The correction is therefore revised to a **bounded wait**, not a one-shot try-lock:
+
+- Retry the atomic acquire for a fixed maximum number of attempts (initial target: 200 attempts, each separated by the existing 50 µs sleep).
+- The total number of retries is finite. If the owner remains stalled beyond the bound, return the immutable fail-closed asset; never return borrowed bytecode and never clear another worker's lock.
+- Preserve the concurrent same-asset test: ordinary concurrent requests must all resolve to the same retained header with no failure.
+- Add a deliberate held-lock test that verifies the retry count is bounded, failure is fail-closed, arena/list counters do not change and the other worker's lock remains held.
+- Keep budget/allocation failure logging outside the owned lock.
+
+The timeout is a bound on retry count; actual wall-clock duration can exceed the nominal sleep sum due to scheduler delays. Console timing and the recovery UI after timeout remain separate validation gates.

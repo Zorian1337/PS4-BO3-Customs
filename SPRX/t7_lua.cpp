@@ -2369,16 +2369,16 @@ static void* AllocateRetainedLua(size_t bytes)
     return memory;
 }
 
-static uint64_t RetainLuaFailure(const char* name, uint64_t original, const char* reason)
+static uint64_t RetainLuaFailure(const char* name, uint64_t original, const char* reason, bool log = true)
 {
     (void)original;
     static const RawFileAsset rejected = { "(unavailable UI module)", (int32_t)sizeof(kLuaRetentionFailure), 0,
                                           (const char*)kLuaRetentionFailure };
     const uint32_t count = g_retainedLuaFailures.fetch_add(1, std::memory_order_relaxed) + 1;
-    if (count <= 4 || (count & (count - 1)) == 0)
+    if (log && (count <= 4 || (count & (count - 1)) == 0))
         T7Log_Write("[Lua] rejected %s before loading borrowed bytecode: %s (%u failures, %llu mapped bytes); mod removal remains available",
                     name, reason, count, (unsigned long long)g_retainedLuaMapped.load(std::memory_order_relaxed));
-    if (count <= 4 && strcmp(reason, "dedicated bytecode arena allocation failed") == 0)
+    if (log && count <= 4 && strcmp(reason, "dedicated bytecode arena allocation failed") == 0)
         T7Log_Write("[Lua] retention mapping request=%llu result=0x%X",
                     (unsigned long long)g_retainedLuaMapRequest.load(std::memory_order_relaxed),
                     (unsigned)g_retainedLuaMapError.load(std::memory_order_relaxed));
@@ -2417,11 +2417,28 @@ static uint64_t RetainModLua(const char* name, uint64_t original)
     for (size_t i = 0; i < length; ++i)
         hash = (hash ^ (uint8_t)raw.buffer[i]) * 1099511628211ull;
 
-    while (g_retainedLuaLock.test_and_set(std::memory_order_acquire))
+    // Rawfile lookup runs on loader workers. Allow normal short contention,
+    // but never wait indefinitely behind another worker's arena scan/map/copy.
+    constexpr int kRetainedLuaLockWaitAttempts = 200;
+    for (int attempt = 0; g_retainedLuaLock.test_and_set(std::memory_order_acquire); ++attempt)
+    {
+        if (attempt + 1 >= kRetainedLuaLockWaitAttempts)
+            return RetainLuaFailure(name, original, "retention arena busy", false);
         sceKernelUsleep(50);
+    }
+
     struct Unlock
     {
-        ~Unlock() { g_retainedLuaLock.clear(std::memory_order_release); }
+        bool held = true;
+        void Release()
+        {
+            if (held)
+            {
+                g_retainedLuaLock.clear(std::memory_order_release);
+                held = false;
+            }
+        }
+        ~Unlock() { Release(); }
     } unlock;
 
     // Each asset name needs its own stable RawFileAsset, but byte-identical
@@ -2442,10 +2459,16 @@ static uint64_t RetainModLua(const char* name, uint64_t original)
     const size_t used = g_retainedLuaBytes.load(std::memory_order_relaxed);
     if (g_retainedLuaCount.load(std::memory_order_relaxed) >= kRetainedLuaFileCountMax ||
         used > kRetainedLuaBudget || bytes > kRetainedLuaBudget - used)
+    {
+        unlock.Release();
         return RetainLuaFailure(name, original, "retained bytecode budget reached");
+    }
     RetainedLuaFile* const file = (RetainedLuaFile*)AllocateRetainedLua(bytes);
     if (!file)
+    {
+        unlock.Release();
         return RetainLuaFailure(name, original, "dedicated bytecode arena allocation failed");
+    }
     char* const stableName = (char*)(file + 1);
     memcpy(stableName, name, nameLength + 1);
     const char* body = sharedBody;

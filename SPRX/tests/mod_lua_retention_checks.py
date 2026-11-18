@@ -13,10 +13,12 @@ def run(name, code):
         source = Path(directory) / "fixture.cpp"
         binary = Path(directory) / "fixture"
         source.write_text(code, encoding="utf-8")
-        subprocess.run([os.environ.get("CXX", "g++"), "-std=c++20", "-Wall", "-Wextra", "-Werror",
-                        "-O1", "-pthread", "-fsanitize=address,undefined", "-I", str(root),
-                        str(source), "-o", str(binary)], check=True)
-        subprocess.run([str(binary)], check=True, timeout=30)
+        for sanitizer in ("address,undefined", "thread"):
+            sanitized = Path(directory) / ("fixture-" + sanitizer.replace(",", "-"))
+            subprocess.run([os.environ.get("CXX", "g++"), "-std=c++20", "-Wall", "-Wextra", "-Werror",
+                            "-O1", "-pthread", f"-fsanitize={sanitizer}", "-I", str(root),
+                            str(source), "-o", str(sanitized)], check=True)
+            subprocess.run([str(sanitized)], check=True, timeout=30)
 
 
 root = Path(__file__).resolve().parents[1]
@@ -115,8 +117,9 @@ static int sceKernelMmap(int,size_t bytes,int,int,int,int,void** output) {
     if(*output==MAP_FAILED) { *output=nullptr; return -1; }
     return 0;
 }
-static void sceKernelUsleep(int) { std::this_thread::yield(); }
 static void T7Log_Write(const char*,...) {}
+static std::atomic<unsigned> g_retentionSleepCalls{0};
+static void sceKernelUsleep(int) { g_retentionSleepCalls.fetch_add(1); std::this_thread::yield(); }
 
 #include "t7_lua_failure.hpp"
 #include "t7_lua_ownership.hpp"
@@ -248,6 +251,28 @@ int main() {
     g_retainedLuaMapped=realMapped;
     RawFileAsset oversized{"ui/oversized.lua",INT32_MAX,0,chunk};
     assert(RetainModLua(oversized.name,reinterpret_cast<uint64_t>(&oversized))!=reinterpret_cast<uint64_t>(&oversized));
+    // A contending loader worker must fail closed immediately, without
+    // clearing another worker's lock, allocating from the arena or publishing
+    // a borrowed source buffer.
+    const auto beforeBusyCount = g_retainedLuaCount.load();
+    const auto beforeBusyBytes = g_retainedLuaBytes.load();
+    const auto beforeBusyMapped = g_retainedLuaMapped.load();
+    const auto beforeBusyMaps = mappingCalls.load();
+    const auto beforeBusyFailures = g_retainedLuaFailures.load();
+    const auto beforeBusySleeps = g_retentionSleepCalls.load();
+    g_retainedLuaLock.test_and_set(std::memory_order_acquire);
+    const auto busy = reinterpret_cast<const RawFileAsset*>(
+        RetainModLua("ui/busy.lua", reinterpret_cast<uint64_t>(&replacement)));
+    assert(busy && busy->buffer == reinterpret_cast<const char*>(kLuaRetentionFailure));
+    assert(g_retainedLuaCount.load() == beforeBusyCount);
+    assert(g_retainedLuaBytes.load() == beforeBusyBytes);
+    assert(g_retainedLuaMapped.load() == beforeBusyMapped && mappingCalls.load() == beforeBusyMaps);
+    assert(g_retainedLuaFailures.load() == beforeBusyFailures + 1);
+    assert(g_retentionSleepCalls.load() - beforeBusySleeps == 199);
+    const bool otherWorkerStillOwnsLock = g_retainedLuaLock.test_and_set(std::memory_order_acquire);
+    assert(otherWorkerStillOwnsLock);
+    g_retainedLuaLock.clear(std::memory_order_release);
+
     g_retainedLua=nullptr;
     while(g_retainedLuaBlocks) {
         auto block=g_retainedLuaBlocks; auto next=block->next;
