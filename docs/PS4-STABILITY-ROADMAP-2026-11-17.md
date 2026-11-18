@@ -216,3 +216,8 @@ Console tests remain pending until a tester supplies the corresponding logs.
 ## PR #42 — Lua rawfile name bounds (2026-11-17)
 
 The rawfile lookup hook previously validated only 16 bytes before scanning up to 191 bytes for a terminator, and the missing-config diagnostic formatted the original game-owned pointer. PR #42 adds validated chunk copying, rejects unterminated/unreadable names for plugin classification, and logs from the copied buffer or a placeholder. Native lookup arguments/results and Lua bytecode retention are unchanged. Its source-policy audit, publication guard, 43 host regressions, SPRX diagnostics and script-log checks pass on `bfc2673bd9e5acd816408fca4fc7681fe172380c`. It is ready for review, not merged; no target build or console test.
+
+
+## P0 — Restore FolderScanStatus declaration (2026-11-18)
+
+Main-branch automatic BO3 Auto Build run #75 exposed a target compile blocker: a literal escaped newline after the `// libkernel ENOENT` comment caused the `FolderScanStatus` enum declaration in `SPRX/t7_maps.cpp` to be commented out. PR #43 replaces the escape with a real line break and adds a regression assertion to `map_catalog_safety_checks.py`; the previous host fixture extracted the enum token from the comment, masking the full-translation-unit failure. The correction is source-only and host checks are pending. No further target build is authorized or claimed; additional compile errors may remain after this one is corrected. See [the investigation](INVESTIGATION-2026-11-18-FOLDER-SCAN-STATUS-COMPILE.md).
