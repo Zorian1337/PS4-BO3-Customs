@@ -4,16 +4,20 @@ Read `AGENTS.md` and the authoritative section at the top of [the SPRX stability
 
 - **Scope:** SPRX/runtime only, including companion Lua where it is part of SPRX behavior. FFPorter issue #32, Osiris and unrelated projects are deferred.
 - **Repository:** `Zorian1337/PS4-BO3-Customs`, branch `main`.
-- **Main before this handoff update:** `d80d28bdb76a8efe422807aff5da6f8ec9a8d619`.
-- **PR #49:** current FolderScanStatus compile correction; head `1e9bc6f8f15380ff4508a4854e4ffb33799eea52`; all five PR workflows passed. It is not merged and has not been target-built.
-- **Other open PRs:** #39, #40, #41, #42, #45, #46 and #47. Exact purpose, review boundaries and validation are in the roadmap. PRs #43/#48 are superseded and closed; #37/#38 are superseded by #39.
-- **Target build:** last main build #75 failed at the swallowed `FolderScanStatus` declaration. PR #49 corrects that source defect, but no PS4 target build has run after the correction. Do not claim buildability until the actual PS4 workflow compiles/links and validates the package against the exact source commit.
-- **Next task:** complete full-diff review of PR #49, then run the corrected target build workflow. Continue fixing every target-only compile/link/package failure until a reproducibly buildable SPRX is obtained.
+- **Current main / buildable source:** `db015da32383c1f6196e78e04585b00d18f94e03`.
+- **PR #50:** merged; corrects the FolderScanStatus declaration and adds a source-line regression. PR #49 is closed unmerged as superseded.
+- **Latest target build:** [BO3 Auto Build #44247367325](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44247367325) completed successfully. All 14 native translation units compiled, GoldHEN link/package succeeded, native module/container validation passed, and the final workflow gate succeeded.
+- **Artifacts:** SPRX `bo3-sprx-db015da32383c1f6196e78e04585b00d18f94e03-1` (ID `14402750921`); native evidence `bo3-native-evidence-db015da32383c1f6196e78e04585b00d18f94e03-1` (ID `14401604991`). These are run-specific CI artifacts, not a release or console deployment.
+- **Other open PRs:** #39, #40, #41, #42, #45, #46 and #47. Exact purpose, review boundaries and validation are in the roadmap. PRs #43/#48/#49 are superseded and closed; #37/#38 are superseded by #39.
 - **Lua acceptance:** users must always be able to disable mods and restore original included Lua behavior without crashes, resets, stale bytecode or partial state. PRs #45/#46 do not satisfy this lifecycle requirement.
-- **Workflow:** document each issue and proposed correction before implementation; finish the SPRX issue inventory first; add production-path tests; update this file and the roadmap after every meaningful change. Work in Chat mode using connected GitHub tools when Work mode is unavailable.
+- **Remaining work:** review/integrate safe outstanding SPRX PRs; audit and implement complete Lua disable/restore and stack-capacity safety; continue native XAssetEntry, GPU, zone/clientfield and GSC evidence tracks. Rebuild after every subsequent source change before calling that revision buildable.
+- **Validation boundary:** the exact commit above is buildable, but no PS4/PS5 console validation, FTP deployment or release was performed. Buildability is not a stability guarantee.
+- **Workflow:** document each issue and proposed correction before implementation; keep the SPRX inventory current; add production-path tests; update this file and the roadmap after every meaningful change. Work in Chat mode using connected GitHub tools when Work mode is unavailable.
 - **Publication:** source/test/docs only. Keep private logs, binaries, toolchains, credentials and third-party plugin content out of the public repository. Do not upload/release or claim console validation without actual evidence.
 
 ---
+
+## Historical handoff archive
 
 ## Historical handoff archive
 
