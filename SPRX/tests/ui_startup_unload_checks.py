@@ -19,6 +19,7 @@ fixture=r'''
 #include <cstdlib>
 #include <cstring>
 #include <strings.h>
+#include "mod_load_context.hpp"
 #include <string>
 #include <cstdio>
 static bool inLevel=false,uiReady=true,locked=false,menuExists=false;
@@ -61,6 +62,14 @@ ADD_MENU
 #include "t7_lua_ownership.hpp"
 namespace T7Maps {
 static T7LuaOwnership::Index g_modLuaOwnership;
+static ActiveModLuaRetentionScopes g_activeModLuaRetentionScopes;
+static std::atomic<uint32_t> g_modLuaFallbackRetains{0};
+static bool IsLuaUiFileName(const char* name,size_t* length) {
+    if(!name) return false;
+    const size_t n=strlen(name);
+    if(length) *length=n;
+    return n>=4 && strcasecmp(name+n-4,".lua")==0;
+}
 }
 OWNER
 static std::string order;
@@ -92,11 +101,20 @@ int main(){
  g_completedMainState=state;assert(FrontendReadyForInjection());
  uiReady=false;assert(!FrontendReadyForInjection());uiReady=true;
  inLevel=true;g_completedMainState=0;assert(FrontendReadyForInjection());inLevel=false;
+ usingMods=true;
  T7Maps::g_modLuaOwnership.Mark("ui/mod.lua");
  T7Maps::g_modLuaOwnership.Mark("lua/shared/mod.lua");
  assert(!T7Maps_NeedsLuaRetention("ui/stock.lua"));
  assert(T7Maps_NeedsLuaRetention("UI/MOD.LUA"));
  assert(T7Maps_NeedsLuaRetention("lua/shared/mod.lua"));
+ usingMods=false;
+ {
+     T7Maps::ActiveModLuaRetentionScopes::Scope transition(T7Maps::g_activeModLuaRetentionScopes,true);
+     assert(T7Maps_NeedsLuaRetention("ui/stock.lua"));
+     assert(!T7Maps_NeedsLuaRetention("ui/stock.ff"));
+ }
+ assert(T7Maps::g_modLuaFallbackRetains.load()==1);
+ usingMods=true;
  T7Lua_FrontendWillLoad();menuExists=false;usingMods=true;
  g_completedMainState=state;g_menuInitPending=true;g_frontendInjectionBlocked=false;
  T7Lua_OnUiLuaError(state);
