@@ -94,3 +94,7 @@ Review of the session fixture showed it extracts both `ApplyModsNow()` and `Appl
 ## Follow-up review finding — first-mod zone index zero
 
 The production `StackIndexOfZone()` returns `0` for the first unprefixed mod zone (`core_mod`, `zm_mod`, `mp_mod`, `cp_mod`) through its `ZoneKind()` fallback; later stacked zones return positive indices. The initial implementation used `zoneIndex > 0`, which misses the first mod when `ApplyModsAtFrontend()` loads it outside an `ApplyModsNow()` transition scope. The active per-zone condition must be `zoneIndex >= 0`. Extend the production hook fixture to distinguish the first unprefixed mod zone (index 0), later `m2_`/`m3_` zones, and unrelated base zones (index -1). This is a real coverage defect and must be fixed before merge.
+
+## Latest host-suite feedback — 2026-11-18
+
+The full Project Session Guard found two remaining extracted-fixture integration defects on head `ac92c6cd57a0546a88eb0f5f627dc1b0bdd4950e`: `ui_startup_unload_checks.py` extracts `T7Maps_NeedsLuaRetention()` and must provide the new `IsLuaUiFileName`, active-scope and fallback-counter dependencies; `zone_load_context_checks.py` stores `opened` as `std::string`, so its new `strcmp` assertions must pass `opened.c_str()`. These are fixture compile errors, not PS4 target errors. Add the minimal stubs and correct the string-view use, then rerun the entire host inventory. The first-mod `zoneIndex >= 0` source correction remains in place.
