@@ -1,0 +1,35 @@
+name: FFPorter offline checks
+
+on:
+  pull_request:
+    paths:
+      - 'Tool/Porter/**'
+      - '.github/workflows/ffporter-offline-checks.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Tool/Porter/**'
+      - '.github/workflows/ffporter-offline-checks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-converter-checks:
+    runs-on: windows-2025
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          global-json-file: Tool/Porter/global.json
+      - name: Build the updater probes and offline check harness
+        shell: cmd
+        run: Tool\Porter\tests\run.cmd
+      - name: Record validation boundary
+        shell: pwsh
+        run: |
+          "FFPorter offline checks passed. This workflow does not access real map/release endpoints, console FTP, or device settings." >> $env:GITHUB_STEP_SUMMARY
