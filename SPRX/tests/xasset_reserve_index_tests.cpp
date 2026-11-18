@@ -2,93 +2,111 @@
 
 #include <cassert>
 #include <cstdint>
+#include <cstring>
 #include <limits>
-#include <initializer_list>
 
 int main()
 {
     constexpr uint32_t stride = 32;
 
-    // The reserve mapping must preserve the table's address residue. Exercise
-    // every possible residue rather than testing only naturally aligned bases.
+    // The native index is unsigned 32-bit, not signed 32-bit. Exercise every
+    // table-base residue and indices on both sides of INT32_MAX.
     for (uintptr_t residue = 0; residue < stride; ++residue)
     {
         const uintptr_t base = 0x100000 + residue;
-        for (int32_t index : {1, 2, 17, 524272})
+        for (uint32_t index : {1u, 2u, 17u, 524272u, 0x80000001u, UINT32_MAX})
         {
-            int32_t encoded = -1;
+            uint32_t encoded = 0;
             const uintptr_t entry = base + static_cast<uintptr_t>(index) * stride;
-            assert(XAssetReserveIndex::TryEncodePositiveIndex(base, entry, stride, encoded));
+            assert(XAssetReserveIndex::TryEncodeIndex(base, entry, stride, encoded));
             assert(encoded == index);
-            assert(base + static_cast<uintptr_t>(encoded) * stride == entry);
             uintptr_t decoded = 0;
-            assert(XAssetReserveIndex::TryDecodePositiveIndex(base, encoded, stride, decoded));
+            assert(XAssetReserveIndex::TryDecodeIndex(base, encoded, stride, decoded));
             assert(decoded == entry);
         }
     }
 
-    // A sparse address above 4 GiB is valid when the signed index round-trips.
+    // Sparse mappings above 4 GiB and indices above the signed boundary remain
+    // valid because native consumers zero-extend the uint32_t chain values.
     {
         const uintptr_t base = 0x100000000ull + 13;
-        const uintptr_t entry = base + static_cast<uintptr_t>(0x10000000) * stride;
-        int32_t encoded = 0;
-        assert(XAssetReserveIndex::TryEncodePositiveIndex(base, entry, stride, encoded));
-        assert(encoded == 0x10000000);
+        const uintptr_t entry = base + static_cast<uintptr_t>(0xF0000000u) * stride;
+        uint32_t encoded = 0;
+        assert(XAssetReserveIndex::TryEncodeIndex(base, entry, stride, encoded));
+        assert(encoded == 0xF0000000u);
     }
 
-    // The last positive signed-32 index is representable; the next one is not.
+    // The last uint32 index is representable; the next one is not.
     {
         const uintptr_t base = 0x200000000ull + 7;
-        uintptr_t entry = base + static_cast<uintptr_t>(std::numeric_limits<int32_t>::max()) * stride;
-        int32_t encoded = 0;
-        assert(XAssetReserveIndex::TryEncodePositiveIndex(base, entry, stride, encoded));
-        assert(encoded == std::numeric_limits<int32_t>::max());
+        uintptr_t entry = base + static_cast<uintptr_t>(UINT32_MAX) * stride;
+        uint32_t encoded = 0;
+        assert(XAssetReserveIndex::TryEncodeIndex(base, entry, stride, encoded));
+        assert(encoded == UINT32_MAX);
 
-        entry = base + (static_cast<uintptr_t>(std::numeric_limits<int32_t>::max()) + 1) * stride;
+        entry = base + (static_cast<uintptr_t>(UINT32_MAX) + 1) * stride;
         encoded = 123;
-        assert(!XAssetReserveIndex::TryEncodePositiveIndex(base, entry, stride, encoded));
+        assert(!XAssetReserveIndex::TryEncodeIndex(base, entry, stride, encoded));
         assert(encoded == 123);
     }
 
     // Reject addresses that cannot be represented by the native index rule.
     {
-        int32_t encoded = 77;
-        assert(!XAssetReserveIndex::TryEncodePositiveIndex(0x1000, 0x1000, stride, encoded));
-        assert(!XAssetReserveIndex::TryEncodePositiveIndex(0x1000, 0x0FFF, stride, encoded));
-        assert(!XAssetReserveIndex::TryEncodePositiveIndex(0x1000, 0x1021, stride, encoded));
-        assert(!XAssetReserveIndex::TryEncodePositiveIndex(0x1000, 0x1020, 0, encoded));
+        uint32_t encoded = 77;
+        assert(!XAssetReserveIndex::TryEncodeIndex(0x1000, 0x1000, stride, encoded));
+        assert(!XAssetReserveIndex::TryEncodeIndex(0x1000, 0x0FFF, stride, encoded));
+        assert(!XAssetReserveIndex::TryEncodeIndex(0x1000, 0x1021, stride, encoded));
+        assert(!XAssetReserveIndex::TryEncodeIndex(0x1000, 0x1020, 0, encoded));
         assert(encoded == 77);
     }
-    // Reject non-positive sentinel indices, zero stride, and pointer overflow.
+
+    // Reject the zero sentinel, zero stride, and pointer overflow.
     {
         uintptr_t decoded = 0x1234;
-        assert(!XAssetReserveIndex::TryDecodePositiveIndex(0x1000, 0, stride, decoded));
-        assert(!XAssetReserveIndex::TryDecodePositiveIndex(0x1000, -1, stride, decoded));
-        assert(!XAssetReserveIndex::TryDecodePositiveIndex(0x1000, 1, 0, decoded));
+        assert(!XAssetReserveIndex::TryDecodeIndex(0x1000, 0, stride, decoded));
+        assert(!XAssetReserveIndex::TryDecodeIndex(0x1000, 1, 0, decoded));
         assert(decoded == 0x1234);
 
         const uintptr_t base = std::numeric_limits<uintptr_t>::max() - 15;
-        assert(!XAssetReserveIndex::TryDecodePositiveIndex(base, 1, stride, decoded));
+        assert(!XAssetReserveIndex::TryDecodeIndex(base, 1, stride, decoded));
         assert(decoded == 0x1234);
     }
 
-    // Validate a complete reserve page, not just one selected entry. The
-    // first and last indices bound every fixed-stride entry in between.
+    // Validate complete pages at all table-base residues.
     for (uintptr_t residue = 0; residue < stride; ++residue)
     {
         const uintptr_t base = 0x300000 + residue;
         const uintptr_t page = base + 4096 * stride;
         constexpr uintptr_t pageBytes = 1u << 20;
-        int32_t first = -1;
-        int32_t last = -1;
+        uint32_t first = 0;
+        uint32_t last = 0;
         assert(XAssetReserveIndex::TryValidatePage(base, page, pageBytes, stride, first, last));
         assert(first == 4096);
-        assert(last == first + static_cast<int32_t>(pageBytes / stride) - 1);
+        assert(last == first + static_cast<uint32_t>(pageBytes / stride) - 1);
     }
 
+    // A page may end exactly at UINT32_MAX but may not cross that boundary.
+    {
+        const uintptr_t base = 0x400000;
+        const uint32_t count = 4;
+        const uint32_t firstValid = UINT32_MAX - count + 1;
+        const uintptr_t validPage = base + static_cast<uintptr_t>(firstValid) * stride;
+        uint32_t first = 0;
+        uint32_t last = 0;
+        assert(XAssetReserveIndex::TryValidatePage(base, validPage, count * stride,
+                                                   stride, first, last));
+        assert(first == firstValid && last == UINT32_MAX);
 
-    // mmap returns a page-aligned base; choose an interior page start with
-    // the same modulo-stride residue as the native table base.
+        const uintptr_t invalidPage = base + static_cast<uintptr_t>(UINT32_MAX - 2) * stride;
+        first = 41;
+        last = 42;
+        assert(!XAssetReserveIndex::TryValidatePage(base, invalidPage, count * stride,
+                                                    stride, first, last));
+        assert(first == 41 && last == 42);
+    }
+
+    // mmap returns a page-aligned base; select an interior range with the
+    // table's modulo-stride residue.
     for (uintptr_t residue = 0; residue < stride; ++residue)
     {
         const uintptr_t table = 0x200000 + residue;
@@ -96,8 +114,8 @@ int main()
         constexpr uintptr_t pageBytes = 4096;
         constexpr uintptr_t mappingBytes = pageBytes + stride - 1;
         uintptr_t page = 0;
-        int32_t first = -1;
-        int32_t last = -1;
+        uint32_t first = 0;
+        uint32_t last = 0;
         assert(XAssetReserveIndex::TrySelectPage(table, mapping, mappingBytes,
                                                  pageBytes, stride, page, first, last));
         assert(page == mapping + residue);
@@ -106,8 +124,8 @@ int main()
     }
     {
         uintptr_t page = 0x55;
-        int32_t first = 66;
-        int32_t last = 77;
+        uint32_t first = 66;
+        uint32_t last = 77;
         assert(!XAssetReserveIndex::TrySelectPage(0x200001, 0x400000, 4096, 4096,
                                                   stride, page, first, last));
         assert(page == 0x55 && first == 66 && last == 77);
@@ -116,25 +134,50 @@ int main()
         assert(page == 0x55 && first == 66 && last == 77);
     }
 
-    // Reject malformed or partially representable pages without publishing
-    // partial index outputs.
+    // Construct and walk the exact pointer-linked free list consumed by the
+    // native allocator. Every entry is zeroed except its next pointer.
     {
-        const uintptr_t base = 0x400000;
-        int32_t first = 41;
-        int32_t last = 42;
-        assert(!XAssetReserveIndex::TryValidatePage(base, base + 32, 0, stride, first, last));
-        assert(!XAssetReserveIndex::TryValidatePage(base, base + 32, 31, stride, first, last));
-        assert(!XAssetReserveIndex::TryValidatePage(base, base + 33, 64, stride, first, last));
-        assert(!XAssetReserveIndex::TryValidatePage(base, base + 32, 64, 0, first, last));
-        assert(first == 41 && last == 42);
-
-        const uintptr_t page = base + (static_cast<uintptr_t>(std::numeric_limits<int32_t>::max())) * stride;
-        assert(!XAssetReserveIndex::TryValidatePage(base, page, 64, stride, first, last));
-        assert(first == 41 && last == 42);
-
-        const uintptr_t nearEnd = std::numeric_limits<uintptr_t>::max() - 31;
-        assert(!XAssetReserveIndex::TryValidatePage(nearEnd - 32, nearEnd, 64, stride, first, last));
-        assert(first == 41 && last == 42);
+        alignas(32) uint8_t page[32 * 8];
+        std::memset(page, 0xA5, sizeof(page));
+        const uintptr_t tail = 0x123456789ABCDEF0ull;
+        uintptr_t head = 0;
+        uint32_t count = 0;
+        assert(XAssetReserveIndex::TryBuildFreeList(reinterpret_cast<uintptr_t>(page),
+                                                    sizeof(page), stride, tail, head, count));
+        assert(head == reinterpret_cast<uintptr_t>(page));
+        assert(count == 8);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const uintptr_t entry = reinterpret_cast<uintptr_t>(page) + static_cast<uintptr_t>(i) * stride;
+            const uintptr_t expected = i + 1 < count ? entry + stride : tail;
+            uintptr_t next = 0;
+            std::memcpy(&next, reinterpret_cast<const void*>(entry), sizeof(next));
+            assert(next == expected);
+            for (uint32_t byte = sizeof(uintptr_t); byte < stride; ++byte)
+                assert(reinterpret_cast<const uint8_t*>(entry)[byte] == 0);
+        }
     }
 
+    // Invalid free-list page shapes do not write memory or publish outputs.
+    {
+        alignas(32) uint8_t page[64];
+        std::memset(page, 0x5A, sizeof(page));
+        const uint8_t original[sizeof(page)] = {0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,
+                                                0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,
+                                                0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,
+                                                0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,
+                                                0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,
+                                                0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,
+                                                0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,
+                                                0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,0x5A,0x5A};
+        uintptr_t head = 0x1111;
+        uint32_t count = 22;
+        assert(!XAssetReserveIndex::TryBuildFreeList(reinterpret_cast<uintptr_t>(page),
+                                                     sizeof(page) - 1, stride, 0, head, count));
+        assert(!XAssetReserveIndex::TryBuildFreeList(reinterpret_cast<uintptr_t>(page),
+                                                     sizeof(page), sizeof(uint32_t), 0, head, count));
+        assert(!XAssetReserveIndex::TryBuildFreeList(UINTPTR_MAX - 15, 32, stride, 0, head, count));
+        assert(head == 0x1111 && count == 22);
+        assert(std::memcmp(page, original, sizeof(page)) == 0);
+    }
 }
