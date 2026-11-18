@@ -104,3 +104,21 @@ The current helper is intentionally a standalone arithmetic contract test.
 It is not called by production code until the items above are verified. The
 correct next step is native call-graph recovery, not a guessed hook or a
 larger reserve constant.
+
+
+## External reverse-engineering references checked
+
+The public COD Engine Research LoadContext page describes the shared global
+registry concept, but its detailed evidence is explicitly PS3-oriented. Its
+illustrative XAssetEntry has 16-bit next-hash and override indices at offsets
+0x0C/0x0E. That does not match this repository's PS4 source observations:
+32-byte stride and a 32-bit next-chain read at offset 20. It is therefore useful
+only as architectural context; its layout, allocator addresses, lock behavior,
+and function contracts must not be transplanted into this PS4 implementation.
+
+Reference: https://codresearch.dev/index.php/Category:LoadContext
+The public page identifies the PS3 DB_LoadXAssets function and labels its
+field evidence as PS3-proven; it does not provide the supported PS4 retail
+allocator's address, signature, free-list representation, or synchronization
+contract. This reinforces the requirement for matching-PS4 executable
+analysis rather than borrowing a neighboring platform's structure.
