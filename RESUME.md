@@ -4,7 +4,8 @@ Read `AGENTS.md`, this current handoff, and [the authoritative SPRX roadmap](doc
 
 ## Mandatory test-build filename convention
 
-- Every SPRX test build delivered to the user must use the exact filename format `BO3-Customs-dev<N>-DEBUG.sprx` (for example, the next numbered build after dev.69 is `BO3-Customs-dev70-DEBUG.sprx`).
+- Every SPRX test build delivered to the user must use the exact filename format `BO3-Customs-dev<N>-DEBUG.sprx` (for example, dev.70 is `BO3-Customs-dev70-DEBUG.sprx` and the next build is `BO3-Customs-dev71-DEBUG.sprx`).
+- Build numbering clarification: dev.69 was the build before last, dev.70 is the current build, and the next build must be dev.71. Do not skip or reuse a number.
 - Preserve exact capitalization, hyphenation and `.sprx` extension. Do not deliver generic names such as `BO3-Customs.sprx`, versioned `v4.00.1` names, or alternate suffixes as the user-facing test binary.
 - Apply this name to the actual SPRX file inside the delivered test package and to any standalone SPRX download. Keep build/run IDs, source SHA and checksum in the manifest or handoff, not in the SPRX filename.
 
@@ -16,45 +17,3 @@ Read `AGENTS.md`, this current handoff, and [the authoritative SPRX roadmap](doc
 - **Merged Lua ownership work:** PR #60 (`715a9f28ed081eda588e9f52fa02c4d1dc762679`) and PR #61 (`9ba6ca4b592fd4fff16c9f683755894a7ac9c09d`). Do not treat PR #60/#61 as open.
 - **Validation:** all 47 registered host regressions; ASan/UBSan + TSan source-read gate tests; nested/concurrent reader, timeout/reopen and failed-free/retry tests; all 14 native PS4 translation units; GoldHEN FSELF packaging/inspection; malformed module/container rejection controls. Workflow host, SPRX and final-completeness jobs succeeded.
 - **Not proven:** manifest says `console_validated:false`, `sony_signed:false`. No PS4 gameplay test, HKS cache invalidation proof or complete disable/re-enable/reload proof exists yet.
-- **Fastest stable route:** use the verified main-branch artifact above. Do not merge unrelated draft PRs just to generate a new build. See [the stable test-build handoff](docs/TEST-BUILD-HANDOFF-2026-11-18.md) for install, rollback and staged testing steps.
-
-## Open work — do not include in first candidate
-
-- PR #39: draft UI transition/image lifetime + dev.69 stream diagnostics; wait-zone publication and image lifetime/reuse remain unresolved.
-- PR #40: draft XAssetEntry arithmetic research only; production reserve hook removed; does not fix exhaustion.
-- PR #41: draft Blood Run bootstrap regression only; actual GSC/gameplay/pause failures remain.
-- PR #47: draft native GPU/clientfield/zone evidence documentation only.
-- PR #58/#59: stale duplicate Lua ownership branches; PR #60 is the merged implementation. Do not merge duplicates.
-- Other unresolved issues: XAssetEntry exhaustion, GPU fault ownership, mode/zone transitions, clientfield mismatch, host/BG-cache activation, Seven-Eleven multi-mod stall, Buried backend crash and Blood Run gameplay scripts.
-
-## Required console test order
-
-1. Verify artifact ZIP and embedded SPRX SHA-256 values.
-2. Back up dev.69 SPRX and existing `/data/BO3-Customs/` files; replace only the SPRX.
-3. First boot from internal storage with no mod selected; preserve `log.txt`.
-4. Load one known-good mod/map and play briefly.
-5. Disable it through the normal Mods UI; verify frontend reload and stock Lua/UI restoration.
-6. Re-enable/disable once, then fully restart and verify stock startup.
-7. Only after these pass, extend play and test one additional feature at a time. Do not start with bulk stacks, rapid mode switching or known-problem maps.
-8. On crash/hang, stop and save logs/test sequence before another launch. Roll back by restoring the backed-up dev.69 SPRX only.
-
-## Mandatory work protocol
-
-For each issue: inspect current source/history/logs; document evidence, root-cause confidence, alternatives, affected files, proposed fix, tradeoffs and tests **before implementation**; finish the SPRX issue inventory; implement with production-path regression tests; run host/sanitizer/source-policy checks; obtain a fresh PS4 target build for every SPRX source change; update roadmap and this handoff. Never claim target or console validation that did not run.
-
-Use connected GitHub tools directly in Chat mode when Work mode is unavailable. Keep private captures, binaries, toolchains, credentials and third-party plugin content out of public commits. No release, FTP deployment or console-validation claim without evidence.
-
----
-
-## Historical handoff archive
-
-
-
-
-## Historical handoff archive
-
-## Historical handoff archive
-
-## Historical handoff: map-load diagnostics + transactional catalog refresh (PR #36; now merged)
-
-## Catalog refresh safety implementation
