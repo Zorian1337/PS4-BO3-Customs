@@ -195,8 +195,8 @@ Console tests remain pending until a tester supplies the corresponding logs.
 **Proposed fix:** preserve the original table and entry addresses; append bounded reserve pages only at the verified native allocator boundary when the original free list is empty. Before publication, validate the full mapping, 32-byte address residue, every positive signed-32-bit chain index round-trip, native read/write span, reserve cap, and exact allocator/free-list ABI. On any mapping or contract failure, do not publish the page and preserve native fatal behavior. Never relocate the live table, overwrite adjacent globals, drop assets, or bypass native validation.
 
 **Work started on** `recovery/xasset-entry-index-safety`:
-- Added `SPRX/xasset_reserve_index.hpp`, a pure checked conversion from an entry address to the positive signed-32-bit native index.
-- Added `SPRX/tests/xasset_reserve_index_tests.cpp` covering all 32 address residues, sparse addresses above 4 GiB, the signed-index boundary, misalignment, zero stride, and unchanged output on rejection.
+- Added `SPRX/xasset_reserve_index.hpp`, pure checked conversion and whole-page first/last-index validation for positive signed-32-bit native indices.
+- Added `SPRX/tests/xasset_reserve_index_tests.cpp` covering all 32 address residues, sparse addresses above 4 GiB, the signed-index boundary, page ranges crossing that boundary, misalignment, zero stride, address overflow and unchanged outputs on rejection.
 - Added [the detailed issue/solution/acceptance note](XASSET-RESERVE-INDEX-SAFETY.md).
 
 This is arithmetic groundwork only. It does not map or publish reserve memory, validate the game's actual allocator ABI, or fix the registry exhaustion. The new C++ test is auto-discovered by `.github/scripts/run_host_checks.py`; CI must pass before this work is considered reviewed. The exact native allocator entry point, table/free-list consumers, instruction fingerprints and supported build identity remain prerequisites for the runtime correction.
