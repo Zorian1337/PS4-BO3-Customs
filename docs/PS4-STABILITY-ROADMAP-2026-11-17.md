@@ -164,16 +164,17 @@ Five PRs are open; none is approved for merge by this review.
 
 | PR | Branch / scope | CI and source review | Next gate |
 |---|---|---|---|
+| [#42 Lua rawfile asset-name bounds](https://github.com/Zorian1337/PS4-BO3-Customs/pull/42) | Bounded chunk reads before Lua classification and safe missing-config logging; native lookup/retention behavior unchanged | Source-policy audit, publication guard, 43 host regressions, SPRX diagnostics and script-log checks pass on `bfc2673bd9e5acd816408fca4fc7681fe172380c` | Ready for review; no target build or console test |
 | [#41 Blood Run bootstrap regression](https://github.com/Zorian1337/PS4-BO3-Customs/pull/41) | Production-Lua test for the existing absent-only `Mods_IsUsingUsermap` fallback | Diagnostics and project-session checks pass on `eb7344720765748a8bad335ccb2eb09cdbfc41b2`; no GSC behavior changed | Keep open; obtain matching Blood Run GSC source and a clean-start console capture for gameplay/pause failures |
 | [#40 XAssetEntry index groundwork](https://github.com/Zorian1337/PS4-BO3-Customs/pull/40) | Checked encode/decode and reserve-page index arithmetic only | Source-policy and diagnostics checks pass on `02e710f85a25d04ccad3f54fd07deffe1d4f2561); no native hook or mapping | Keep draft; resolve signed/unsigned native index semantics and prove allocator/free-list ABI, all consumers, thread synchronization and supported build fingerprint |
-| [#39 combined UI/image and stream recovery](https://github.com/Zorian1337/PS4-BO3-Customs/pull/39) | Recreates dev.65 transition/image guards and dev.69 bounded stream diagnostics | Six workflows pass; 46 host regression programs pass. Review found a stale custom-image callback can escape tracking after `PictureFor()` clears/replaces its old pointer, then pass through `FindPicture()==nullptr` to native `SetImage`. A review comment is recorded on the PR | Keep draft; retain retired-address ownership with a fail-closed capacity policy and add a regression after record reuse. Then review native slot reuse and retest all workflows |
+| [#39 combined UI/image and stream recovery](https://github.com/Zorian1337/PS4-BO3-Customs/pull/39) | Recreates dev.65 transition/image guards and dev.69 bounded stream diagnostics | Source head `481d4d4952952f07a52c60e6605197b11474473d` passes six workflows and 47 host regressions. A 1,024-entry no-eviction tombstone registry now preserves retired addresses; capacity exhaustion retains active ownership and refuses replacement. Stock-slot reuse is distinguished from freed/different custom slots; callback-after-record-reuse regression passes | Keep draft; latest docs/workflow-summary-only head is awaiting project-session guard. No target build or console test |
 | [#38 standalone UI/image guards](https://github.com/Zorian1337/PS4-BO3-Customs/pull/38) | Earlier standalone implementation of part of #39 | Superseded by combined #39; not independently accepted | Do not merge independently |
 | [#37 standalone stream diagnostics](https://github.com/Zorian1337/PS4-BO3-Customs/pull/37) | Earlier standalone implementation of part of #39 | Superseded by combined #39; not independently accepted | Do not merge independently |
 
 ### Issue-specific boundaries
 
 - **#30 XAssetEntry exhaustion:** the dev.67 reserve-page runtime correction is not present in public `main`. PR #40 is arithmetic groundwork, not an allocator fix. The observed native chain consumer uses `uint32_t`; the positive signed-32 assumption needs proof before any production integration.
-- **#29 rapid X/back:** the tester reported the dev.65 symptom improved, but the reconstructed PR #39 source still has the retired-address gap above. Keep the issue open until the source is corrected and a fresh console reproduction is recorded.
+- **#29 rapid X/back:** the tester reported the dev.65 symptom improved. PR #39 now preserves retired custom-image addresses and tests delayed callbacks after record reuse, including capacity exhaustion and stock-slot reuse. Keep the issue open until the latest docs-only guard passes and a fresh console reproduction is recorded.
 - **#33 Buried backend crash:** PR #39 restores bounded rejection diagnostics only. It does not fix RIP `0xFA2A98`; reproduce without mods and correlate the first fault with a matching executable.
 - **#31 Blood Run:** PR #41 validates only the missing-global fallback. Repeated GSC invalid-value errors, server shutdown, frozen controls and pause behavior remain unresolved.
 - **Lua retention / disable-mod recovery:** any future changes must prove first load, unload, reload, overlapping stack changes, frontend reconstruction, and restoration of original included Lua bytecode. Never trade away the user's ability to disable mods or recover without a crash/reset.
@@ -210,6 +211,11 @@ For each P0/P1 change require:
 6. no regressions to disabling mods or restoring original Lua content.
 
 Console tests remain pending until a tester supplies the corresponding logs.
+
+
+## PR #42 — Lua rawfile name bounds (2026-11-17)
+
+The rawfile lookup hook previously validated only 16 bytes before scanning up to 191 bytes for a terminator, and the missing-config diagnostic formatted the original game-owned pointer. PR #42 adds validated chunk copying, rejects unterminated/unreadable names for plugin classification, and logs from the copied buffer or a placeholder. Native lookup arguments/results and Lua bytecode retention are unchanged. Its source-policy audit, publication guard, 43 host regressions, SPRX diagnostics and script-log checks pass on `bfc2673bd9e5acd816408fca4fc7681fe172380c`. It is ready for review, not merged; no target build or console test.
 
 
 ## P1 — Bound Lua rawfile asset-name reads
