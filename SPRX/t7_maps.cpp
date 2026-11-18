@@ -8067,7 +8067,6 @@ void T7Maps_FrameWork()
     {
         g_frontendApplyPending = false;
         g_applyWanted.store(false);
-        T7Lua_ResumeModUiRetention();
         T7Log_Write("[Mods] frontend handoff timed out; loaded zones stay intact, restart BO3 to apply the selection");
         return;
     }

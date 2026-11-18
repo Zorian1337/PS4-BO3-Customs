@@ -183,6 +183,12 @@ int main() {
     assert(std::strcmp(saved->name,"ui/test.lua")==0 && std::memcmp(saved->buffer,"\x1bLuaQ",5)==0);
     denied=0;
     T7Lua_ResumeModUiRetention();
+    {
+        LuaRetentionGate::Scope held(T7Lua::g_modLuaRetentionGate);
+        assert(held);
+        assert(!T7Lua_PrepareModUiUnload()); // A held source reader forces the bounded timeout.
+        assert(!T7Lua::g_modLuaRetentionGate.IsClosed()); // Timeout must reopen the gate.
+    }
 
     char chunk[64]={}; std::memcpy(chunk,"\x1bLuaQ",5);
     RawFileAsset replacement{"ui/test.lua",64,17,chunk};

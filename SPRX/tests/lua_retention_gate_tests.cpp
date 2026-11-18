@@ -44,6 +44,16 @@ int main()
     assert(!gate.BeginClose()); // already closed; only owner reopens
     gate.Reopen();
     assert(!gate.IsClosed() && gate.IsDrained());
+    {
+        LuaRetentionGate::Scope outer(gate);
+        assert(outer);
+        {
+            LuaRetentionGate::Scope inner(gate);
+            assert(inner);
+        }
+        assert(!gate.IsDrained()); // The outer nested reader still owns the source.
+    }
+    assert(gate.IsDrained());
 
     std::atomic<unsigned> completed{0};
     std::vector<std::thread> workers;

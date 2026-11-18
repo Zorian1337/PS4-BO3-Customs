@@ -41,15 +41,15 @@ Do not merge a gate that can remain closed after a failed or deferred transition
 A native `RawFileAsset` header and its bytecode buffer are borrowed from a zone. No code may dereference either pointer after the unload barrier begins unless it has successfully entered the retention-operation gate. Unload may proceed only after the gate is closed and the active-operation count reaches zero. A lookup that arrives while closed must return the immutable rejection asset without inspecting `name`, `original`, the rawfile header, or the buffer.
 
 ### Concurrency design
-Use one atomic word with a high `closing` bit and low active-reader count. Entry uses a compare/exchange loop: reject if `closing` is set; otherwise increment the count atomically. Close sets the bit with `fetch_or`, preventing all later entries, then waits a bounded number of short intervals for the low count to reach zero. This single-word state avoids the race inherent in separate `closing` and `active` atomics. The RAII reader guard decrements on every return. A timeout clears the closing bit and aborts the unload; it must never leave retention permanently closed.
+Use one atomic word with a high `closing` bit and low active-reader count. Entry uses a compare/exchange loop: reject if `closing` is set; otherwise increment the count atomically. Close atomically sets the bit with a compare/exchange loop, preventing all later entries, then waits a bounded number of short intervals for the low count to reach zero. This single-word state avoids the race inherent in separate `closing` and `active` atomics. The RAII reader guard decrements on every return. A timeout clears the closing bit and aborts the unload; it must never leave retention permanently closed.
 
 ### Integration boundaries
 - Enter at the very first instruction of `RetainModLua()`, before validating or dereferencing the asset name/header/buffer.
 - `T7Lua_PrepareModUiUnload()` closes and drains; it returns false on timeout so `ApplyModsNow()` leaves all zones intact.
-- If frontend shutdown cannot be scheduled, or a later pre-free check aborts the transition, explicitly reopen the gate before returning.
-- For a queued frontend transition, keep the gate closed across the gap until `ApplyModsAtFrontend()` has successfully removed old zones; reopen before the new `core_frontend` native load can request Lua modules.
+- Do not close the gate while waiting for frontend shutdown. The queued transition keeps ordinary lookup open; `ApplyModsAtFrontend()` closes immediately before the actual `FreeModsFrom()` boundary.
 - Do not close the gate across the host-session common-zone transaction: that native call combines teardown and replacement mod loading, so new Lua lookups may occur before it returns. When a changed host stack is requested while old mods are loaded, defer that change until the session ends; preserve the existing stack rather than risk rejecting replacement Lua or freeing a borrowed source.
 - In the ordinary frontend path, close immediately before `FreeModsFrom()`. If it fails or reports remaining mod zones, reopen before returning because the old source zones remain resident. On success, reopen immediately after the old zones are confirmed gone and before `AppendMods()` can request replacement Lua.
+- If the current common zone is absent while old mods remain loaded, defer the stack change until a common zone is active; `LoadModeCommonForMods()` also mixes native common-zone setup with replacement mod loading.
 - Preserve the append-only retained bytecode arena. This gate protects source-buffer lifetime; it does not authorize reclaiming old chunks or manipulating the HKS module cache.
 
 ### Tests required before merge
