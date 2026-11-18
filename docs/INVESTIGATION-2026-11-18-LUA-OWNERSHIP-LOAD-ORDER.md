@@ -63,3 +63,5 @@ The first PR workflow run found that `diagnostic_hook_checks.py` extracts `Trace
 The zone-context regression now compares the copied context's zone-name contents rather than pointer identity; the hook intentionally stores a bounded call-lifetime copy instead of the engine-owned input pointer.
 
 The follow-up fixture review also found the new transition-log assertion reused `found`, which is declared later in the same generated C++ fixture. Use a distinct `retentionTraceFound` variable to keep the fixture valid; this is another test-only correction, not a production behavior change.
+
+The next exact-head diagnostic run found that `session_common_activation_checks.py` extracts the production `ApplyModsNow()` body but did not include the new retention-scope type or global instance. The correction is to include the production `mod_load_context.hpp` helper in that fixture and declare its test instance; the zone-context test separately exercises real nested/concurrent counter behavior. This is a host-fixture dependency, not a production compile failure.
