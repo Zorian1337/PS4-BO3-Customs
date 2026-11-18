@@ -31,6 +31,12 @@ Investigation: [mod-enable/UI failure analysis](INVESTIGATION-2026-11-18-MOD-ENA
 
 Status at documentation time: findings and correction plan recorded before implementation; source changes and validation pending. Required after source changes: full registered host checks, sanitizer tests, session/source audit and a fresh PS4 target build. Console validation remains separate.
 
+
+
+### Mod-enable Lua retention / UI recovery candidate — branch only
+
+Investigation and implementation are recorded in [the mod-enable/UI failure note](INVESTIGATION-2026-11-18-MOD-ENABLE-UI-FAILURES.md). Branch `fix/mod-enable-lua-arena-reuse` is six commits ahead of `main`, zero behind, and is not merged. It searches all append-only Lua arena blocks for reusable tails before mapping, adds overflow checks and memory diagnostics, and adds production-helper/UI-recovery regression coverage. Local C++20 + UBSan helper validation passed. The full host inventory, PS4 target build and console tests remain pending; do not treat the branch as build-verified. No build was started pending explicit approval. The expected frontend shutdown and third-party DS4C nil-index are not suppressed or misrepresented as fixed.
+
 ## Current repository / PR state — verified 2026-11-18
 
 - **Merged PR #60:** first-mod/index-zero and concurrent/nested mod-zone Lua ownership publication/load-context protection. Merge commit `715a9f28ed081eda588e9f52fa02c4d1dc762679`.
