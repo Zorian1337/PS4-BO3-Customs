@@ -2336,6 +2336,8 @@ struct RetainedLuaBlock
 static RetainedLuaBlock* g_retainedLuaBlocks = nullptr;
 static std::atomic<size_t> g_retainedLuaMapped{0};
 static std::atomic<size_t> g_retainedLuaReusableBytes{0};
+static std::atomic<size_t> g_retainedLuaLargestFreeBytes{0};
+static std::atomic<size_t> g_retainedLuaAllocationRequest{0};
 static std::atomic<int32_t> g_retainedLuaMapError{0};
 static std::atomic<size_t> g_retainedLuaMapRequest{0};
 
@@ -2348,10 +2350,19 @@ static void* AllocateRetainedLua(size_t bytes)
     if (bytes > SIZE_MAX - 15)
         return nullptr;
     bytes = (bytes + 15) & ~(size_t)15;
+    g_retainedLuaAllocationRequest.store(bytes, std::memory_order_relaxed);
 
     RetainedLuaBlock* block = T7LuaRetentionArena::FindBlockWithSpace(g_retainedLuaBlocks, bytes);
     if (!block)
     {
+        size_t largestFree = 0;
+        for (RetainedLuaBlock* current = g_retainedLuaBlocks; current; current = current->next)
+        {
+            if (current->used <= current->size && current->size - current->used > largestFree)
+                largestFree = current->size - current->used;
+        }
+        g_retainedLuaLargestFreeBytes.store(largestFree, std::memory_order_relaxed);
+
         const size_t header = (sizeof(RetainedLuaBlock) + 15) & ~(size_t)15;
         if (bytes > SIZE_MAX - header - 0x3FFF)
             return nullptr;
@@ -2401,11 +2412,13 @@ static uint64_t RetainLuaFailure(const char* name, uint64_t original, const char
                     (unsigned long long)g_retainedLuaReusableBytes.load(std::memory_order_relaxed),
                     g_retainedLuaCount.load(std::memory_order_relaxed));
     if (log && count <= 4 && strcmp(reason, "dedicated bytecode arena allocation failed") == 0)
-        T7Log_Write("[Lua] retention mapping request=%llu result=0x%X retained=%llu reusable=%llu headers=%u",
+        T7Log_Write("[Lua] retention allocation=%llu mapping=%llu result=0x%X retained=%llu reusable=%llu largest-tail=%llu headers=%u",
+                    (unsigned long long)g_retainedLuaAllocationRequest.load(std::memory_order_relaxed),
                     (unsigned long long)g_retainedLuaMapRequest.load(std::memory_order_relaxed),
                     (unsigned)g_retainedLuaMapError.load(std::memory_order_relaxed),
                     (unsigned long long)g_retainedLuaBytes.load(std::memory_order_relaxed),
                     (unsigned long long)g_retainedLuaReusableBytes.load(std::memory_order_relaxed),
+                    (unsigned long long)g_retainedLuaLargestFreeBytes.load(std::memory_order_relaxed),
                     g_retainedLuaCount.load(std::memory_order_relaxed));
     return (uint64_t)&rejected;
 }
