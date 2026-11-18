@@ -22,6 +22,6 @@ Alternatives rejected: relocating the original registry invalidates outstanding 
 
 ## Work started: pure index arithmetic
 
-`SPRX/xasset_reserve_index.hpp` now contains a small pure helper for the one arithmetic rule that can be independently tested from the issue evidence: converting an entry address to a positive signed-32-bit index and proving the exact address round-trip. Its host test covers all 32 address residues, sparse addresses above 4 GiB, the signed-index boundary, misalignment, zero stride, and unchanged output on rejection.
+`SPRX/xasset_reserve_index.hpp` now contains a small pure helper for the one arithmetic rule that can be independently tested from the issue evidence: converting an entry address to a positive signed-32-bit index and proving the exact address round-trip. A second helper validates the first and last indices of a complete fixed-stride page, which bounds every entry between them. The host test covers all 32 address residues, sparse addresses above 4 GiB, the signed-index boundary, page ranges that cross that boundary, misalignment, zero stride, overflow, and unchanged outputs on rejection.
 
 This is deliberately groundwork, not the dev.67 allocator fix. It does not map memory, inspect engine structures, publish entries, or claim to validate the native ABI. Do not wire it into a hook until the missing native contracts and matching build fingerprints are independently recovered.
