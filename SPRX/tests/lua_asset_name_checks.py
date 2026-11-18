@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE = (ROOT / "t7_lua.cpp").read_text(encoding="utf-8")
+SOURCE = (ROOT / "SPRX/t7_lua.cpp").read_text(encoding="utf-8")
 start = SOURCE.index("static bool CopyAssetName(")
 end = SOURCE.index("static uint64_t FindXAsset(", start)
 HELPER = SOURCE[start:end]
