@@ -2,6 +2,7 @@
 #include "headers.hpp"
 #include "t7_lua_files.hpp"
 #include "diagnostic_ring.hpp"
+#include "stream_guard.hpp"
 #include "t7_maps.hpp"
 #include "mod_load_context.hpp"
 #include "t7_mapimages.hpp"
@@ -329,6 +330,12 @@ static int                     g_unshownCount = 0;
 static bool                    g_frontendReloadReady = false;
 static bool                    g_quietReload = false;
 static bool                    g_reloadCheck = false;
+// One atomic state publishes queued-zone readiness without exposing the
+// worker-owned wait-zone array or allowing a stale ready flag across requests.
+constexpr uint8_t kUiZoneWaitIdle = 0;
+constexpr uint8_t kUiZoneWaitPending = 1;
+constexpr uint8_t kUiZoneWaitHeldReady = 2;
+static std::atomic<uint8_t>     g_uiZoneWaitState{kUiZoneWaitIdle};
 static std::atomic<bool>        g_frontendApplyPending{false};
 static std::atomic<bool>        g_frontendApplying{false};
 static std::atomic<bool>        g_frontendApplyLoading{false};
@@ -444,6 +451,7 @@ static std::atomic<uint64_t> g_textureProbeAt{0};
 static std::atomic<uint64_t> g_gateLogged{0};
 static std::atomic<uint32_t> g_gateLogs{0};
 #ifdef _DEBUG
+static std::atomic<uint32_t> g_streamRejectDiagnosticCount{0};
 static void*                 g_openMenuOriginal = nullptr;
 static void*                 g_closeMenuOriginal = nullptr;
 static void*                 g_freezeOriginal = nullptr;
@@ -4567,6 +4575,10 @@ static bool FreesModZones(const ZoneInfo* zones, int count)
 
 static void WaitForModZones(const ZoneInfo* zones, int count, int from)
 {
+    // Publish not-ready before mutating the wait list. The UI predicate reads
+    // only these atomics and never races the worker-owned zone-name array.
+    g_uiZoneWaitState.store(kUiZoneWaitPending, std::memory_order_release);
+
     if (!g_reloadCheck)
     {
         g_waitZoneCount = 0;
@@ -4592,7 +4604,10 @@ static void WaitForModZones(const ZoneInfo* zones, int count, int from)
     {
         g_reloadCheck = true;
         g_reloadSince = sceKernelGetProcessTime();
+        g_uiZoneWaitState.store(kUiZoneWaitPending, std::memory_order_release);
     }
+    else
+        g_uiZoneWaitState.store(kUiZoneWaitIdle, std::memory_order_release);
 }
 
 static void TraceModTransition(const char* when, const char* level);
@@ -5549,15 +5564,21 @@ static uint64_t BlockJob_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
         const uint32_t stored = *(uint32_t*)(slot + 0x40030);
         const uint64_t ring = *(uint64_t*)(g_base + kReadRing);
 
-        // Subtraction-based range validation avoids wrapping either end
-        // of the ring or the requested length on malformed stream blocks.
-        const bool outside = hashed && (!ring || data < ring ||
-                                      data - ring >= 0xA00000 ||
-                                      hashed > 0xA00000 - (data - ring));
-        const bool odd = (hashed > stored && hashed - stored > 3) || unpacked > 0x40000;
+        // Preserve the existing rejection policy; this helper only names the
+        // branch so DEBUG diagnostics can explain why the job was cleared.
+        const StreamGuard::RejectReason reason = StreamGuard::Evaluate(ring, data, unpacked, hashed, stored);
 
-        if (outside || odd)
+        if (reason != StreamGuard::RejectReason::None)
         {
+#ifdef _DEBUG
+            if (StreamGuard::TryClaimDiagnostic(g_streamRejectDiagnosticCount))
+            {
+                T7Log_Write("[Trace] event=stream-block-rejected reason=%s ring=%llX slot=%llX data=%llX unpacked=%u hashed=%u stored=%u",
+                            reason == StreamGuard::RejectReason::OutsideRing ? "outside-ring" : "invalid-lengths",
+                            (unsigned long long)ring, (unsigned long long)slot, (unsigned long long)data,
+                            (unsigned)unpacked, (unsigned)hashed, (unsigned)stored);
+            }
+#endif
             *(uint32_t*)(slot + 0x4002C) = 0;
             *(uint32_t*)(slot + 0x40028) = 0;
         }
@@ -7921,18 +7942,26 @@ void T7Maps_RequestApply()
         g_reloadSince = sceKernelGetProcessTime();
 
     g_reloadHeld = false;
+    if (g_reloadCheck)
+        g_uiZoneWaitState.store(kUiZoneWaitPending, std::memory_order_release);
     g_applyWanted.store(true);
 }
 
 void T7Maps_RequestPrefetch()
 {
     T7Maps::g_reloadHeld = true;
+    if (T7Maps::g_reloadCheck)
+        T7Maps::g_uiZoneWaitState.store(T7Maps::kUiZoneWaitPending, std::memory_order_release);
     T7Maps::g_prefetchWanted.store(true);
 }
 
 void T7Maps_MenusBuilt()
 {
     T7Maps::g_reloadHeld = false;
+    if (T7Maps::g_reloadCheck)
+        T7Maps::g_uiZoneWaitState.store(T7Maps::kUiZoneWaitPending, std::memory_order_release);
+    else
+        T7Maps::g_uiZoneWaitState.store(T7Maps::kUiZoneWaitIdle, std::memory_order_release);
 }
 
 bool T7Maps_MenusBroken()
@@ -8024,6 +8053,7 @@ void T7Maps_FrameWork()
 
     if (!g_reloadCheck)
     {
+        g_uiZoneWaitState.store(kUiZoneWaitIdle, std::memory_order_release);
         SetRefreshOnClose(false);
         return;
     }
@@ -8031,6 +8061,7 @@ void T7Maps_FrameWork()
     if (g_inLevel)
     {
         g_reloadCheck = false;
+        g_uiZoneWaitState.store(kUiZoneWaitIdle, std::memory_order_release);
         g_reloadForced = false;
         SetRefreshOnClose(false);
         return;
@@ -8049,10 +8080,12 @@ void T7Maps_FrameWork()
 
     if (ready < g_waitZoneCount || AnyZoneLoading())
     {
+        g_uiZoneWaitState.store(kUiZoneWaitPending, std::memory_order_release);
         if (!g_reloadHeld && sceKernelGetProcessTime() - g_reloadSince > kModLoadWaitUs)
         {
             T7Log_Write("[Mods] the new mods are still loading after 60 s; their menus show after your next match");
             g_reloadCheck = false;
+            g_uiZoneWaitState.store(kUiZoneWaitIdle, std::memory_order_release);
             g_reloadForced = false;
         }
 
@@ -8068,10 +8101,12 @@ void T7Maps_FrameWork()
 
     if (g_reloadHeld)
     {
+        g_uiZoneWaitState.store(kUiZoneWaitHeldReady, std::memory_order_release);
         SetRefreshOnClose(ui);
         return;
     }
 
+    g_uiZoneWaitState.store(kUiZoneWaitIdle, std::memory_order_release);
     g_reloadCheck = false;
     g_reloadForced = false;
     g_frontendApplyLoading = false;
@@ -8320,7 +8355,17 @@ bool T7Maps_NeedsLuaRetention(const char* name)
 bool T7Maps_UiTransitionBusy()
 {
     using namespace T7Maps;
-    return g_base && (g_frontendApplyPending || g_frontendApplying || g_frontendApplyLoading || AnyZoneLoading());
+
+    if (!g_base)
+        return false;
+
+    // The wait-zone names are populated by the loader worker. Publish only
+    // readiness atomics to UI callers; never inspect that mutable array here.
+    // A held Mods overlay is released only after FrameWork observes every
+    // recorded zone ready. Native loading/frontend handoffs still block.
+    const bool queuedZonesBusy = g_uiZoneWaitState.load(std::memory_order_acquire) == kUiZoneWaitPending;
+    return queuedZonesBusy || g_frontendApplyPending ||
+           g_frontendApplying || g_frontendApplyLoading || AnyZoneLoading();
 }
 
 static_assert(T7Maps::kNameMax == kT7ShareName, "shared names use the map name size");
