@@ -25,3 +25,11 @@ Read `AGENTS.md`, this current handoff, and [the authoritative SPRX roadmap](doc
 - Source review found the retained arena searches only its newest block and can strand free tails in older append-only blocks. Planned correction: search all blocks before mapping, add allocator regressions and bounded usage diagnostics; preserve 32 MiB / 4,096-header caps and never reclaim closure-owned bytecode.
 - DS4C's nil-index remains a third-party stripped-bytecode exception with an unknown operand; no safe patch can be inferred from this log. Existing successful-main recovery needs a full failure/recovery/Mods-disable regression.
 - At documentation time, the issue inventory and proposed corrections are recorded; implementation and fresh target build are pending. No console test, release, upload or build authorization is implied.
+
+
+## 2026-11-18 implementation update — mod-enable Lua arena
+
+- Source-only candidate branch: `fix/mod-enable-lua-arena-reuse` (six commits ahead of main, zero behind; not merged). It scans every append-only retention block for a fitting tail before mapping, adds checked size arithmetic, and records retained/mapped/reusable/largest-tail/header diagnostics.
+- Added allocator C++ regression coverage and native frontend error-recovery source assertions. The C++ helper logic compiled and passed under g++ C++20 and UBSan; ASan could not start in the local Python runtime. Full repository host checks, target build and console validation remain outstanding.
+- Main remains unchanged and at its last target-build-verified source. No SPRX build was started; the workflow requires explicit approval.
+- The 00:47 shutdown is expected frontend reload behavior. The 03:17 mmap failure is ENOMEM; the fix targets stranded block tails but the next console trace must establish whether remaining failure is fragmentation or true process memory pressure. DS4C's stripped nil-index remains unfixable without exact matching source/decoded operand evidence.
