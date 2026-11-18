@@ -307,7 +307,7 @@ internal static class CommunityChecks
             && Map("zm_demo").Thumbnail != null && Map("zm_demo").Meta == $"Zombies  ·  {Job.SizeText(zip.Length)}  ·  by someone" && Map("mp_flat").Folder == "mp_flat",
             "parts and pictures resolve against the list's address");
 
-        string output = Path.Combine(scratch, "out", "t7");
+        string output = Path.Combine(scratch, "out", "usermaps");
         var progress = new List<DownloadProgress>();
         var reporter = new Progress<DownloadProgress>(report => progress.Add(report));
         Exception? Download(string id, CancellationToken token = default) =>
@@ -424,13 +424,13 @@ internal static class CommunityChecks
         Program.Check(Footer(window) == panel.Status && panel.FindName("StatusText") == null && ((TextBlock)window.FindName("SubtitleText")).Text.StartsWith("Converted maps and mods, ready to download"),
             "the Community tab has no status strip of its own: its status shows in the window's footer");
 
-        Directory.Delete(Path.Combine(scratch, "out", "t7", "mp_flat"), true);
+        Directory.Delete(Path.Combine(scratch, "out", "usermaps", "mp_flat"), true);
         MethodInfo start = typeof(CommunityPanel).GetMethod("StartClick", Private)!;
         start.Invoke(panel, [new Button { DataContext = Map("mp_flat") }, new RoutedEventArgs()]);
         start.Invoke(panel, [new Button { DataContext = Map("zm_notmap") }, new RoutedEventArgs()]);
         Program.Check(Map("zm_notmap").State == RunStates.Queued && Map("zm_notmap").Note == "Waiting" && panel.IsDownloading, "a second download waits its turn");
         Pump(() => !panel.IsDownloading, 30);
-        Program.Check(Map("mp_flat").State == RunStates.Done && Map("mp_flat").Local == LocalCopies.Current && File.Exists(Path.Combine(scratch, "out", "t7", "mp_flat", "mp_flat.ff")),
+        Program.Check(Map("mp_flat").State == RunStates.Done && Map("mp_flat").Local == LocalCopies.Current && File.Exists(Path.Combine(scratch, "out", "usermaps", "mp_flat", "mp_flat.ff")),
             "Download in the tab fetches the map into the output folder and marks it Downloaded");
         Program.Check(Map("zm_notmap").State == RunStates.Failed && Map("zm_notmap").ActionText == "Retry" && Map("zm_notmap").Note.StartsWith("The download holds no zm_notmap.ff"),
             $"a failed one says why and offers Retry ({Map("zm_notmap").Note})");
@@ -448,13 +448,13 @@ internal static class CommunityChecks
             && File.Exists(Path.Combine(onConsole, "snd", "all", "mp_flat.all.sabl")) && !Map("mp_flat").CanStart && Map("mp_flat").CanResend,
             $"Send to console copies the map over and the row says it is on the console ({Map("mp_flat").Note})");
 
-        Directory.Delete(Path.Combine(scratch, "out", "t7", "mods", "coolmod"), true);
+        Directory.Delete(Path.Combine(scratch, "out", "mods", "coolmod"), true);
         Set("_sendToConsole", true);
         panel.SettingsChanged();
         start.Invoke(panel, [new Button { DataContext = Map("coolmod") }, new RoutedEventArgs()]);
         Pump(() => !panel.IsDownloading, 30);
         Program.Check(Map("coolmod").State == RunStates.Done && Map("coolmod").Local == LocalCopies.None && Map("coolmod").Sent && Map("coolmod").Note == "On the console"
-            && File.Exists(console.Local("/data/BO3-Customs/mods/coolmod/core_mod.ff")) && !Directory.Exists(Path.Combine(scratch, "out", "t7", "mods", "coolmod")),
+            && File.Exists(console.Local("/data/BO3-Customs/mods/coolmod/core_mod.ff")) && !Directory.Exists(Path.Combine(scratch, "out", "mods", "coolmod")),
             $"with the option on, a download goes straight on to the console, a mod into mods, and the PC copy is cleared once it is there ({Map("coolmod").Note})");
         Program.Render(host, Path.Combine(scratch, "community_console.png"));
 
@@ -496,7 +496,7 @@ internal static class CommunityChecks
         Program.Check(Shown().SequenceEqual(["mp_flat"]), "Multiplayer shows only the multiplayer maps");
         ((RadioButton)panel.FindName("ModsFilter")).IsChecked = true;
         Program.Check(Shown().SequenceEqual(["coolmod", "zm_looks_like_a_map", "weaponpack"])
-            && settings.CommunityFolder(Map("coolmod")) == Path.Combine(scratch, "out", "t7", "mods", "coolmod"), "Mods shows only the mods, and they save under mods");
+            && settings.CommunityFolder(Map("coolmod")) == Path.Combine(scratch, "out", "mods", "coolmod"), "Mods shows only the mods, and they save under mods");
         Program.Render(host, Path.Combine(scratch, "community_mods.png"));
         search.Text = "weapon";
         Program.Check(Shown().SequenceEqual(["weaponpack"]) && Count("ModsCount") == "1" && Count("ZombiesCount") == "0" && Count("AllCount") == "1", "search and a filter work together, and the counts follow the search");
