@@ -4,7 +4,7 @@ Read `AGENTS.md` and the authoritative section at the top of [the SPRX stability
 
 - **Scope:** SPRX/runtime only, including companion Lua where it is part of SPRX behavior. FFPorter issue #32, Osiris and unrelated projects are deferred.
 - **Repository:** `Zorian1337/PS4-BO3-Customs`, branch `main`.
-- **Current main:** `c092e86393ba61b79da9a669b734579dda8e4147` (documentation-only commits after the build).
+- **Current main:** `main` (documentation-only follow-ups after the verified source build).
 - **Last verified buildable source:** `db015da32383c1f6196e78e04585b00d18f94e03`.
 - **PR #50:** merged; corrects the FolderScanStatus declaration and adds a source-line regression. PR #49 is closed unmerged as superseded.
 - **Latest target build:** [BO3 Auto Build #44247367325](https://github.com/Zorian1337/PS4-BO3-Customs/actions/runs/44247367325) completed successfully. All 14 native translation units compiled, GoldHEN link/package succeeded, native module/container validation passed, and the final workflow gate succeeded.
