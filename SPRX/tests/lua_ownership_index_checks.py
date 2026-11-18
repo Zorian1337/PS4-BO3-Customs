@@ -38,6 +38,7 @@ int main(){
  assert(T7LuaOwnership::ShouldRetainLua(true, true, false, false));
  assert(!T7LuaOwnership::ShouldRetainLua(false, true, false, false));
  assert(T7LuaOwnership::ShouldRetainLua(true, false, true, true));
+ assert(!T7LuaOwnership::ShouldRetainLua(true, false, true, false));
  assert(!T7LuaOwnership::ShouldRetainLua(true, false, false, true));
 
  // Deterministically pause a production Mark() after the in-flight
