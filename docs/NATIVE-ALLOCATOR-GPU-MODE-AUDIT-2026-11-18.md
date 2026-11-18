@@ -178,3 +178,10 @@ PR #40 remains draft research groundwork only. Its production reserve hook was r
 The FolderScanStatus compile correction was merged in PR #50 as source commit `db015da32383c1f6196e78e04585b00d18f94e03`. BO3 Auto Build run #44247367325 completed successfully on that exact commit. The host regression job passed; the PS4 SPRX job compiled all 14 native translation units, linked and packaged the GoldHEN SPRX, passed native module/container validation and malformed-container rejection checks, and uploaded the run-specific SPRX and native evidence artifacts. The workflow's final completeness gate also passed.
 
 This resolves the previously documented target-build blocker and establishes source buildability for that commit. It does not resolve the separate runtime investigations in this audit: XAssetEntry reserve integration, GPU fault attribution, native zone/clientfield ownership and third-party GSC/map-loading failures remain open. No console test, FTP deployment or release was performed.
+
+
+## Follow-up buildability verification — PR #52 — 2026-11-18
+
+After the FolderScanStatus correction and bounded rawfile-name read, PR #52 added nonblocking optional Lua fallback lookup and atomic companion-Lua cache publication. Its production concurrency fixture passed both AddressSanitizer/UBSan and ThreadSanitizer. The merged source commit `532a6b682cba6120a9d6518a0a7ece592e776a66` passed BO3 Auto Build run #44248692943: all 14 native translation units compiled, GoldHEN linking/packaging succeeded, native module/container validation and malformed-container rejection passed, and the final workflow gate succeeded. The Debug SPRX artifact SHA-256 is `6f3cceaadc33d3a34f666c5c49d6bdf76c030942c61f665ccbc19c3034329453`.
+
+This verifies buildability for the exact PR #52 source commit. It does not resolve the open allocator ABI/index/lock questions, GPU ownership attribution, zone/clientfield lifecycle or third-party GSC/map-loading incidents. It is not console validation and does not claim those runtime issues are fixed.
