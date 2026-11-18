@@ -6,9 +6,9 @@
 
 namespace XAssetReserveIndex
 {
-// The supported PS4 executable stores all three XAssetEntry chain links as
-// uint32_t and zero-extends them before multiplying by the 32-byte stride.
-// Index zero is the null sentinel; the full non-zero uint32_t range is valid.
+// Candidate arithmetic model only: observed native consumers load selected
+// chain fields as uint32_t and zero-extend them before 32-byte-stride address
+// calculation. This does not prove every consumer, sentinel, bound or ABI.
 inline bool TryEncodeIndex(uintptr_t tableBase, uintptr_t entryAddress,
                            uint32_t entryStride, uint32_t& encoded)
 {
@@ -33,7 +33,7 @@ inline bool TryEncodeIndex(uintptr_t tableBase, uintptr_t entryAddress,
     return true;
 }
 
-// Decode the native unsigned index to its exact address. Reject zero and
+// Decode a candidate unsigned index to its exact address. Reject zero and
 // pointer overflow without modifying the caller's output.
 inline bool TryDecodeIndex(uintptr_t tableBase, uint32_t encoded,
                            uint32_t entryStride, uintptr_t& entryAddress)
