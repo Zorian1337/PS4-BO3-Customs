@@ -338,3 +338,10 @@ executables. The separate diagnostic reader and publication guard have 13 unit
 tests. The SDK header and native artifact comparisons require explicit matching
 inputs and are not silently replaced by host stubs. These checks do not establish
 console stability; GPU/native stall and repeated menu re-entry validation remain open.
+
+
+## Retired custom-image callback follow-up (2026-11-18)
+
+PR #39 now has a process-lifetime, 1,024-entry no-eviction tombstone registry for retired custom image addresses. When full, it keeps active ownership records and refuses stale-image replacement. The delayed callback path distinguishes live stock-slot reuse from freed/different custom slots and preserves stock native argument/result behavior. The production-hook ASan/UBSan fixture covers record reuse, repeated delayed callbacks, stock reuse, stale generations and capacity exhaustion. All six PR workflows pass on head `481d4d4952952f07a52c60e6605197b11474473d`; 47 host regression programs pass. Console validation remains open.
+
+PR #42 adds bounded rawfile asset-name copying and safe diagnostic formatting. All six workflows pass on head `bfc2673bd9e5acd816408fca4fc7681fe172380c`, including 43 host regressions. It is ready for review, not merged. Neither PR has a native target build or console result.
