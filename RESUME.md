@@ -358,7 +358,7 @@ of a pool allocator failure or of the reported map crash.
 ## Current continuation — shared XAssetEntry registry (#30)
 
 Active source branch: `recovery/xasset-entry-index-safety`.
-Draft PR will carry a pure, checked signed-32-bit XAssetEntry index conversion helper, exhaustive host boundary/residue coverage, and a saved issue/solution plan. This is only the first verifiable slice of #30; no native allocator hook, reserve mapping, SPRX build, upload or console validation has been performed.
+Draft PR carries pure, checked signed-32-bit XAssetEntry index conversion and whole-page range validation, exhaustive host boundary/residue coverage, and a saved issue/solution plan. This is only the first verifiable slice of #30; no native allocator hook, reserve mapping, SPRX build, upload or console validation has been performed.
 
 Read [the XAssetEntry reserve-index safety plan](docs/XASSET-RESERVE-INDEX-SAFETY.md) and the P1 section in the stability roadmap before continuing. The runtime fix must wait for the exact supported-build allocator signature, table/free-list layout and all native index consumers. Preserve the original table and fatal behavior on any unverified or failed reserve mapping.
 
