@@ -3,6 +3,7 @@ from pathlib import Path
 import os,subprocess,tempfile
 root=Path(__file__).resolve().parents[1]
 fixture=r'''
+#include <thread>
 #include "t7_lua_ownership.hpp"
 static std::atomic<bool> g_ownershipPauseMark{false};
 static std::atomic<bool> g_ownershipMarkEntered{false};
