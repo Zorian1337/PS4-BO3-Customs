@@ -22,6 +22,7 @@ constexpr int      kPixelFormat   = 0x14;
 constexpr int      kImageFlags    = 4;
 constexpr int      kMaxElements   = 0x4E20;
 constexpr int      kMaxPictures   = 128;
+constexpr int      kRetiredPictureMax = 1024;
 constexpr size_t   kMaxFileBytes  = 48u * 1024 * 1024;
 
 constexpr int kPreviewWidth  = 640;
@@ -67,6 +68,10 @@ struct Picture
 static uintptr_t g_base = 0;
 static Picture   g_pictures[kMaxPictures];
 static int       g_pictureCount = 0;
+static Picture   g_retiredPictures[kRetiredPictureMax];
+static uint32_t  g_retiredPictureCount = 0;
+static bool      g_retiredPictureLimitLogged = false;
+static FindAsset_t g_findAsset = nullptr;
 
 static Detour g_registerDetour{};
 static void*  g_registerOriginal = nullptr;
@@ -350,8 +355,11 @@ static bool IsPictureName(const char* name)
 
 static bool StillOurs(const Picture& picture);
 
-static Picture* FindPicture(uint64_t image)
+static Picture* PictureByAddress(uint64_t image, bool* retired)
 {
+    if (retired)
+        *retired = false;
+
     if (!image)
         return nullptr;
 
@@ -359,6 +367,16 @@ static Picture* FindPicture(uint64_t image)
     {
         if (g_pictures[i].image == image)
             return &g_pictures[i];
+    }
+
+    for (uint32_t i = 0; i < g_retiredPictureCount; ++i)
+    {
+        if (g_retiredPictures[i].image == image)
+        {
+            if (retired)
+                *retired = true;
+            return &g_retiredPictures[i];
+        }
     }
 
     return nullptr;
@@ -370,6 +388,43 @@ static bool StillOurs(const Picture& picture)
            RangeReadable((uintptr_t)picture.image + kSlotName, 64) &&
            RangeReadable((uintptr_t)picture.image + kSlotInUse, 1) && *(uint8_t*)(picture.image + kSlotInUse) &&
            strncmp((const char*)(picture.image + kSlotName), picture.name, 63) == 0;
+}
+
+static bool RetirePicture(const Picture& picture)
+{
+    if (!picture.image)
+        return true;
+
+    for (uint32_t i = 0; i < g_retiredPictureCount; ++i)
+    {
+        if (g_retiredPictures[i].image == picture.image)
+        {
+            g_retiredPictures[i] = picture;
+            return true;
+        }
+    }
+
+    // Never evict an address: a delayed callback may still carry it. When the
+    // fixed registry is full, callers keep the active record and stop creating
+    // new custom images rather than losing the ownership history.
+    if (g_retiredPictureCount >= kRetiredPictureMax)
+        return false;
+
+    g_retiredPictures[g_retiredPictureCount++] = picture;
+    return true;
+}
+
+static bool IsLiveStockImage(uint64_t image)
+{
+    if (!image || image > UINTPTR_MAX - (kSlotName + 64) ||
+        !RangeReadable((uintptr_t)image + kSlotName, 64) ||
+        !RangeReadable((uintptr_t)image + kSlotInUse, 1) ||
+        !*(uint8_t*)(image + kSlotInUse))
+        return false;
+
+    // A reused native slot is valid for stock images. A different custom
+    // preview remains guarded by the retired-address record.
+    return !IsPictureName((const char*)(image + kSlotName));
 }
 
 static uint64_t RetryPicture(Picture& picture)
@@ -418,6 +473,16 @@ static uint64_t PictureFor(const char* name)
 
         if (picture.image && !StillOurs(picture))
         {
+            if (!RetirePicture(picture))
+            {
+                if (!g_retiredPictureLimitLogged)
+                {
+                    T7Log_Write("[MapImages] retired-image registry full; new custom images are disabled to preserve callback safety");
+                    g_retiredPictureLimitLogged = true;
+                }
+                return 0;
+            }
+
             picture.image = 0;
             picture.retryAfter = 0;
         }
@@ -572,24 +637,46 @@ static uint64_t SetImage_h(uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, u
         (*(uint32_t*)at & 0xF) == kTypeLightUserdata)
     {
         const uint64_t image = *(uint64_t*)(at + 8);
-        Picture* const picture = FindPicture(image);
+        bool retired = false;
+        Picture* const picture = PictureByAddress(image, &retired);
 
         if (!picture)
             return ((Hook_t)g_setImageOriginal)(a1, a2, a3, a4, a5, a6, x0, x1, x2, x3, x4, x5, x6, x7);
 
-        // A stale element handle must never be forwarded with the retired
-        // custom-image pointer. ElementArgument validates its index/generation.
+        // A stale element handle must never be forwarded with a retired custom
+        // image pointer. ElementArgument validates its index/generation.
         const uint64_t element = ElementArgument(a1);
 
         if (!element)
             return 0;
 
-        // Registration-time ownership is not enough: the native image slot
-        // may have been retired and reused before this delayed draw callback.
+        // Registration-time ownership is not enough: a callback may arrive
+        // after retirement or after the native slot has been reused.
         if (!StillOurs(*picture))
         {
-            const uint64_t white = ((FindAsset_t)(g_base + kFindAsset))(kImageType, "$white", 0, 0);
-            if (white)
+            if (!retired)
+            {
+                if (RetirePicture(*picture))
+                {
+                    picture->image = 0;
+                    picture->retryAfter = 0;
+                }
+                else if (!g_retiredPictureLimitLogged)
+                {
+                    T7Log_Write("[MapImages] retired-image registry full; retaining active ownership record");
+                    g_retiredPictureLimitLogged = true;
+                }
+            }
+
+            // If the address now belongs to a live non-custom image, preserve
+            // the native path. Never forward a freed or different custom slot.
+            if (IsLiveStockImage(image))
+                return ((Hook_t)g_setImageOriginal)(a1, a2, a3, a4, a5, a6, x0, x1, x2, x3, x4, x5, x6, x7);
+
+            const uint64_t white = g_findAsset ? g_findAsset(kImageType, "$white", 0, 0) : 0;
+            if (white && white <= UINTPTR_MAX - kImageStreamed &&
+                RangeReadable((uintptr_t)white + kImageStreamed, 1) &&
+                !*(uint8_t*)(white + kImageStreamed))
             {
                 *(uint64_t*)(element + kElementImage) = white;
                 *(uint8_t*)(element + kElementFlags) &= (uint8_t)~2;
@@ -651,6 +738,7 @@ void T7MapImages_Install(uintptr_t base)
     }
 
     g_base = base;
+    g_findAsset = (FindAsset_t)(base + kFindAsset);
 
     if (!g_setImageOriginal)
         Detour_Attach(&g_setImageDetour, (uint64_t)(base + kSetImage), (void*)SetImage_h, &g_setImageOriginal);
