@@ -299,6 +299,13 @@ inputs and are not silently replaced by host stubs. These checks do not establis
 console stability; GPU/native stall and repeated menu re-entry validation remain open.
 
 
+## Current review update (2026-11-18)
+
+PR #39's source head `481d4d4952952f07a52c60e6605197b11474473d` passes all six workflows and 47 host regression programs. The delayed custom-image callback gap is addressed with a 1,024-entry process-lifetime no-eviction tombstone registry, fail-closed capacity behavior, stock-slot reuse passthrough and a production-hook ASan/UBSan regression. The later docs/workflow-summary-only head `2f03c992144aeb2f88f1364346b4ddbfe36d4ae6` is awaiting its project-session guard. PR remains draft; no target build or console test.
+
+PR #42 bounds rawfile asset-name reads and diagnostic formatting. All six workflows, source-policy audit, publication guard and 43 host regressions pass on `bfc2673bd9e5acd816408fca4fc7681fe172380c`. It is ready for review, not merged. Neither PR has a native target build or console result.
+
+
 ## Lua rawfile asset-name bounds (2026-11-17)
 
 A source review found that `FindXAsset()` validated only 16 bytes of a game-owned rawfile name before scanning up to 191 bytes, and its missing-config log formatted the original pointer after checking only four bytes. The `fix/lua-asset-name-bounds` branch adds `CopyAssetName()` with validated chunk reads and routes the diagnostic through the bounded copy. A focused ASan/UBSan regression covers page-edge and unterminated inputs. Native lookup arguments/results and Lua retention semantics are unchanged. Full source-policy audit, publication-guard tests and all 43 registered host regressions pass on head `984c395a87a9205d894e7ce9bf235e6e5f830498`; console validation remains pending; see [the investigation](INVESTIGATION-2026-11-17-LUA-ASSET-NAME-BOUNDS.md).
