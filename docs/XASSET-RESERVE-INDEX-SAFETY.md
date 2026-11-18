@@ -159,3 +159,18 @@ The native allocator ABI and primary global free-list representation are now par
 - Only after these checks, add a production-body host fixture for the real allocator fast path, empty-list failure, reserve-page publication, free/reuse, concurrent allocation/free, mapping failure and ABI passthrough.
 
 This section is based on the saved matching PS4 executable analysis, not original source. Ghidra pseudocode is evidence for the observed control/data flow but is not a substitute for validating instruction bytes, calling conventions, runtime addresses and synchronization on the exact retail build.
+
+
+## Review correction — speculative runtime hook removed (2026-11-18)
+
+A later revision of PR #40 briefly added a production reserve-page routine called from the SPRX LinkXAsset hook. Full review against the saved executable decompilation found that this was not safe to retain:
+
+- LinkXAsset is a link-stage hook, not the recovered native XAssetEntry allocator boundary. Its timing does not prove reserve capacity is published before every native allocation attempt.
+- The implementation treated the value at image offset 0x0CF60BB4 being equal to 1 as proof that the current worker held the global registry lock. A shared lock-state value does not identify the owning thread. Another worker could hold it while this hook runs.
+- The saved decompilation of FUN_008583b0 shows the global free-list head DAT_05d26718 is popped before the code later acquires the 0x0CF60BB4 lock for a separate per-type fallback traversal. That is direct evidence that this lock cannot simply be assumed to serialize the global free-list pop/push path.
+- The proposed discovery flags, slot state, byte/entry counters and publication path were ordinary non-atomic globals reached from a concurrent asset-link hook. The claimed lock ownership was not established, so concurrent calls could race those fields and the shared free-list head.
+- The branch's host tests exercised pure index/page/free-list arithmetic, not the production hook, native lock ownership, concurrent allocator/free paths, or every native chain consumer.
+
+The speculative production reserve implementation and its call from LinkXAsset_h have been removed. PR #40's SPRX/t7_maps.cpp is restored byte-for-byte to the current main version; the standalone arithmetic header and host tests remain as research groundwork only. The header now explicitly labels the unsigned-index interpretation as a candidate model rather than a proven all-consumer contract.
+
+This is a safety correction, not a fix for the registry exhaustion. The native fatal path remains unchanged. Do not reintroduce the hook until the exact allocator entry and ABI, lock ownership, all free-list mutation paths, all index consumers, executable fingerprint, and production-body concurrency tests are verified.
