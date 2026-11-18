@@ -6,6 +6,7 @@
 #include "t7_lua_files.hpp"
 #include "t7_lua_failure.hpp"
 #include "lua_retention_gate.hpp"
+#include "lua_retention_arena.hpp"
 #include <system_service.h>
 
 #include <atomic>
@@ -2334,18 +2335,26 @@ struct RetainedLuaBlock
 
 static RetainedLuaBlock* g_retainedLuaBlocks = nullptr;
 static std::atomic<size_t> g_retainedLuaMapped{0};
+static std::atomic<size_t> g_retainedLuaReusableBytes{0};
 static std::atomic<int32_t> g_retainedLuaMapError{0};
 static std::atomic<size_t> g_retainedLuaMapRequest{0};
 
-// Caller owns g_retainedLuaLock. Keep bytecode out of the libc heap used to
-// load companion scripts, PNGs and other transient frontend data.
+// Caller owns g_retainedLuaLock. Blocks and returned bytecode addresses remain
+// process-lifetime stable, but every block's unused tail is reusable. Search
+// the complete chain before mapping: checking only the newest block strands
+// free space whenever a larger allocation rolls over to a new block.
 static void* AllocateRetainedLua(size_t bytes)
 {
+    if (bytes > SIZE_MAX - 15)
+        return nullptr;
     bytes = (bytes + 15) & ~(size_t)15;
-    RetainedLuaBlock* block = g_retainedLuaBlocks;
-    if (!block || bytes > block->size - block->used)
+
+    RetainedLuaBlock* block = T7LuaRetentionArena::FindBlockWithSpace(g_retainedLuaBlocks, bytes);
+    if (!block)
     {
         const size_t header = (sizeof(RetainedLuaBlock) + 15) & ~(size_t)15;
+        if (bytes > SIZE_MAX - header - 0x3FFF)
+            return nullptr;
         const size_t required = (header + bytes + 0x3FFF) & ~(size_t)0x3FFF;
         const size_t mapped = g_retainedLuaMapped.load(std::memory_order_relaxed);
         if (mapped > kRetainedLuaBudget || required > kRetainedLuaBudget - mapped)
@@ -2353,20 +2362,28 @@ static void* AllocateRetainedLua(size_t bytes)
         size_t size = required < 256u * 1024u ? 256u * 1024u : required;
         if (size > kRetainedLuaBudget - mapped)
             size = required;
-        void* memory = nullptr;
-        const int32_t mappedResult = sceKernelMmap(0, size, 1 | 2, 0x1000 | 0x2, -1, 0, &memory);
+        if (size < required)
+            return nullptr;
+
+        void* allocation = nullptr;
+        const int32_t mappedResult = sceKernelMmap(0, size, 1 | 2, 0x1000 | 0x2, -1, 0, &allocation);
         g_retainedLuaMapError.store(mappedResult, std::memory_order_relaxed);
         g_retainedLuaMapRequest.store(size, std::memory_order_relaxed);
-        if (mappedResult < 0 || !memory) return nullptr;
-        block = (RetainedLuaBlock*)memory;
+        if (mappedResult < 0 || !allocation)
+            return nullptr;
+
+        block = (RetainedLuaBlock*)allocation;
         block->next = g_retainedLuaBlocks;
         block->size = size;
         block->used = header;
         g_retainedLuaBlocks = block;
         g_retainedLuaMapped.store(mapped + size, std::memory_order_release);
+        g_retainedLuaReusableBytes.fetch_add(size - header, std::memory_order_relaxed);
     }
+
     void* const memory = (char*)block + block->used;
     block->used += bytes;
+    g_retainedLuaReusableBytes.fetch_sub(bytes, std::memory_order_relaxed);
     return memory;
 }
 
@@ -2377,12 +2394,19 @@ static uint64_t RetainLuaFailure(const char* name, uint64_t original, const char
                                           (const char*)kLuaRetentionFailure };
     const uint32_t count = g_retainedLuaFailures.fetch_add(1, std::memory_order_relaxed) + 1;
     if (log && (count <= 4 || (count & (count - 1)) == 0))
-        T7Log_Write("[Lua] rejected %s before loading borrowed bytecode: %s (%u failures, %llu mapped bytes); mod removal remains available",
-                    name, reason, count, (unsigned long long)g_retainedLuaMapped.load(std::memory_order_relaxed));
+        T7Log_Write("[Lua] rejected %s before loading borrowed bytecode: %s (%u failures, retained=%llu mapped=%llu reusable=%llu headers=%u); mod removal remains available",
+                    name, reason, count,
+                    (unsigned long long)g_retainedLuaBytes.load(std::memory_order_relaxed),
+                    (unsigned long long)g_retainedLuaMapped.load(std::memory_order_relaxed),
+                    (unsigned long long)g_retainedLuaReusableBytes.load(std::memory_order_relaxed),
+                    g_retainedLuaCount.load(std::memory_order_relaxed));
     if (log && count <= 4 && strcmp(reason, "dedicated bytecode arena allocation failed") == 0)
-        T7Log_Write("[Lua] retention mapping request=%llu result=0x%X",
+        T7Log_Write("[Lua] retention mapping request=%llu result=0x%X retained=%llu reusable=%llu headers=%u",
                     (unsigned long long)g_retainedLuaMapRequest.load(std::memory_order_relaxed),
-                    (unsigned)g_retainedLuaMapError.load(std::memory_order_relaxed));
+                    (unsigned)g_retainedLuaMapError.load(std::memory_order_relaxed),
+                    (unsigned long long)g_retainedLuaBytes.load(std::memory_order_relaxed),
+                    (unsigned long long)g_retainedLuaReusableBytes.load(std::memory_order_relaxed),
+                    g_retainedLuaCount.load(std::memory_order_relaxed));
     return (uint64_t)&rejected;
 }
 
