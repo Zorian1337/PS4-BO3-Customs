@@ -220,4 +220,4 @@ This is arithmetic groundwork only. It does not map or publish reserve memory, v
 - [ ] Implement reserve-page mapping/publication only after the native contract is proven; test mapping failure, cleanup, cap, reuse, and original fast-path ABI.
 - [ ] Reproduce the nine-mod dev.66 exhaustion case in a fresh process with the matching build and verify no regression after the runtime fix.
 
-The helper remains arithmetic-only and is not wired into production. CI #530 and #320 passed on the pre-decode commit 58d33d0; the new decode helper and test additions require fresh CI. No PS4 target build, SPRX upload, or console test was performed.
+The helper remains arithmetic-only and is not wired into production. Latest PR head 91cc1e6 passed SPRX diagnostics run 44208924179 and project-session guard run 44208924265; the full registered host inventory reports 43 regression programs with zero failures, including the new encode/decode/page-selection fixture. No PS4 target build, SPRX upload, or console test was performed.
