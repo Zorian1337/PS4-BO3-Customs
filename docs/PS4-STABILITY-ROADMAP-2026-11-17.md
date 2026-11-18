@@ -156,7 +156,31 @@ fixed without explicit approval and matching evidence.
 - [ ] Revisit script bytecode and rawfile retention only with before/after
   memory measurements and guaranteed mod-disable/revert behavior.
 
-## GitHub cleanup audit (2026-11-17)\n\nReviewed all 10 open issues and every open PR in `Zorian1337/PS4-BO3-Customs`.\nPR #36 is now merged; it was the only open PR. No issue was closed because\neach remaining issue still has an unresolved source, reproduction, package,\nor console-validation requirement. Issue #32 received a status comment\nclarifying that its focused converter checks do not replace a complete package\nconversion with sound, movies and `acts` enabled plus a console load. The\nrapid X/back symptom in #29 was reported fixed on dev.65, but the corresponding\nsource correction is still documented as local/uncommitted, so it is not yet\nclosed as a repository fix.\n\n## Other open workstreams — issue triage
+
+
+## Current PR review and source recovery (2026-11-17)
+
+Five PRs are open; none is approved for merge by this review.
+
+| PR | Branch / scope | CI and source review | Next gate |
+|---|---|---|---|
+| [#41 Blood Run bootstrap regression](https://github.com/Zorian1337/PS4-BO3-Customs/pull/41) | Production-Lua test for the existing absent-only `Mods_IsUsingUsermap` fallback | Diagnostics and project-session checks pass on `eb7344720765748a8bad335ccb2eb09cdbfc41b2`; no GSC behavior changed | Keep open; obtain matching Blood Run GSC source and a clean-start console capture for gameplay/pause failures |
+| [#40 XAssetEntry index groundwork](https://github.com/Zorian1337/PS4-BO3-Customs/pull/40) | Checked encode/decode and reserve-page index arithmetic only | Source-policy and diagnostics checks pass on `02e710f85a25d04ccad3f54fd07deffe1d4f2561); no native hook or mapping | Keep draft; resolve signed/unsigned native index semantics and prove allocator/free-list ABI, all consumers, thread synchronization and supported build fingerprint |
+| [#39 combined UI/image and stream recovery](https://github.com/Zorian1337/PS4-BO3-Customs/pull/39) | Recreates dev.65 transition/image guards and dev.69 bounded stream diagnostics | Six workflows pass; 46 host regression programs pass. Review found a stale custom-image callback can escape tracking after `PictureFor()` clears/replaces its old pointer, then pass through `FindPicture()==nullptr` to native `SetImage`. A review comment is recorded on the PR | Keep draft; retain retired-address ownership with a fail-closed capacity policy and add a regression after record reuse. Then review native slot reuse and retest all workflows |
+| [#38 standalone UI/image guards](https://github.com/Zorian1337/PS4-BO3-Customs/pull/38) | Earlier standalone implementation of part of #39 | Superseded by combined #39; not independently accepted | Do not merge independently |
+| [#37 standalone stream diagnostics](https://github.com/Zorian1337/PS4-BO3-Customs/pull/37) | Earlier standalone implementation of part of #39 | Superseded by combined #39; not independently accepted | Do not merge independently |
+
+### Issue-specific boundaries
+
+- **#30 XAssetEntry exhaustion:** the dev.67 reserve-page runtime correction is not present in public `main`. PR #40 is arithmetic groundwork, not an allocator fix. The observed native chain consumer uses `uint32_t`; the positive signed-32 assumption needs proof before any production integration.
+- **#29 rapid X/back:** the tester reported the dev.65 symptom improved, but the reconstructed PR #39 source still has the retired-address gap above. Keep the issue open until the source is corrected and a fresh console reproduction is recorded.
+- **#33 Buried backend crash:** PR #39 restores bounded rejection diagnostics only. It does not fix RIP `0xFA2A98`; reproduce without mods and correlate the first fault with a matching executable.
+- **#31 Blood Run:** PR #41 validates only the missing-global fallback. Repeated GSC invalid-value errors, server shutdown, frozen controls and pause behavior remain unresolved.
+- **Lua retention / disable-mod recovery:** any future changes must prove first load, unload, reload, overlapping stack changes, frontend reconstruction, and restoration of original included Lua bytecode. Never trade away the user's ability to disable mods or recover without a crash/reset.
+
+No native SPRX build, upload, release, or console test was performed for these PRs. Host CI is not target ABI or runtime proof. Preserve the current build-approval boundary in `AGENTS.md`.
+
+## Other open workstreams — issue triage
 
 These tracks are separate from PR #36. Keep their evidence and acceptance
 criteria independent; do not combine them into a broad stability claim.
