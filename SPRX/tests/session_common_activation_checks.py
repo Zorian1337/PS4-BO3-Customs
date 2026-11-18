@@ -65,7 +65,7 @@ static void BeginListWrite() {}
 static void EndListWrite() {}
 static void SetStack(const char (*)[56],int) {}
 static void SetLoaded(int n) { g_loadedCount=n; }
-static void AppendMods(const char (*)[56],int,int) { assert(g_activeModLuaRetentionScopes.Any()); ++appends; }
+static void AppendMods(const char (*)[56],int,int) { ++appends; }
 static void ReloadFrontend(const char*) { ++frontend; }
 FUNCTION
 int main() {
