@@ -57,14 +57,14 @@ static uint64_t Load(const char*zone,uint64_t flag=2){return LoadXFile_h(1,flag,
 static std::atomic<int> phase{0};
 static uint64_t NativeLoad(uint64_t a,uint64_t flag,uint64_t zone,uint64_t d,uint64_t e,uint64_t f,uint64_t g,uint64_t h,double x0,double x1,double x2,double x3,double x4,double x5,double x6,double x7){
  assert(a==1&&d==4&&e==5&&f==6&&g==7&&h==8&&x0==1&&x1==2&&x2==3&&x3==4&&x4==5&&x5==6&&x6==7&&x7==8);
- assert(g_activeModZoneLoads.Any());
+ if(flag==4) assert(!g_activeModZoneLoads.Any()); else assert(g_activeModZoneLoads.Any());
  if(identity==1){phase=1;while(phase<2)std::this_thread::yield();Open();assert(noted==1&&opened=="m2_zm_mod");phase=3;}
  else if(identity==2){phase=2;while(phase<3)std::this_thread::yield();Open();assert(noted==2&&opened=="m3_zm_mod");}
- else if(identity==9){Open();assert(opened==(const char*)zone);if(flag==2){assert(g_activeModZoneLoads.Count()==1);assert(Load("m3_zm_mod",3)==0x9876);assert(g_activeModZoneLoads.Count()==1);Open();assert(opened=="m2_zm_mod");}else assert(g_activeModZoneLoads.Count()==2);}
+ else if(identity==9){if(flag==4){assert(g_activeModZoneLoads.Count()==0);}else{Open();assert(opened==(const char*)zone);if(flag==2){assert(g_activeModZoneLoads.Count()==1);assert(Load("m3_zm_mod",3)==0x9876);assert(g_activeModZoneLoads.Count()==1);Open();assert(opened=="m2_zm_mod");}else assert(g_activeModZoneLoads.Count()==2);}}
  return 0x9876;
 }
 int main(){
- identity=9;assert(Load("m2_zm_mod")==0x9876);assert(!g_activeModZoneLoads.Any());Open();assert(opened=="zm_mod");
+ identity=9;assert(Load("m2_zm_mod")==0x9876);assert(!g_activeModZoneLoads.Any());Open();assert(opened=="zm_mod");assert(Load("core_frontend",4)==0x9876);assert(!g_activeModZoneLoads.Any());
  std::thread a([]{identity=1;assert(Load("m2_zm_mod")==0x9876);Open();assert(opened=="zm_mod");});
  while(phase<1)std::this_thread::yield();
  std::thread b([]{identity=2;assert(Load("m3_zm_mod")==0x9876);Open();assert(opened=="zm_mod");});a.join();b.join();assert(!g_activeModZoneLoads.Any());
@@ -77,4 +77,14 @@ with tempfile.TemporaryDirectory(prefix='zone-context-',dir=root.parent/'build')
         exe=Path(tmp)/('check-'+sanitizer.replace(',','-'))
         subprocess.run([os.environ.get('CXX','g++'),'-std=c++20','-pthread',f'-fsanitize={sanitizer}','-I',str(root),str(cpp),'-o',str(exe)],check=True)
         subprocess.run([str(exe)],check=True,timeout=60)
+# The production policy must allow initial-load retention before g_loadedCount
+# is published, and the rawfile hook must not gate it on T7Maps_UsingMods().
+policy_start=source.index('bool T7Maps_NeedsLuaRetention(')
+policy_end=source.index('\n}',policy_start)+2
+policy=source[policy_start:policy_end]
+assert 'g_activeModZoneLoads.Any()' in policy
+assert 'T7LuaOwnership::ShouldRetainLua' in policy
+lua_source=(root/'t7_lua.cpp').read_text()
+assert 'if (lua && !LuaMissing(result) && T7Maps_NeedsLuaRetention(asset))' in lua_source
+assert 'T7Maps_UsingMods() && T7Maps_NeedsLuaRetention' not in lua_source
 print('PASS: concurrent/nested asset ownership, active mod-zone lifetime and XPAK isolation under ASan/UBSan + TSan')
