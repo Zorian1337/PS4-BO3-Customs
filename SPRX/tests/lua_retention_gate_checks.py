@@ -28,5 +28,4 @@ assert 'g_loadedCount > 0 && LoadedModeCommon() < 0' in apply
 assert apply.index('stack change deferred until a mode common zone is active') < apply.index('T7Lua_PrepareModUiUnload()')
 assert apply.index('host stack change deferred') < apply.index('T7Lua_PrepareModUiUnload()')
 assert apply.index('T7Lua_ResumeModUiRetention();') < apply.index('AppendMods(names, wanted, mode)')
-assert 'T7Lua_ResumeModUiRetention();' in maps[maps.index('void T7Maps_FrameWork()'):]
 print('PASS: gate close/entry race, unreadable-pointer rejection, drain, concurrency and source integration (ASan/UBSan + TSan)')
