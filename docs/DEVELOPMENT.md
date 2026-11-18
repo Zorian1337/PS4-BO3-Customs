@@ -338,3 +338,14 @@ executables. The separate diagnostic reader and publication guard have 13 unit
 tests. The SDK header and native artifact comparisons require explicit matching
 inputs and are not silently replaced by host stubs. These checks do not establish
 console stability; GPU/native stall and repeated menu re-entry validation remain open.
+
+
+## XAssetEntry registry exhaustion — issue #30 (work started)
+
+The issue records a confirmed dev.66 failure: nine selected mods exhaust the shared 152,576-entry XAssetEntry registry, followed by the native Database thread allocation abort. Growing individual asset-type pools cannot resolve this separate registry limit.
+
+The documented dev.67 strategy is to append bounded reserve pages without moving stock entries, preserve native hash/free/unload behavior, and publish only mappings whose 32-byte residue and positive signed-32-bit entry indices round-trip exactly. The implementation still requires independently verified allocator hook ABI, table/free-list layout, consumers and matching executable fingerprints. A guessed hook or structure offset would risk corrupting live asset chains.
+
+The recovery branch `recovery/xasset-entry-index-safety` starts with `SPRX/xasset_reserve_index.hpp` and `SPRX/tests/xasset_reserve_index_tests.cpp`. These isolate and test the address-to-index arithmetic contract, including all 32 residues, addresses above 4 GiB, signed-index limits and invalid inputs. This is not a runtime allocator change and does not fix #30 yet. The dedicated note [docs/XASSET-RESERVE-INDEX-SAFETY.md](XASSET-RESERVE-INDEX-SAFETY.md) records the problem, correction strategy, rejected alternatives and acceptance tests. The C++ test is auto-discovered by the full host runner; fresh CI is pending. No native SPRX build or console test was performed.
+
+Next: recover and independently validate the exact native allocator boundary, all index/free-list consumers and supported-build fingerprints before writing the reserve-page publication path. Preserve native allocation failure behavior if any contract is unknown or a mapping cannot be validated.
