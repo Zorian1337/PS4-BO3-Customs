@@ -28,7 +28,7 @@ This is a high-priority lifetime-safety gap to close, not a proven explanation f
 
 ## Required validation
 
-- A deterministic production-helper test for a reader observing an in-progress key publication.
+- A deterministic production-helper test using a test-only compile-time pause hook to hold `Mark()` after its in-flight guard is active and before key/Bloom publication.
 - ThreadSanitizer on concurrent Mark/MayContain readers and writers.
 - A matching-build DEBUG trace proving link/mark/lookup ordering and pthread identities.
 - Full host workflows and a fresh PS4 target build.
@@ -42,6 +42,6 @@ The first proposed pending-key sentinel would close the exact-key insertion wind
 - `Mark()` increments the in-flight count before hashing or publishing any key/Bloom bits and decrements it only after the complete update; each completion advances a generation.
 - `MayContain()` returns conservative true while any publication is in flight. Otherwise it snapshots the generation, performs the exact-key/Bloom lookup, and rechecks both generation and in-flight count. If a writer overlapped the lookup, it returns true rather than a possible false negative.
 - This deliberately permits a brief false positive for an unrelated Lua name while a mod Lua name is being marked. The mark operation is bounded and only applies to Lua rawfiles; safety is preferred over returning a borrowed buffer during publication.
-- The regression will hold a writer in the publication phase using a long test-only name, wait until the production in-flight counter is visible, and assert the reader fails closed. It will also run concurrent Mark/MayContain activity under ThreadSanitizer.
+- The regression will hold a writer in the publication phase using a test-only compile-time pause hook, then assert a concurrent reader fails closed before key/Bloom publication completes. The hook is not compiled into the PS4 target. It will also run concurrent Mark/MayContain activity under ThreadSanitizer.
 
 This closes only the in-flight publication window. It does not prove that native HKS lookup can never occur before `NoteUiFile()` is first called; matching-build link/lookup order and pthread IDs still require evidence.
