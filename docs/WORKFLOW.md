@@ -29,6 +29,10 @@ not the BO3 VM. The SDK header check and native artifact comparison are separate
 explicit checks that require their actual inputs. Do not install dependencies
 or substitute versions silently.
 
+## Mandatory test SPRX filename
+
+Every user-facing test SPRX must be named exactly `BO3-Customs-dev<N>-DEBUG.sprx` (for example, `BO3-Customs-dev70-DEBUG.sprx` for dev.70). Preserve capitalization, hyphens and extension. Apply this name to the actual `.sprx` file inside the delivered artifact and any standalone SPRX download; do not leave the user with the builder's generic `BO3-Customs.sprx` name or a versioned alternate. Keep run/commit IDs and SHA-256 values in the manifest/handoff rather than in the filename. Inspect the archive contents before sharing it.
+
 ## Native candidate, only after approval
 
 See [the OpenOrbis adapter](../SPRX/openorbis/README.md). The maintained builder is
