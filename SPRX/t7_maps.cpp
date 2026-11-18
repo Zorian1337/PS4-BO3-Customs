@@ -65,6 +65,7 @@ constexpr size_t    kAssetEntrySize = 32;
 constexpr size_t    kAssetEntryInUse = 17;
 constexpr size_t    kAssetEntryNext   = 20;
 constexpr uintptr_t kAssetEntryFreeList = 0x5D26718;
+constexpr uintptr_t kAssetEntryActiveCount = 0x5D26720;
 constexpr uintptr_t kAssetEntryRegistryLock = 0x0CF60BB4;
 constexpr size_t    kAssetEntryReserveMapBytes = 1u << 20;
 constexpr size_t    kAssetEntryReservePageBytes = kAssetEntryReserveMapBytes - kAssetEntrySize;
@@ -2511,37 +2512,6 @@ static void DiscoverXAssetEntryReserve(uintptr_t tableBase)
     }
 }
 
-static bool CountFreeXAssetEntries(uintptr_t tableBase, uintptr_t head,
-                                   uint32_t& count)
-{
-    uintptr_t seen[kAssetEntryReserveLowWater + 1] = {};
-    count = 0;
-
-    uintptr_t cursor = head;
-    while (cursor && count <= kAssetEntryReserveLowWater)
-    {
-        uint32_t index = 0;
-        if (!RangeReadable(cursor, sizeof(uintptr_t)) ||
-            !XAssetReserveIndex::TryEncodeIndex(tableBase, cursor,
-                                                kAssetEntrySize, index))
-            return false;
-
-        for (uint32_t i = 0; i < count; ++i)
-            if (seen[i] == cursor)
-                return false; // A short cycle would make the native allocator loop.
-
-        seen[count] = cursor;
-        const uintptr_t next = *(const uintptr_t*)cursor;
-        if (next == cursor)
-            return false;
-
-        ++count;
-        cursor = next;
-    }
-
-    return true;
-}
-
 static bool EnsureXAssetEntryReserve()
 {
     if (!g_base || !g_buildMatched)
@@ -2567,22 +2537,30 @@ static bool EnsureXAssetEntryReserve()
     }
 
     const uintptr_t tableBase = g_base + kAssetEntries;
+    const uintptr_t activeCountAddress = g_base + kAssetEntryActiveCount;
     uintptr_t* const freeHead = (uintptr_t*)freeHeadAddress;
-    uint32_t freeCount = 0;
-    if (!CountFreeXAssetEntries(tableBase, *freeHead, freeCount))
+    if (!RangeReadable(activeCountAddress, sizeof(uint32_t)))
+        return false;
+
+    DiscoverXAssetEntryReserve(tableBase);
+    const uint32_t activeCount = *(volatile const uint32_t*)activeCountAddress;
+    const uint64_t totalCapacity = static_cast<uint64_t>(kAssetHashSize - 1) +
+                                  g_assetEntryReserveEntries;
+    if (activeCount > totalCapacity)
     {
         if (!g_assetEntryReserveWarned)
         {
             g_assetEntryReserveWarned = true;
-            T7Log_Write("[XAsset] reserve skipped: native free-list head or chain failed validation");
+            T7Log_Write("[XAsset] reserve skipped: native active count %u exceeds verified capacity %llu",
+                        activeCount, (unsigned long long)totalCapacity);
         }
         return false;
     }
 
-    if (freeCount > kAssetEntryReserveLowWater)
+    const uint64_t freeCount = totalCapacity - activeCount;
+    if (*freeHead && freeCount > kAssetEntryReserveLowWater)
         return true;
 
-    DiscoverXAssetEntryReserve(tableBase);
     if (g_assetEntryReserveCapped ||
         g_assetEntryReserveBytes > kAssetEntryReserveBudget ||
         kAssetEntryReserveMapBytes > kAssetEntryReserveBudget - g_assetEntryReserveBytes)
@@ -2668,10 +2646,11 @@ static bool EnsureXAssetEntryReserve()
         g_assetEntryReserveEntries += builtEntries;
 
         T7Log_Write("[XAsset] reserve added: %u entries index %u..%u at %p; "
-                    "free-before=%u reserve=%llu/%llu bytes",
-                    builtEntries, firstIndex, lastIndex, mapping, freeCount,
-                    (unsigned long long)g_assetEntryReserveBytes,
-                    (unsigned long long)kAssetEntryReserveBudget);
+                    "free-before=%llu reserve=%llu entries/%llu bytes",
+                    builtEntries, firstIndex, lastIndex, mapping,
+                    (unsigned long long)freeCount,
+                    (unsigned long long)g_assetEntryReserveEntries,
+                    (unsigned long long)g_assetEntryReserveBytes);
         return true;
     }
 
