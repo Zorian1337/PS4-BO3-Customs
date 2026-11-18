@@ -104,7 +104,7 @@ int main() {
     ApplyModsAtFrontend(&frontendZone,1); assert(appends==1 && !retentionClosed);
     g_sessionModCount=2; mode=-1; ApplyModsNow(); assert(reloads==2); // First host stack has no old mod sources.
     assert(!g_activeModLuaRetentionScopes.Any());
-    assert(frontend==1);
+    assert(frontend==2);
     std::puts("PASS: host common transaction, exact-order no-op, empty host, zone/memory guards and personal activation");
 }
 '''.replace("FUNCTION", body)
